@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../services/api.js'
+import { mockLogin, mockAuthMe } from '../services/mockAuth.js'
 
 /**
  * Permission resolution for 5-level system:
@@ -42,6 +43,22 @@ export const useAuthStore = create(
       login: async (email, password) => {
         set({ isLoading: true })
         try {
+          // Usar mock data en desarrollo
+          if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+            const result = await mockLogin(email, password)
+            if (result.success) {
+              set({
+                user: result.user,
+                token: result.token,
+                isAuthenticated: true,
+                isLoading: false,
+              })
+            }
+            set({ isLoading: false })
+            return result
+          }
+          
+          // API real
           const { data } = await api.post('/auth/login', { email, password })
           set({
             user: data.user,
@@ -52,8 +69,10 @@ export const useAuthStore = create(
           return { success: true }
         } catch (error) {
           set({ isLoading: false })
-          const msg = error.response?.data?.error || 'Error de conexión'
-          return { success: false, error: msg }
+          return { 
+            success: false, 
+            error: error.response?.data?.error || 'Error de conexión' 
+          }
         }
       },
 

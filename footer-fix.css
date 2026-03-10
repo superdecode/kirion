@@ -1,0 +1,47 @@
+/* CSS Fix for Footer Text Issue */
+/* Add this CSS to your WordPress Customizer or child theme */
+
+/* Hide empty address information containers */
+#fb-address-information.fb-address-information-hidden {
+    display: none !important;
+}
+
+/* Hide individual empty entries when they have no actual address data */
+.fb-address-entry.fb-address-entry-hidden {
+    display: none !important;
+}
+
+/* Hide address entries when their content is empty */
+.fb-address-entry .address:empty {
+    display: none !important;
+}
+
+/* Hide the entire container if all children are hidden */
+#fb-address-information:not(:has(.fb-address-entry:not(.fb-address-entry-hidden))) {
+    display: none !important;
+}
+
+/* Alternative approach - hide by default, show only when there's content */
+#fb-address-information {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#fb-address-information.has-content {
+    opacity: 1;
+}
+
+/* JavaScript to add has-content class when appropriate */
+/*
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('fb-address-information');
+    if (container) {
+        const hasContent = container.textContent.trim().length > 50;
+        if (hasContent) {
+            container.classList.add('has-content');
+        }
+    }
+});
+</script>
+*/

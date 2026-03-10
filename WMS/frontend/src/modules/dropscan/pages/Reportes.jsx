@@ -164,7 +164,7 @@ export default function Reportes() {
                           contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
                           labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')}
                         />
-                        <Bar dataKey="guias" fill="#ec4899" radius={[4, 4, 0, 0]} name="Guías" />
+                        <Bar dataKey="guias" fill="#9333ea" radius={[4, 4, 0, 0]} name="Guías" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -188,7 +188,7 @@ export default function Reportes() {
                         <Line
                           type="monotone"
                           dataKey="tiempo_promedio_min"
-                          stroke="#ef4444"
+                          stroke="#9333ea"
                           strokeWidth={2}
                           dot={{ r: 4 }}
                           name="Tiempo (min)"
