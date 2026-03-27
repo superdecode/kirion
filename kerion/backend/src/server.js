@@ -14,6 +14,7 @@ import configRoutes from './core/routes/config.routes.js'
 import scanRoutes from './modules/dropscan/routes/scan.routes.js'
 import tarimasRoutes from './modules/dropscan/routes/tarimas.routes.js'
 import dashboardRoutes from './modules/dropscan/routes/dashboard.routes.js'
+import dropscanConfigRoutes from './modules/dropscan/routes/config.routes.js'
 
 const app = express()
 
@@ -46,6 +47,7 @@ app.use('/api/config', configRoutes)
 app.use('/api/dropscan', scanRoutes)
 app.use('/api/dropscan/tarimas', tarimasRoutes)
 app.use('/api/dropscan/dashboard', dashboardRoutes)
+app.use('/api/dropscan/config', dropscanConfigRoutes)
 
 // 404 handler
 app.use((req, res) => {
