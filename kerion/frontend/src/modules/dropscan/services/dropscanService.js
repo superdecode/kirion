@@ -23,11 +23,17 @@ export const getTarimas = (params) =>
 export const getTarimaDetail = (id) =>
   api.get(`/dropscan/tarimas/${id}`).then(r => r.data)
 
-export const lockTarima = (id, razon) =>
-  api.post(`/dropscan/tarimas/${id}/lock`, { razon }).then(r => r.data)
+export const getTarimaDuplicados = (id) =>
+  api.get(`/dropscan/tarimas/${id}/duplicados`).then(r => r.data)
 
-export const unlockTarima = (id) =>
-  api.post(`/dropscan/tarimas/${id}/unlock`).then(r => r.data)
+export const finalizeTarima = (id) =>
+  api.post(`/dropscan/tarimas/${id}/finalize`).then(r => r.data)
+
+export const cancelTarima = (id, razon) =>
+  api.post(`/dropscan/tarimas/${id}/cancel`, { razon }).then(r => r.data)
+
+export const reopenTarima = (id) =>
+  api.post(`/dropscan/tarimas/${id}/reopen`).then(r => r.data)
 
 export const deleteTarima = (id) =>
   api.delete(`/dropscan/tarimas/${id}`).then(r => r.data)
@@ -42,15 +48,9 @@ export const getMetrics = (fecha_inicio, fecha_fin) =>
 export const searchGuias = (q) =>
   api.get('/dropscan/dashboard/guias/search', { params: { q } }).then(r => r.data)
 
-// Config
+// Config (used by Escaneo for session start dropdowns)
 export const getEmpresas = () =>
   api.get('/config/dropscan/empresa').then(r => r.data)
 
 export const getCanales = () =>
   api.get('/config/dropscan/canal').then(r => r.data)
-
-export const createConfig = (data) =>
-  api.post('/config', data).then(r => r.data)
-
-export const updateConfig = (id, data) =>
-  api.put(`/config/${id}`, data).then(r => r.data)
