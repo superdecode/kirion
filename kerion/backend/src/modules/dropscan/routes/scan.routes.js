@@ -48,7 +48,7 @@ router.post('/sessions/start',
       )
       const tarima = tarimaRes.rows[0]
 
-      // Create session
+      // Create session with tarimas array support (stored as tarima_actual_id for backwards compat)
       const sesionRes = await client.query(
         `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id)
          VALUES ($1, $2, $3, $4)
@@ -60,7 +60,8 @@ router.post('/sessions/start',
 
       res.status(201).json({
         sesion: sesionRes.rows[0],
-        tarima_actual: tarima
+        tarima_actual: tarima,
+        tarimas_activas: [tarima] // Array for multi-tarima support
       })
     } catch (error) {
       await client.query('ROLLBACK')
@@ -88,19 +89,30 @@ router.get('/sessions/active',
       )
 
       if (sesionRes.rows.length === 0) {
-        return res.json({ sesion: null, tarima_actual: null, ultimas_guias: [] })
+        return res.json({ sesion: null, tarima_actual: null, tarimas_activas: [], ultimas_guias: [] })
       }
 
       const sesion = sesionRes.rows[0]
 
-      // Get current tarima
+      // Get all active tarimas for this session (EN_PROCESO state, same operator, same session timeframe)
+      const tarimasRes = await query(
+        `SELECT * FROM tarimas 
+         WHERE operador_id = $1 AND estado = 'EN_PROCESO' 
+         AND fecha_inicio >= $2
+         ORDER BY fecha_inicio ASC`,
+        [req.user.id, sesion.fecha_inicio]
+      )
+      const tarimas_activas = tarimasRes.rows
+
+      // Get current tarima (the one marked as tarima_actual_id)
       let tarima = null
       if (sesion.tarima_actual_id) {
-        const tarimaRes = await query('SELECT * FROM tarimas WHERE id = $1', [sesion.tarima_actual_id])
-        tarima = tarimaRes.rows[0] || null
+        tarima = tarimas_activas.find(t => t.id === sesion.tarima_actual_id) || tarimas_activas[0] || null
+      } else if (tarimas_activas.length > 0) {
+        tarima = tarimas_activas[0]
       }
 
-      // Get last 10 scanned guides
+      // Get last 10 scanned guides for current tarima
       let ultimas_guias = []
       if (tarima) {
         const guiasRes = await query(
@@ -112,7 +124,7 @@ router.get('/sessions/active',
         ultimas_guias = guiasRes.rows
       }
 
-      res.json({ sesion, tarima_actual: tarima, ultimas_guias })
+      res.json({ sesion, tarima_actual: tarima, tarimas_activas, ultimas_guias })
     } catch (error) {
       console.error('Get active session error:', error)
       res.status(500).json({ error: 'Error obteniendo sesión activa' })
@@ -129,7 +141,7 @@ router.post('/sessions/:id/scan',
     try {
       await client.query('BEGIN')
       const sessionId = req.params.id
-      const { codigo_guia } = req.body
+      const { codigo_guia, tarima_id } = req.body // tarima_id is optional for multi-tarima support
       const userId = req.user.id
 
       if (!codigo_guia || !codigo_guia.trim()) {
@@ -149,10 +161,11 @@ router.post('/sessions/:id/scan',
       }
       const sesion = sesionRes.rows[0]
 
-      // Get current tarima
+      // Get target tarima (use provided tarima_id or fall back to tarima_actual_id)
+      const targetTarimaId = tarima_id || sesion.tarima_actual_id
       const tarimaRes = await client.query(
-        'SELECT * FROM tarimas WHERE id = $1 AND estado = $2',
-        [sesion.tarima_actual_id, 'EN_PROCESO']
+        'SELECT * FROM tarimas WHERE id = $1 AND estado = $2 AND operador_id = $3',
+        [targetTarimaId, 'EN_PROCESO', userId]
       )
       if (tarimaRes.rows.length === 0) {
         await client.query('ROLLBACK')
@@ -162,14 +175,15 @@ router.post('/sessions/:id/scan',
 
       // Check for duplicate in current tarima
       const dupInTarima = await client.query(
-        'SELECT id FROM guias WHERE codigo_guia = $1 AND tarima_id = $2',
+        'SELECT id, posicion, timestamp_escaneo FROM guias WHERE codigo_guia = $1 AND tarima_id = $2',
         [code, tarima.id]
       )
       if (dupInTarima.rows.length > 0) {
+        const origLocal = dupInTarima.rows[0]
         await client.query(
           `INSERT INTO alertas_duplicados (codigo_guia, tarima_id, operador_id, guia_original_id, tarima_original_id)
            VALUES ($1, $2, $3, $4, $5)`,
-          [code, tarima.id, userId, dupInTarima.rows[0].id, tarima.id]
+          [code, tarima.id, userId, origLocal.id, tarima.id]
         )
         await client.query(
           'UPDATE sesiones_escaneo SET alertas_duplicados = alertas_duplicados + 1 WHERE id = $1',
@@ -179,7 +193,10 @@ router.post('/sessions/:id/scan',
         return res.status(409).json({
           error: 'DUPLICADO',
           message: 'Guía ya escaneada en esta tarima',
-          duplicado_en: 'tarima_actual'
+          duplicado_en: 'tarima_actual',
+          tarima_original: tarima.codigo,
+          posicion_original: origLocal.posicion,
+          timestamp_original: origLocal.timestamp_escaneo
         })
       }
 
@@ -291,6 +308,154 @@ router.post('/sessions/:id/scan',
       res.status(500).json({ error: 'Error escaneando guía' })
     } finally {
       client.release()
+    }
+  }
+)
+
+// POST /api/dropscan/sessions/:id/add-tarima - Create additional tarima for multi-tarima support
+router.post('/sessions/:id/add-tarima',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'crear'),
+  async (req, res) => {
+    const client = await getClient()
+    try {
+      await client.query('BEGIN')
+      const sessionId = req.params.id
+      const userId = req.user.id
+      const maxTarimas = 3 // Maximum simultaneous tarimas
+
+      // Get active session
+      const sesionRes = await client.query(
+        'SELECT * FROM sesiones_escaneo WHERE id = $1 AND operador_id = $2 AND activa = true',
+        [sessionId, userId]
+      )
+      if (sesionRes.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Sesión no encontrada o inactiva' })
+      }
+      const sesion = sesionRes.rows[0]
+
+      // Count current active tarimas for this session
+      const countRes = await client.query(
+        `SELECT COUNT(*) FROM tarimas 
+         WHERE operador_id = $1 AND estado = 'EN_PROCESO' 
+         AND fecha_inicio >= $2`,
+        [userId, sesion.fecha_inicio]
+      )
+      const currentCount = parseInt(countRes.rows[0].count)
+
+      if (currentCount >= maxTarimas) {
+        await client.query('ROLLBACK')
+        return res.status(400).json({ 
+          error: `Máximo ${maxTarimas} tarimas simultáneas permitidas`,
+          current_count: currentCount,
+          max_allowed: maxTarimas
+        })
+      }
+
+      // Generate tarima code
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const numRes = await client.query(
+        `SELECT COUNT(*) FROM tarimas WHERE codigo LIKE $1`,
+        [`TAR-${today}-%`]
+      )
+      const num = parseInt(numRes.rows[0].count) + 1
+      const tarimaCodigo = `TAR-${today}-${String(num).padStart(3, '0')}`
+
+      // Create new tarima
+      const tarimaRes = await client.query(
+        `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [tarimaCodigo, sesion.empresa_id, sesion.canal_id, userId]
+      )
+      const newTarima = tarimaRes.rows[0]
+
+      // Update session to point to new tarima as current
+      await client.query(
+        'UPDATE sesiones_escaneo SET tarima_actual_id = $1 WHERE id = $2',
+        [newTarima.id, sessionId]
+      )
+
+      // Get all active tarimas
+      const allTarimasRes = await client.query(
+        `SELECT * FROM tarimas 
+         WHERE operador_id = $1 AND estado = 'EN_PROCESO' 
+         AND fecha_inicio >= $2
+         ORDER BY fecha_inicio ASC`,
+        [userId, sesion.fecha_inicio]
+      )
+
+      await client.query('COMMIT')
+
+      res.status(201).json({
+        success: true,
+        nueva_tarima: newTarima,
+        tarimas_activas: allTarimasRes.rows,
+        total_activas: allTarimasRes.rows.length
+      })
+    } catch (error) {
+      await client.query('ROLLBACK')
+      console.error('Add tarima error:', error)
+      res.status(500).json({ error: 'Error creando tarima adicional' })
+    } finally {
+      client.release()
+    }
+  }
+)
+
+// POST /api/dropscan/sessions/:id/switch-tarima - Switch active tarima
+router.post('/sessions/:id/switch-tarima',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const sessionId = req.params.id
+      const { tarima_id } = req.body
+      const userId = req.user.id
+
+      if (!tarima_id) {
+        return res.status(400).json({ error: 'tarima_id es requerido' })
+      }
+
+      // Verify session and tarima belong to user
+      const sesionRes = await query(
+        'SELECT * FROM sesiones_escaneo WHERE id = $1 AND operador_id = $2 AND activa = true',
+        [sessionId, userId]
+      )
+      if (sesionRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Sesión no encontrada' })
+      }
+
+      const tarimaRes = await query(
+        `SELECT * FROM tarimas WHERE id = $1 AND operador_id = $2 AND estado = 'EN_PROCESO'`,
+        [tarima_id, userId]
+      )
+      if (tarimaRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Tarima no encontrada o no activa' })
+      }
+
+      // Update session to point to selected tarima
+      await query(
+        'UPDATE sesiones_escaneo SET tarima_actual_id = $1 WHERE id = $2',
+        [tarima_id, sessionId]
+      )
+
+      // Get guides for the switched tarima
+      const guiasRes = await query(
+        `SELECT id, codigo_guia, posicion, timestamp_escaneo
+         FROM guias WHERE tarima_id = $1
+         ORDER BY posicion DESC LIMIT 10`,
+        [tarima_id]
+      )
+
+      res.json({
+        success: true,
+        tarima_actual: tarimaRes.rows[0],
+        ultimas_guias: guiasRes.rows
+      })
+    } catch (error) {
+      console.error('Switch tarima error:', error)
+      res.status(500).json({ error: 'Error cambiando tarima' })
     }
   }
 )

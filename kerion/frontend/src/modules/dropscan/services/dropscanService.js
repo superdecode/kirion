@@ -7,11 +7,18 @@ export const startSession = (empresa_id, canal_id) =>
 export const getActiveSession = () =>
   api.get('/dropscan/sessions/active').then(r => r.data)
 
-export const scanGuia = (sessionId, codigo_guia) =>
-  api.post(`/dropscan/sessions/${sessionId}/scan`, { codigo_guia }).then(r => r.data)
+export const scanGuia = (sessionId, codigo_guia, tarima_id = null) =>
+  api.post(`/dropscan/sessions/${sessionId}/scan`, { codigo_guia, tarima_id }).then(r => r.data)
 
 export const endSession = (sessionId) =>
   api.post(`/dropscan/sessions/${sessionId}/end`).then(r => r.data)
+
+// Multi-tarima support
+export const addTarima = (sessionId) =>
+  api.post(`/dropscan/sessions/${sessionId}/add-tarima`).then(r => r.data)
+
+export const switchTarima = (sessionId, tarima_id) =>
+  api.post(`/dropscan/sessions/${sessionId}/switch-tarima`, { tarima_id }).then(r => r.data)
 
 export const deleteGuia = (sessionId, guiaId) =>
   api.delete(`/dropscan/sessions/${sessionId}/guia/${guiaId}`).then(r => r.data)

@@ -1,4 +1,5 @@
 import { useAuthStore } from '../core/stores/authStore'
+import { useI18nStore } from '../core/stores/i18nStore'
 import { motion } from 'framer-motion'
 import Header from '../core/components/layout/Header'
 import {
@@ -7,11 +8,11 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-const modules = [
+const getModules = (t) => [
   {
     id: 'dropscan',
     name: 'DropScan',
-    description: 'Escaneo y trazabilidad de guías de paquetería',
+    description: t('globalDash.dropscanDesc'),
     icon: ScanBarcode,
     path: '/dropscan',
     color: 'from-primary-500 to-primary-700',
@@ -20,8 +21,8 @@ const modules = [
   },
   {
     id: 'inventory',
-    name: 'Inventario',
-    description: 'Gestión de inventario y clasificación de productos',
+    name: t('globalDash.inventory'),
+    description: t('globalDash.inventoryDesc'),
     icon: Package,
     path: '/inventory',
     color: 'from-accent-500 to-accent-700',
@@ -30,8 +31,8 @@ const modules = [
   },
   {
     id: 'dispatch',
-    name: 'Despacho',
-    description: 'Gestión y validación de órdenes de despacho',
+    name: t('globalDash.dispatch'),
+    description: t('globalDash.dispatchDesc'),
     icon: Truck,
     path: '/dispatch',
     color: 'from-warning-400 to-warning-600',
@@ -40,8 +41,8 @@ const modules = [
   },
   {
     id: 'validate',
-    name: 'Validador',
-    description: 'Validación rápida de códigos con estadísticas',
+    name: t('globalDash.validate'),
+    description: t('globalDash.validateDesc'),
     icon: CheckSquare,
     path: '/validate',
     color: 'from-violet-500 to-violet-700',
@@ -61,10 +62,12 @@ const fadeInUp = {
 
 export default function GlobalDashboard() {
   const { user } = useAuthStore()
+  const { t } = useI18nStore()
+  const modules = getModules(t)
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Dashboard" subtitle="Vista general del sistema" />
+      <Header title={t('nav.dashboard')} subtitle={t('app.subtitle')} />
 
       <div className="flex-1 overflow-y-auto p-6">
         {/* Welcome */}
@@ -84,7 +87,7 @@ export default function GlobalDashboard() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.15, duration: 0.5 }}
             >
-              Bienvenido, {user?.nombre_completo?.split(' ')[0] || 'Usuario'}
+              {t('globalDash.welcome')}, {user?.nombre_completo?.split(' ')[0] || 'Usuario'}
             </motion.h2>
             <motion.p
               className="text-primary-200 text-sm font-medium"
@@ -97,8 +100,8 @@ export default function GlobalDashboard() {
 
             <div className="grid grid-cols-3 gap-5 mt-8">
               {[
-                { icon: Activity, value: '1', label: 'Módulo Activo', delay: 0.3 },
-                { icon: Users, value: '—', label: 'Usuarios En Línea', delay: 0.4 },
+                { icon: Activity, value: '1', label: t('globalDash.activeModules'), delay: 0.3 },
+                { icon: Users, value: '—', label: t('globalDash.onlineUsers'), delay: 0.4 },
                 { icon: Clock, value: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }), label: new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }), delay: 0.5 },
               ].map((stat, i) => (
                 <motion.div
@@ -124,7 +127,7 @@ export default function GlobalDashboard() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
         >
-          Módulos del Sistema
+          {t('globalDash.systemModules')}
         </motion.h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {modules.map((mod, i) => {
@@ -144,7 +147,7 @@ export default function GlobalDashboard() {
 
                 {!mod.active && (
                   <span className="absolute top-3 right-3 badge bg-warm-100 text-warm-500 text-[9px]">
-                    Próximamente
+                    {t('globalDash.comingSoon')}
                   </span>
                 )}
                 <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${mod.color} flex items-center justify-center mb-4 shadow-sm ${mod.glow} transition-shadow duration-300`}>
@@ -157,10 +160,10 @@ export default function GlobalDashboard() {
                     to={mod.path}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 group/link"
                   >
-                    Abrir módulo <ArrowRight className="w-3 h-3 transition-transform group-hover/link:translate-x-1" />
+                    {t('globalDash.enterModule')} <ArrowRight className="w-3 h-3 transition-transform group-hover/link:translate-x-1" />
                   </Link>
                 ) : (
-                  <span className="text-xs text-warm-300">No disponible</span>
+                  <span className="text-xs text-warm-300">{t('globalDash.unavailable')}</span>
                 )}
               </motion.div>
             )

@@ -5,12 +5,13 @@ import Header from '../../../core/components/layout/Header'
 import Modal from '../../../core/components/common/Modal'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { useToastStore } from '../../../core/stores/toastStore'
+import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
 import api from '../../../core/services/api'
 import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
-  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle
+  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus
 } from 'lucide-react'
 
 const playSound = (type) => {
@@ -47,6 +48,7 @@ export default function Escaneo() {
   const [sessionActive, setSessionActive] = useState(false)
   const [session, setSession] = useState(null)
   const [tarima, setTarima] = useState(null)
+  const [tarimasActivas, setTarimasActivas] = useState([]) // Multi-tarima support
   const [guias, setGuias] = useState([])
   const [duplicados, setDuplicados] = useState([])
   const [completedTarimas, setCompletedTarimas] = useState([])
@@ -60,12 +62,14 @@ export default function Escaneo() {
   const [showPanel, setShowPanel] = useState(true)
   const [panelSearch, setPanelSearch] = useState('')
   const [panelDetailId, setPanelDetailId] = useState(null)
+  const [historyTab, setHistoryTab] = useState('guias') // 'guias' or 'duplicados'
   const [selectedEmpresa, setSelectedEmpresa] = useState('')
   const [selectedCanal, setSelectedCanal] = useState('')
   const inputRef = useRef(null)
   const qc = useQueryClient()
   const { canDelete, user } = useAuthStore()
   const toast = useToastStore
+  const { t } = useI18nStore()
   const isSupervisor = user?.rol_nombre === 'Supervisor' || user?.rol_nombre === 'Jefe' || user?.rol_nombre === 'Administrador'
 
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
@@ -94,6 +98,7 @@ export default function Escaneo() {
       if (data.sesion) {
         setSession(data.sesion)
         setTarima(data.tarima_actual)
+        setTarimasActivas(data.tarimas_activas || [data.tarima_actual].filter(Boolean))
         setGuias(data.ultimas_guias || [])
         setSessionActive(true)
       }
@@ -118,15 +123,16 @@ export default function Escaneo() {
     onSuccess: (data) => {
       setSession(data.sesion)
       setTarima(data.tarima_actual)
+      setTarimasActivas(data.tarimas_activas || [data.tarima_actual])
       setGuias([])
       setDuplicados([])
       setCompletedTarimas([])
       setSessionActive(true)
       setShowStartModal(false)
-      toast.success('Sesion iniciada')
+      toast.success(t('scan.sessionStarted'))
       setTimeout(() => inputRef.current?.focus(), 100)
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error iniciando sesion')
+    onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
   })
 
   const endMutation = useMutation({
@@ -135,18 +141,42 @@ export default function Escaneo() {
       setSessionActive(false)
       setSession(null)
       setTarima(null)
+      setTarimasActivas([])
       setGuias([])
       setDuplicados([])
       setLastScan(null)
       setCompletedTarimas([])
-      toast.info('Sesion finalizada')
+      toast.info(t('scan.sessionEnded'))
       qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
     },
-    onError: () => toast.error('Error finalizando sesion')
+    onError: () => toast.error(t('toast.error'))
+  })
+
+  // Multi-tarima mutations
+  const addTarimaMutation = useMutation({
+    mutationFn: () => ds.addTarima(session.id),
+    onSuccess: (data) => {
+      setTarima(data.nueva_tarima)
+      setTarimasActivas(data.tarimas_activas)
+      setGuias([])
+      toast.success(t('scan.newPalletCreated'))
+      setTimeout(() => inputRef.current?.focus(), 100)
+    },
+    onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
+  })
+
+  const switchTarimaMutation = useMutation({
+    mutationFn: (tarimaId) => ds.switchTarima(session.id, tarimaId),
+    onSuccess: (data) => {
+      setTarima(data.tarima_actual)
+      setGuias(data.ultimas_guias || [])
+      setTimeout(() => inputRef.current?.focus(), 100)
+    },
+    onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
   })
 
   const scanMutation = useMutation({
-    mutationFn: (code) => ds.scanGuia(session.id, code),
+    mutationFn: (code) => ds.scanGuia(session.id, code, tarima?.id),
     onSuccess: (data) => {
       setLastScan({ type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion })
       setFlashType('success')
@@ -155,11 +185,18 @@ export default function Escaneo() {
       if (data.tarima_completada) {
         setCompletedTarimas(prev => [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...prev])
         setTarima(data.nueva_tarima)
+        // Update tarimasActivas: remove completed, add new
+        setTarimasActivas(prev => {
+          const filtered = prev.filter(t => t.id !== data.tarima.id)
+          return data.nueva_tarima ? [...filtered, data.nueva_tarima] : filtered
+        })
         setGuias([])
         if (soundEnabled) playSound('complete')
-        toast.success('Tarima completada (100/100). Nueva tarima creada.')
+        toast.success(t('scan.palletCompleted'))
       } else {
         setTarima(data.tarima)
+        // Update the tarima in tarimasActivas
+        setTarimasActivas(prev => prev.map(t => t.id === data.tarima.id ? data.tarima : t))
         setGuias(prev => [data.guia, ...prev].slice(0, 20))
       }
 
@@ -173,18 +210,32 @@ export default function Escaneo() {
     onError: (err) => {
       const d = err.response?.data
       if (d?.error === 'DUPLICADO') {
-        setLastScan({ type: 'duplicate', message: d.message })
+        // Build detailed duplicate message with position info
+        let detailMessage = d.message
+        if (d.posicion_original) {
+          if (d.duplicado_en === 'tarima_actual') {
+            detailMessage = t('scan.alreadyScannedInPallet').replace('{pos}', d.posicion_original)
+          } else if (d.duplicado_en === 'otra_tarima') {
+            detailMessage = t('scan.alreadyScannedInOtherPallet')
+              .replace('{pallet}', d.tarima_original)
+              .replace('{pos}', d.posicion_original)
+          }
+        }
+        setLastScan({ type: 'duplicate', message: detailMessage })
         setFlashType('error')
         if (soundEnabled) playSound('error')
-        toast.error(d.message)
+        toast.error(detailMessage)
         setDuplicados(prev => [{
           codigo_guia: scanInput.trim(),
-          message: d.message,
+          message: detailMessage,
+          tarima_original: d.tarima_original,
+          posicion_original: d.posicion_original,
+          duplicado_en: d.duplicado_en,
           timestamp: new Date()
         }, ...prev])
         setSession(prev => prev ? { ...prev, alertas_duplicados: (prev.alertas_duplicados || 0) + 1 } : prev)
       } else {
-        toast.error(d?.error || 'Error escaneando')
+        toast.error(d?.error || t('toast.error'))
         setFlashType('error')
         if (soundEnabled) playSound('error')
       }
@@ -198,15 +249,15 @@ export default function Escaneo() {
       setGuias(prev => prev.filter(g => g.id !== guiaId))
       setTarima(prev => prev ? { ...prev, cantidad_guias: prev.cantidad_guias - 1 } : prev)
       setSession(prev => prev ? { ...prev, total_guias: Math.max(0, (prev.total_guias || 1) - 1) } : prev)
-      toast.success('Guia eliminada')
+      toast.success(t('scan.guideDeleted'))
     },
-    onError: () => toast.error('Error eliminando guia')
+    onError: () => toast.error(t('toast.error'))
   })
 
   const cancelTarimaMutation = useMutation({
     mutationFn: (razon) => api.post(`/dropscan/tarimas/${tarima.id}/cancel`, { razon }).then(r => r.data),
     onSuccess: (data) => {
-      toast.success('Tarima cancelada')
+      toast.success(t('scan.palletCancelled'))
       setShowCancelModal(false)
       setCancelReason('')
       if (data.nueva_tarima) {
@@ -216,10 +267,10 @@ export default function Escaneo() {
         // If backend does not auto-create a new tarima, prompt or end
         setTarima(null)
         setGuias([])
-        toast.info('Inicia una nueva tarima o finaliza la sesion.')
+        toast.info(t('scan.newPalletCreated'))
       }
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Error cancelando tarima')
+    onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
   })
 
   const handleScan = useCallback((e) => {
@@ -235,7 +286,7 @@ export default function Escaneo() {
 
   const handleCancelTarima = () => {
     if (!cancelReason.trim()) {
-      toast.warning('La razon de cancelacion es requerida')
+      toast.warning(t('scan.cancelReasonRequired'))
       return
     }
     cancelTarimaMutation.mutate(cancelReason.trim())
@@ -258,7 +309,7 @@ export default function Escaneo() {
   if (!sessionActive) {
     return (
       <div className="flex flex-col h-full">
-        <Header title="Escaneo" subtitle="DropScan" />
+        <Header title={t('scan.title')} subtitle="DropScan" />
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto">
             {/* Start session CTA */}
@@ -277,9 +328,9 @@ export default function Escaneo() {
               >
                 <ScanBarcode className="w-12 h-12 text-white" />
               </motion.div>
-              <h2 className="text-2xl font-bold text-warm-800 mb-2">Iniciar Sesion de Escaneo</h2>
+              <h2 className="text-2xl font-bold text-warm-800 mb-2">{t('scan.startSession')}</h2>
               <p className="text-sm text-warm-500 mb-8 leading-relaxed">
-                Selecciona la empresa de paqueteria y el canal de escaneo para comenzar a registrar guias.
+                {t('scan.startDesc')}
               </p>
               <motion.button
                 onClick={() => setShowStartModal(true)}
@@ -287,7 +338,7 @@ export default function Escaneo() {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
-                <Play className="w-5 h-5" /> Iniciar Escaneo
+                <Play className="w-5 h-5" /> {t('scan.start')}
               </motion.button>
             </motion.div>
 
@@ -301,13 +352,13 @@ export default function Escaneo() {
               <div className="px-5 py-3.5 border-b border-warm-100 flex items-center justify-between bg-warm-50/50">
                 <h4 className="text-sm font-bold text-warm-700 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-warm-400" />
-                  Historial de Hoy
+                  {t('history.todayHistory')}
                 </h4>
                 <span className="badge bg-warm-100 text-warm-500">{todayTarimas.length}</span>
               </div>
               {todayTarimas.length === 0 ? (
                 <div className="p-10 text-center text-sm text-warm-400">
-                  No hay tarimas registradas hoy
+                  {t('history.noPalletsToday')}
                 </div>
               ) : (
                 <div className="divide-y divide-warm-50">
@@ -319,8 +370,8 @@ export default function Escaneo() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-mono font-semibold text-warm-700 truncate">{t.codigo}</p>
                         <p className="text-[10px] text-warm-400 font-medium">
-                          {t.cantidad_guias} guias
-                          {t.created_at && ` · ${new Date(t.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`}
+                          {t.cantidad_guias} {t('dashboard.guides')}
+                          {t.created_at && ` · ${new Date(t.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`}
                         </p>
                       </div>
                       <span className={`badge text-[9px] ${estadoBadgeClass(t.estado)}`}>
@@ -335,25 +386,25 @@ export default function Escaneo() {
         </div>
 
         {/* Start session modal */}
-        <Modal isOpen={showStartModal} onClose={() => setShowStartModal(false)} title="Nueva Sesion de Escaneo" icon={ScanBarcode}
+        <Modal isOpen={showStartModal} onClose={() => setShowStartModal(false)} title={t('scan.newScanSession')} icon={ScanBarcode}
           footer={<>
-            <button onClick={() => setShowStartModal(false)} className="btn-ghost">Cancelar</button>
+            <button onClick={() => setShowStartModal(false)} className="btn-ghost">{t('common.cancel')}</button>
             <button onClick={() => startMutation.mutate()} disabled={!selectedEmpresa || !selectedCanal || startMutation.isPending} className="btn-primary">
-              {startMutation.isPending ? 'Iniciando...' : 'Iniciar Sesion'}
+              {startMutation.isPending ? t('scan.starting') : t('scan.start')}
             </button>
           </>}>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-warm-700 mb-1.5">Empresa de Paqueteria</label>
+              <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('scan.company')}</label>
               <select value={selectedEmpresa} onChange={(e) => setSelectedEmpresa(e.target.value)} className="select-field">
-                <option value="">Seleccionar empresa...</option>
+                <option value="">{t('scan.selectCompany')}</option>
                 {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-warm-700 mb-1.5">Canal de Escaneo</label>
+              <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('scan.channel')}</label>
               <select value={selectedCanal} onChange={(e) => setSelectedCanal(e.target.value)} className="select-field">
-                <option value="">Seleccionar canal...</option>
+                <option value="">{t('scan.selectChannel')}</option>
                 {canales.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
@@ -366,31 +417,31 @@ export default function Escaneo() {
   // --- ACTIVE SESSION VIEW ---
   return (
     <div className="flex flex-col h-full">
-      <Header title="Escaneo Activo" subtitle={`${session?.empresa_nombre || ''} · ${session?.canal_nombre || ''}`}
+      <Header title={t('scan.activeTitle')} subtitle={`${session?.empresa_nombre || ''} · ${session?.canal_nombre || ''}`}
         actions={
           <div className="flex items-center gap-1.5">
             <button onClick={() => setSoundEnabled(!soundEnabled)}
               className={`px-3 py-2 rounded-xl transition-all inline-flex items-center gap-2 text-sm font-semibold ${soundEnabled ? 'text-primary-600 bg-primary-50 shadow-sm' : 'text-warm-500 bg-warm-100 hover:bg-warm-200'}`}
-              title={soundEnabled ? 'Sonido activado' : 'Sonido desactivado'}>
+              title={soundEnabled ? t('scan.soundOn') : t('scan.soundOff')}>
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              <span className="hidden sm:inline">{soundEnabled ? 'Sonido' : 'Silencio'}</span>
+              <span className="hidden sm:inline">{soundEnabled ? t('scan.sound') : t('scan.mute')}</span>
             </button>
             <button onClick={() => setShowPanel(!showPanel)}
               className="px-3 py-2 rounded-xl text-warm-500 bg-warm-100 hover:bg-warm-200 transition-all hidden lg:inline-flex items-center gap-2 text-sm font-semibold"
-              title={showPanel ? 'Ocultar panel' : 'Mostrar panel'}>
+              title={showPanel ? t('scan.hidePanel') : t('scan.showPanel')}>
               {showPanel ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-              <span>Panel</span>
+              <span>{t('scan.panel')}</span>
             </button>
             <button onClick={() => setShowCancelModal(true)}
               disabled={!tarima}
               className="px-3 py-2 rounded-xl text-warning-600 bg-warning-50 hover:bg-warning-100 transition-all inline-flex items-center gap-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Cancelar tarima actual">
+              title={t('scan.cancelPallet')}>
               <Ban className="w-4 h-4" />
-              <span className="hidden sm:inline">Cancelar</span>
+              <span className="hidden sm:inline">{t('common.cancel')}</span>
             </button>
-            <button onClick={() => { if (confirm('Finalizar sesion de escaneo?')) endMutation.mutate() }}
+            <button onClick={() => { if (confirm(t('scan.endConfirm'))) endMutation.mutate() }}
               className="btn-danger inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold">
-              <Square className="w-4 h-4" /> Finalizar
+              <Square className="w-4 h-4" /> {t('scan.end')}
             </button>
           </div>
         }
@@ -400,6 +451,60 @@ export default function Escaneo() {
         {/* Main scanning area */}
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-3xl mx-auto">
+            {/* Multi-tarima tabs */}
+            {tarimasActivas.length > 0 && (
+              <motion.div
+                className="flex items-center gap-2 mb-4"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex items-center gap-1.5 flex-1 overflow-x-auto pb-1">
+                  {tarimasActivas.map((t, idx) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        if (t.id !== tarima?.id) {
+                          switchTarimaMutation.mutate(t.id)
+                        }
+                      }}
+                      disabled={switchTarimaMutation.isPending}
+                      className={`relative px-4 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 ${
+                        t.id === tarima?.id
+                          ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30'
+                          : 'bg-white border-2 border-warm-200 text-warm-600 hover:border-primary-300 hover:text-primary-600'
+                      }`}
+                    >
+                      <span className="font-mono">{t.codigo?.split('-').pop() || `#${idx + 1}`}</span>
+                      <span className="ml-2 text-xs opacity-80">({t.cantidad_guias}/100)</span>
+                      {t.id === tarima?.id && (
+                        <motion.div
+                          layoutId="active-tarima-indicator"
+                          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow"
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {/* Add tarima button */}
+                {tarimasActivas.length < 3 && (
+                  <button
+                    onClick={() => addTarimaMutation.mutate()}
+                    disabled={addTarimaMutation.isPending}
+                    className="p-2.5 rounded-xl bg-success-50 border-2 border-success-200 text-success-600 hover:bg-success-100 hover:border-success-300 transition-all shrink-0 disabled:opacity-50"
+                    title={t('scan.addPallet')}
+                  >
+                    {addTarimaMutation.isPending ? (
+                      <div className="w-5 h-5 border-2 border-success-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Plus className="w-5 h-5" />
+                    )}
+                  </button>
+                )}
+              </motion.div>
+            )}
+
             {/* Tarima Status Card */}
             <motion.div
               className="card p-6 mb-6 bg-gradient-to-br from-white via-primary-50/30 to-accent-50/20 border-2 border-primary-100/50 shadow-lg"
@@ -409,14 +514,14 @@ export default function Escaneo() {
             >
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <p className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-1">Tarima activa</p>
+                  <p className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-1">{t('scan.activePallet')}</p>
                   <h3 className="text-xl font-extrabold text-warm-800 tracking-tight">{tarima?.codigo || '—'}</h3>
                 </div>
                 <div className="text-right">
                   <p className="text-5xl font-black text-warm-800 tracking-tighter leading-none">
                     {tarima?.cantidad_guias || 0}
                   </p>
-                  <p className="text-xs text-warm-400 font-semibold mt-1">de 100 guias</p>
+                  <p className="text-xs text-warm-400 font-semibold mt-1">{t('scan.of100Guides')}</p>
                 </div>
               </div>
 
@@ -430,7 +535,7 @@ export default function Escaneo() {
                 <span className="text-[10px] text-warm-400 font-bold">0%</span>
                 {progressPercent >= 90 && (
                   <span className="text-[10px] text-danger-500 font-bold animate-pulse">
-                    {progressPercent >= 95 ? 'Casi llena!' : 'Alcanzando capacidad'}
+                    {progressPercent >= 95 ? t('scan.almostFull') : t('scan.reachingCapacity')}
                   </span>
                 )}
                 <span className="text-[10px] text-warm-400 font-bold">100%</span>
@@ -440,11 +545,11 @@ export default function Escaneo() {
               <div className="grid grid-cols-2 gap-4 mt-5 pt-5 border-t border-primary-100/40">
                 <div className="text-center p-2 rounded-xl bg-white/60">
                   <p className="text-2xl font-extrabold text-warm-800">{session?.total_guias || 0}</p>
-                  <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">Total Guias</p>
+                  <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{t('scan.totalGuides')}</p>
                 </div>
                 <div className="text-center p-2 rounded-xl bg-white/60">
                   <p className="text-2xl font-extrabold text-danger-500">{session?.alertas_duplicados || 0}</p>
-                  <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">Duplicados</p>
+                  <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{t('scan.duplicates')}</p>
                 </div>
               </div>
             </motion.div>
@@ -454,7 +559,7 @@ export default function Escaneo() {
               <div className="relative">
                 <ScanBarcode className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-warm-300" />
                 <input ref={inputRef} type="text" value={scanInput} onChange={(e) => setScanInput(e.target.value)}
-                  placeholder="Escanear o ingresar codigo de guia..." autoFocus autoComplete="off"
+                  placeholder={t('scan.placeholder')} autoFocus autoComplete="off"
                   className={`w-full pl-14 pr-5 py-5 text-xl bg-white border-2 border-warm-200 rounded-2xl
                              focus:border-primary-500 focus:ring-4 focus:ring-primary-100 focus:shadow-glow
                              transition-all outline-none placeholder:text-warm-300 font-mono tracking-wide
@@ -483,81 +588,127 @@ export default function Escaneo() {
                     ? <CheckCircle className="w-5 h-5 text-success-500 shrink-0" />
                     : <XCircle className="w-5 h-5 text-danger-500 shrink-0" />}
                   <p className={`text-sm font-semibold ${lastScan.type === 'success' ? 'text-success-700' : 'text-danger-700'}`}>
-                    {lastScan.type === 'success' ? `Guia ${lastScan.code} registrada · Pos. ${lastScan.pos}` : lastScan.message}
+                    {lastScan.type === 'success' ? `${t('scan.guideRegistered')} ${lastScan.code} · ${t('scan.position')} ${lastScan.pos}` : lastScan.message}
                   </p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Ultimas Guias + Duplicados side by side */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {/* Ultimas Guias */}
-              <div className="card overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-warm-100 flex items-center justify-between bg-warm-50/50">
-                  <h4 className="text-sm font-bold text-warm-700">Ultimas Guias</h4>
-                  <span className="badge bg-warm-100 text-warm-500">{guias.length}</span>
-                </div>
-                {guias.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-warm-400">Escanea la primera guia para comenzar</div>
-                ) : (
-                  <div className="divide-y divide-warm-50 max-h-80 overflow-y-auto scrollbar-thin">
-                    {guias.map((g, i) => (
-                      <div key={g.id} className={`flex items-center gap-4 px-5 py-3 hover:bg-warm-50/50 transition-colors ${i === 0 ? 'bg-primary-50/30' : ''}`}>
-                        <span className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold shrink-0">
-                          {g.posicion}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-mono font-semibold text-warm-700 truncate">{g.codigo_guia}</p>
-                          <p className="text-[10px] text-warm-400 font-medium">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</p>
-                        </div>
-                        {canDelete('dropscan.escaneo') && (isSupervisor || i === 0) && (
-                          <button onClick={() => { if (confirm(`Eliminar guia ${g.codigo_guia}?`)) deleteMutation.mutate(g.id) }}
-                            className="p-2 rounded-xl hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all"
-                            title={i === 0 ? 'Eliminar ultima guia' : 'Eliminar guia'}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {/* Historial lateral con tabs */}
+            <div className="card overflow-hidden">
+              {/* Tab headers */}
+              <div className="flex border-b border-warm-100">
+                <button
+                  onClick={() => setHistoryTab('guias')}
+                  className={`flex-1 px-4 py-3 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                    historyTab === 'guias'
+                      ? 'text-primary-700 bg-primary-50/50 border-b-2 border-primary-500'
+                      : 'text-warm-500 hover:text-warm-700 hover:bg-warm-50'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {t('scan.correctGuides')}
+                  <span className={`badge text-xs ${historyTab === 'guias' ? 'bg-primary-100 text-primary-700' : 'bg-warm-100 text-warm-500'}`}>
+                    {guias.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setHistoryTab('duplicados')}
+                  className={`flex-1 px-4 py-3 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                    historyTab === 'duplicados'
+                      ? 'text-danger-700 bg-danger-50/50 border-b-2 border-danger-500'
+                      : 'text-warm-500 hover:text-warm-700 hover:bg-warm-50'
+                  }`}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  {t('scan.duplicates')}
+                  <span className={`badge text-xs ${historyTab === 'duplicados' ? 'bg-danger-100 text-danger-600' : 'bg-warm-100 text-warm-500'}`}>
+                    {duplicados.length}
+                  </span>
+                </button>
               </div>
 
-              {/* Duplicados */}
-              <div className="card overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-warm-100 flex items-center justify-between bg-danger-50/30">
-                  <h4 className="text-sm font-bold text-warm-700 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-danger-400" />
-                    Duplicados
-                  </h4>
-                  <span className="badge bg-danger-100 text-danger-600">{duplicados.length}</span>
-                </div>
-                {duplicados.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-warm-400">Sin duplicados en esta sesion</div>
-                ) : (
-                  <div className="divide-y divide-warm-50 max-h-80 overflow-y-auto scrollbar-thin">
-                    {duplicados.map((d, i) => (
-                      <div key={`dup-${i}-${d.timestamp.getTime()}`} className="flex items-center gap-4 px-5 py-3 hover:bg-danger-50/30 transition-colors">
-                        <span className="w-9 h-9 rounded-xl bg-danger-100 text-danger-600 flex items-center justify-center shrink-0">
-                          <XCircle className="w-4 h-4" />
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-mono font-semibold text-warm-700 truncate">{d.codigo_guia}</p>
-                          <p className="text-[10px] text-danger-500 font-medium truncate">{d.message}</p>
-                          <p className="text-[10px] text-warm-400 font-medium">{d.timestamp.toLocaleTimeString('es-MX')}</p>
-                        </div>
-                        {(isSupervisor || i === 0) && (
-                          <button onClick={() => handleDeleteDuplicado(i)}
-                            className="p-2 rounded-xl hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all"
-                            title="Quitar de la lista">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+              {/* Tab content */}
+              <AnimatePresence mode="wait">
+                {historyTab === 'guias' ? (
+                  <motion.div
+                    key="guias-tab"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {guias.length === 0 ? (
+                      <div className="p-10 text-center text-sm text-warm-400">{t('scan.firstScan')}</div>
+                    ) : (
+                      <div className="divide-y divide-warm-50 max-h-80 overflow-y-auto scrollbar-thin">
+                        {guias.map((g, i) => (
+                          <div key={g.id} className={`flex items-center gap-4 px-5 py-3 hover:bg-warm-50/50 transition-colors ${i === 0 ? 'bg-primary-50/30' : ''}`}>
+                            <span className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold shrink-0">
+                              {g.posicion}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-mono font-semibold text-warm-700 truncate">{g.codigo_guia}</p>
+                              <p className="text-[10px] text-warm-400 font-medium">{new Date(g.timestamp_escaneo).toLocaleTimeString('zh-CN')}</p>
+                            </div>
+                            {canDelete('dropscan.escaneo') && (isSupervisor || i === 0) && (
+                              <button onClick={() => { if (confirm(t('scan.deleteGuideConfirm'))) deleteMutation.mutate(g.id) }}
+                                className="p-2 rounded-xl hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all"
+                                title={i === 0 ? t('scan.deleteLastGuide') : t('scan.deleteGuide')}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="duplicados-tab"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {duplicados.length === 0 ? (
+                      <div className="p-10 text-center text-sm text-warm-400">{t('scan.noDuplicates')}</div>
+                    ) : (
+                      <div className="divide-y divide-warm-50 max-h-80 overflow-y-auto scrollbar-thin">
+                        {duplicados.map((d, i) => (
+                          <div key={`dup-${i}-${d.timestamp.getTime()}`} className="flex items-center gap-4 px-5 py-3 hover:bg-danger-50/30 transition-colors">
+                            <span className="w-9 h-9 rounded-xl bg-danger-100 text-danger-600 flex items-center justify-center shrink-0">
+                              {d.posicion_original ? (
+                                <span className="text-xs font-bold">#{d.posicion_original}</span>
+                              ) : (
+                                <XCircle className="w-4 h-4" />
+                              )}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-mono font-semibold text-warm-700 truncate">{d.codigo_guia}</p>
+                              <p className="text-[10px] text-danger-500 font-medium truncate">
+                                {d.posicion_original ? (
+                                  d.duplicado_en === 'tarima_actual' 
+                                    ? `${t('scan.position')} #${d.posicion_original} (${d.tarima_original})`
+                                    : `${t('scan.position')} #${d.posicion_original} → ${d.tarima_original}`
+                                ) : d.message}
+                              </p>
+                              <p className="text-[10px] text-warm-400 font-medium">{d.timestamp.toLocaleTimeString('zh-CN')}</p>
+                            </div>
+                            {(isSupervisor || i === 0) && (
+                              <button onClick={() => handleDeleteDuplicado(i)}
+                                className="p-2 rounded-xl hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all"
+                                title={t('scan.removeFromList')}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -566,16 +717,16 @@ export default function Escaneo() {
         {showPanel && (
           <div className="hidden lg:flex w-80 border-l border-warm-100 bg-white flex-col shrink-0 animate-fade-in">
             <div className="px-4 py-3.5 border-b border-warm-100 bg-warm-50/50">
-              <h4 className="text-sm font-bold text-warm-700 mb-2">Tarimas de Sesion</h4>
+              <h4 className="text-sm font-bold text-warm-700 mb-2">{t('scan.sessionPallets')}</h4>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-warm-400" />
                 <input value={panelSearch} onChange={e => setPanelSearch(e.target.value)}
-                  placeholder="Buscar tarima o guia..." className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-warm-200 outline-none focus:border-primary-400" />
+                  placeholder={t('scan.searchPallet')} className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-warm-200 outline-none focus:border-primary-400" />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
               {filteredPanel.length === 0 ? (
-                <div className="py-8 text-center text-xs text-warm-400">Sin tarimas aun</div>
+                <div className="py-8 text-center text-xs text-warm-400">{t('scan.noPalletsYet')}</div>
               ) : (
                 filteredPanel.map(t => (
                   <div key={t.id} onClick={() => setPanelDetailId(t.id)}
@@ -597,7 +748,7 @@ export default function Escaneo() {
                       <span className="text-[10px] text-warm-400 font-medium">{t.cantidad_guias}/100 guias</span>
                       {t.completedAt && (
                         <span className="text-[10px] text-warm-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />{new Date(t.completedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                          <Clock className="w-3 h-3" />{new Date(t.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
                     </div>
@@ -620,15 +771,15 @@ export default function Escaneo() {
 
       {/* Panel detail modal */}
       <Modal isOpen={!!panelDetailId} onClose={() => setPanelDetailId(null)}
-        title={panelDetailData?.tarima ? `Tarima ${panelDetailData.tarima.codigo}` : 'Cargando...'} icon={Package} size="xl">
+        title={panelDetailData?.tarima ? `${t('history.palletDetail')} ${panelDetailData.tarima.codigo}` : t('common.loading')} icon={Package} size="xl">
         {panelDetailData?.tarima && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               {[
-                { l: 'Guias', v: `${panelDetailData.tarima.cantidad_guias}/100` },
-                { l: 'Estado', v: panelDetailData.tarima.estado },
-                { l: 'Operador', v: panelDetailData.tarima.operador_nombre },
-                { l: 'Empresa', v: panelDetailData.tarima.empresa_nombre },
+                { l: t('history.guides'), v: `${panelDetailData.tarima.cantidad_guias}/100` },
+                { l: t('common.status'), v: panelDetailData.tarima.estado },
+                { l: t('history.operator'), v: panelDetailData.tarima.operador_nombre },
+                { l: t('history.company'), v: panelDetailData.tarima.empresa_nombre },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-gradient-to-br from-purple-50 to-warm-50 border border-purple-100">
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{f.l}</p>
@@ -636,14 +787,14 @@ export default function Escaneo() {
                 </div>
               ))}
             </div>
-            <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-3">Guias Escaneadas ({panelDetailData.guias?.length || 0})</h4>
+            <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-3">{t('history.scannedGuides')} ({panelDetailData.guias?.length || 0})</h4>
             <div className="max-h-96 overflow-y-auto rounded-xl border border-warm-200 shadow-inner">
               <table className="w-full text-sm">
                 <thead className="bg-gradient-to-r from-warm-50 to-purple-50 sticky top-0 z-10 border-b border-warm-200">
                   <tr>
                     <th className="text-left px-4 py-3 font-bold text-warm-600">#</th>
-                    <th className="text-left px-4 py-3 font-bold text-warm-600">Codigo de Guia</th>
-                    <th className="text-left px-4 py-3 font-bold text-warm-600">Hora de Escaneo</th>
+                    <th className="text-left px-4 py-3 font-bold text-warm-600">{t('history.guideCode')}</th>
+                    <th className="text-left px-4 py-3 font-bold text-warm-600">{t('history.scanTime')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-warm-100">
@@ -651,7 +802,7 @@ export default function Escaneo() {
                     <tr key={g.id} className="hover:bg-purple-50/50 transition-colors">
                       <td className="px-4 py-2.5 text-warm-500 font-medium">{g.posicion}</td>
                       <td className="px-4 py-2.5 font-mono font-semibold text-warm-700">{g.codigo_guia}</td>
-                      <td className="px-4 py-2.5 text-warm-500">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
+                      <td className="px-4 py-2.5 text-warm-500">{new Date(g.timestamp_escaneo).toLocaleTimeString('zh-CN')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -663,21 +814,21 @@ export default function Escaneo() {
 
       {/* Cancel tarima modal */}
       <Modal isOpen={showCancelModal} onClose={() => { setShowCancelModal(false); setCancelReason('') }}
-        title="Cancelar Tarima" icon={Ban}
+        title={t('scan.cancelPalletTitle')} icon={Ban}
         footer={<>
-          <button onClick={() => { setShowCancelModal(false); setCancelReason('') }} className="btn-ghost">Volver</button>
+          <button onClick={() => { setShowCancelModal(false); setCancelReason('') }} className="btn-ghost">{t('common.back')}</button>
           <button onClick={handleCancelTarima}
             disabled={!cancelReason.trim() || cancelTarimaMutation.isPending}
             className="btn-danger inline-flex items-center gap-2">
             {cancelTarimaMutation.isPending ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Cancelando...
+                {t('scan.cancelling')}
               </>
             ) : (
               <>
                 <Ban className="w-4 h-4" />
-                Cancelar Tarima
+                {t('scan.cancelPallet')}
               </>
             )}
           </button>
@@ -686,19 +837,18 @@ export default function Escaneo() {
           <div className="p-4 rounded-xl bg-warning-50 border border-warning-200 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-warning-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-warning-800">Esta accion cancelara la tarima actual</p>
+              <p className="text-sm font-semibold text-warning-800">{t('scan.cancelPalletWarning')}</p>
               <p className="text-xs text-warning-600 mt-1">
-                La tarima <span className="font-mono font-bold">{tarima?.codigo}</span> con {tarima?.cantidad_guias || 0} guias sera marcada como cancelada
-                y no contara en las metricas de escaneo. Se creara una nueva tarima automaticamente.
+                {t('history.palletCode')}: <span className="font-mono font-bold">{tarima?.codigo}</span> ({tarima?.cantidad_guias || 0} {t('dashboard.guides')})
               </p>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-warm-700 mb-1.5">Razon de cancelacion *</label>
+            <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('scan.cancelReason')} *</label>
             <textarea
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Describe la razon por la que se cancela esta tarima..."
+              placeholder={t('scan.cancelReasonPlaceholder')}
               rows={3}
               className="w-full px-4 py-3 text-sm bg-white border-2 border-warm-200 rounded-xl
                          focus:border-primary-500 focus:ring-4 focus:ring-primary-100
