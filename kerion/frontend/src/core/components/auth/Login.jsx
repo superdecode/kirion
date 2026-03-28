@@ -64,8 +64,8 @@ export default function Login() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           >
-            <img src="/logo.png" alt="Kerion" className="w-16 h-16 rounded-2xl mb-4 object-contain" />
-            <h1 className="text-2xl font-extrabold text-gradient-vibrant">Kerion</h1>
+            <img src="/logo.png" alt="Kirion" className="w-16 h-16 rounded-2xl mb-4 object-contain" />
+            <h1 className="text-2xl font-extrabold text-gradient-vibrant">Kirion</h1>
             <p className="text-sm text-warm-400 mt-1">Sistema de Gestión de Almacén</p>
           </motion.div>
 
@@ -149,7 +149,7 @@ export default function Login() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
         >
-          Kerion WMS v1.0.0
+          Kirion WMS v1.0.0
         </motion.p>
       </motion.div>
     </div>

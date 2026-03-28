@@ -38,25 +38,27 @@ export default function Sidebar() {
   return (
     <motion.aside
       className="h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-800
-                 flex flex-col shrink-0 relative overflow-hidden border-r border-blue-800/30"
+                 flex flex-col shrink-0 relative border-r border-blue-800/30"
       style={{ zIndex: 100, position: 'relative' }}
       animate={{ width: collapsed ? 68 : 260 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Dark gradient overlay effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-800/20 via-transparent to-slate-900/40 pointer-events-none" />
-      <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-700/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -top-20 -right-20 w-48 h-48 bg-slate-700/40 rounded-full blur-2xl pointer-events-none" />
+      {/* Dark gradient overlay effects — clipped to aside bounds */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-800/20 via-transparent to-slate-900/40" />
+        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-700/30 rounded-full blur-3xl" />
+        <div className="absolute -top-20 -right-20 w-48 h-48 bg-slate-700/40 rounded-full blur-2xl" />
+      </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — sits outside aside clip so it renders above page content */}
       <motion.button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-4 top-24 z-[9999] w-8 h-8 rounded-full
+        className="absolute -right-4 top-24 w-8 h-8 rounded-full
                    bg-white shadow-xl border-2 border-primary-200
                    flex items-center justify-center
-                   text-primary-600 hover:text-primary-700 
+                   text-primary-600 hover:text-primary-700
                    hover:shadow-2xl hover:border-primary-300 hover:bg-primary-50
-                   transition-all duration-300 group"
+                   transition-all duration-300"
         title={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
@@ -75,7 +77,7 @@ export default function Sidebar() {
                         ${collapsed ? 'px-3 justify-center' : 'px-5'}`}>
         <motion.img
           src="/logo.png"
-          alt="Kerion"
+          alt="Kirion"
           className="w-9 h-9 rounded-xl shrink-0 object-contain"
           whileHover={{ scale: 1.08, rotate: 3 }}
           transition={{ type: 'spring', stiffness: 400 }}
@@ -89,7 +91,7 @@ export default function Sidebar() {
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <h1 className="text-sm font-bold text-white tracking-tight">Kerion</h1>
+              <h1 className="text-sm font-bold text-white tracking-tight">Kirion</h1>
               <p className="text-[10px] text-blue-200 font-medium">WMS</p>
             </motion.div>
           )}
@@ -195,7 +197,7 @@ export default function Sidebar() {
   )
 }
 
-function NavItem({ to, icon: Icon, label, collapsed, end = false, index = 0 }) {
+function NavItem({ to, icon: Icon, label, collapsed, end = false }) {
   const location = useLocation()
   const isActive = end ? location.pathname === to : location.pathname.startsWith(to)
 
