@@ -94,7 +94,7 @@ export default function SearchBar() {
                   </p>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  g.tarima_estado === 'COMPLETA'
+                  g.tarima_estado === 'FINALIZADA'
                     ? 'bg-success-100 text-success-700'
                     : 'bg-warning-100 text-warning-700'
                 }`}>

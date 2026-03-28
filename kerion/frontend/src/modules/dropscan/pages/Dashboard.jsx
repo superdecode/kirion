@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Header from '../../../core/components/layout/Header'
 import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
 import * as ds from '../services/dropscanService'
 import {
   Package, CheckCircle, Clock, AlertTriangle, Activity,
-  TrendingUp, Users, BarChart3, Calendar, ChevronDown
+  Users, BarChart3, Calendar, ChevronDown, XCircle
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 
@@ -123,13 +124,13 @@ export default function DropScanDashboard() {
 
         <div className="p-4">
           <div className="max-w-full mx-auto space-y-4">
-            {/* KPI Cards - Optimized for space */}
+            {/* KPI Cards - Clickable, navigate to historial with filter */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              <KPICard icon={Package} label="Total Guías" value={r.total_guias} gradient="from-primary-500 to-primary-700" iconBg="bg-primary-400/20" index={0} />
-              <KPICard icon={CheckCircle} label="Completas" value={r.tarimas_completadas} gradient="from-success-500 to-accent-600" iconBg="bg-success-400/20" index={1} />
-              <KPICard icon={Clock} label="En Proceso" value={r.tarimas_en_proceso} gradient="from-warning-400 to-warning-600" iconBg="bg-warning-400/20" index={2} />
-              <KPICard icon={AlertTriangle} label="Duplicados" value={r.alertas_duplicados} gradient="from-danger-400 to-danger-600" iconBg="bg-danger-400/20" index={3} />
-              <KPICard icon={TrendingUp} label="Tiempo Prom." value={`${r.tiempo_promedio_minutos || 0}m`} gradient="from-accent-500 to-primary-600" iconBg="bg-accent-400/20" index={4} />
+              <KPICard icon={Package} label="Total Guías" value={r.total_guias} gradient="from-primary-500 to-primary-700" iconBg="bg-primary-400/20" index={0} href="/dropscan/historial" />
+              <KPICard icon={Clock} label="En Proceso" value={r.tarimas_en_proceso} gradient="from-warning-400 to-warning-600" iconBg="bg-warning-400/20" index={1} href="/dropscan/historial?estado=EN_PROCESO" />
+              <KPICard icon={AlertTriangle} label="Duplicados" value={r.alertas_duplicados} gradient="from-danger-400 to-danger-600" iconBg="bg-danger-400/20" index={2} href="/dropscan/historial?search=duplicado" />
+              <KPICard icon={CheckCircle} label="Finalizadas" value={r.tarimas_completadas} gradient="from-success-500 to-accent-600" iconBg="bg-success-400/20" index={3} href="/dropscan/historial?estado=FINALIZADA" />
+              <KPICard icon={XCircle} label="Canceladas" value={r.tarimas_canceladas} gradient="from-warm-400 to-warm-600" iconBg="bg-warm-400/20" index={4} href="/dropscan/historial?estado=CANCELADA" />
             </div>
 
             {/* Charts Row - Larger and better use of space */}
@@ -269,13 +270,15 @@ export default function DropScanDashboard() {
   )
 }
 
-function KPICard({ icon: Icon, label, value, gradient, iconBg, index = 0 }) {
+function KPICard({ icon: Icon, label, value, gradient, iconBg, index = 0, href }) {
+  const navigate = useNavigate()
   return (
     <motion.div
-      className="card-interactive p-5 group overflow-hidden relative"
+      className="card-interactive p-5 group overflow-hidden relative cursor-pointer"
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      onClick={() => href && navigate(href)}
     >
       <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full bg-gradient-to-br ${gradient} opacity-[0.07] group-hover:opacity-[0.15] group-hover:scale-125 transition-all duration-500`} />
       <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center mb-3`}>
