@@ -67,7 +67,6 @@ router.get('/',
       const result = await query(
         `SELECT t.id, t.codigo, t.estado, t.cantidad_guias,
                 t.fecha_inicio, t.fecha_cierre, t.tiempo_armado_segundos,
-                t.bloqueada, t.bloqueada_razon,
                 e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
                 u.nombre_completo as operador_nombre, u.codigo as operador_codigo
@@ -108,13 +107,11 @@ router.get('/:id',
       const tarimaRes = await query(
         `SELECT t.*, e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
-                u.nombre_completo as operador_nombre, u.codigo as operador_codigo,
-                ub.nombre_completo as bloqueada_por_nombre
+                u.nombre_completo as operador_nombre, u.codigo as operador_codigo
          FROM tarimas t
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
          JOIN usuarios u ON t.operador_id = u.id
-         LEFT JOIN usuarios ub ON t.bloqueada_por = ub.id
          WHERE t.id = $1`,
         [id]
       )
@@ -133,9 +130,15 @@ router.get('/:id',
         [id]
       )
 
+      const duplicadosRes = await query(
+        `SELECT COUNT(*) FROM alertas_duplicados WHERE tarima_id = $1`,
+        [id]
+      )
+
       res.json({
         tarima: tarimaRes.rows[0],
-        guias: guiasRes.rows
+        guias: guiasRes.rows,
+        duplicados_count: parseInt(duplicadosRes.rows[0].count) || 0
       })
     } catch (error) {
       console.error('Get tarima detail error:', error)
@@ -144,57 +147,90 @@ router.get('/:id',
   }
 )
 
-// POST /api/dropscan/tarimas/:id/lock
-router.post('/:id/lock',
+// POST /api/dropscan/tarimas/:id/finalize
+router.post('/:id/finalize',
   authenticateToken, loadFullUser,
-  requirePermission('dropscan.historial', 'editar'),
+  requirePermission('dropscan.escaneo', 'editar'),
   async (req, res) => {
     try {
       const { id } = req.params
-      const { razon } = req.body
-
       const result = await query(
-        `UPDATE tarimas SET bloqueada = true, bloqueada_por = $1,
-                bloqueada_fecha = CURRENT_TIMESTAMP, bloqueada_razon = $2
-         WHERE id = $3 RETURNING *`,
-        [req.user.id, razon || null, id]
+        `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP WHERE id = $1 AND estado = 'EN_PROCESO' RETURNING *`,
+        [id]
       )
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Tarima no encontrada' })
-      }
-
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Tarima no encontrada o no está en proceso' })
       res.json({ success: true, tarima: result.rows[0] })
     } catch (error) {
-      console.error('Lock tarima error:', error)
-      res.status(500).json({ error: 'Error bloqueando tarima' })
+      console.error('Finalize tarima error:', error)
+      res.status(500).json({ error: 'Error finalizando tarima' })
     }
   }
 )
 
-// POST /api/dropscan/tarimas/:id/unlock
-router.post('/:id/unlock',
+// POST /api/dropscan/tarimas/:id/cancel
+router.post('/:id/cancel',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'editar'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const { razon } = req.body
+      if (!razon || !razon.trim()) return res.status(400).json({ error: 'La razón de cancelación es requerida' })
+      const result = await query(
+        `UPDATE tarimas SET estado = 'CANCELADA', fecha_cierre = CURRENT_TIMESTAMP, cancelada_razon = $1 WHERE id = $2 AND estado = 'EN_PROCESO' RETURNING *`,
+        [razon.trim(), id]
+      )
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Tarima no encontrada o no está en proceso' })
+      res.json({ success: true, tarima: result.rows[0] })
+    } catch (error) {
+      console.error('Cancel tarima error:', error)
+      res.status(500).json({ error: 'Error cancelando tarima' })
+    }
+  }
+)
+
+// POST /api/dropscan/tarimas/:id/reopen
+router.post('/:id/reopen',
   authenticateToken, loadFullUser,
   requirePermission('dropscan.historial', 'desbloquear'),
   async (req, res) => {
     try {
       const { id } = req.params
-
       const result = await query(
-        `UPDATE tarimas SET bloqueada = false, bloqueada_por = NULL,
-                bloqueada_fecha = NULL, bloqueada_razon = NULL
-         WHERE id = $1 RETURNING *`,
+        `UPDATE tarimas SET estado = 'EN_PROCESO', fecha_cierre = NULL WHERE id = $1 AND estado = 'FINALIZADA' RETURNING *`,
         [id]
       )
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Tarima no encontrada' })
-      }
-
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Tarima no encontrada o no está finalizada' })
       res.json({ success: true, tarima: result.rows[0] })
     } catch (error) {
-      console.error('Unlock tarima error:', error)
-      res.status(500).json({ error: 'Error desbloqueando tarima' })
+      console.error('Reopen tarima error:', error)
+      res.status(500).json({ error: 'Error reabriendo tarima' })
+    }
+  }
+)
+
+// GET /api/dropscan/tarimas/:id/duplicados
+router.get('/:id/duplicados',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.historial', 'ver'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const result = await query(
+        `SELECT ad.id, ad.codigo_guia, ad.timestamp_alerta,
+                g.codigo_guia as guia_original_codigo, g.posicion as guia_original_posicion,
+                u.nombre_completo as operador_nombre
+         FROM alertas_duplicados ad
+         LEFT JOIN guias g ON ad.guia_original_id = g.id
+         JOIN usuarios u ON ad.operador_id = u.id
+         WHERE ad.tarima_id = $1
+         ORDER BY ad.timestamp_alerta DESC`,
+        [id]
+      )
+      res.json({ duplicados: result.rows })
+    } catch (error) {
+      console.error('Get duplicados error:', error)
+      res.status(500).json({ error: 'Error obteniendo duplicados' })
     }
   }
 )
@@ -207,19 +243,9 @@ router.delete('/:id',
     try {
       const { id } = req.params
 
-      // Check if blocked
       const tarimaRes = await query('SELECT * FROM tarimas WHERE id = $1', [id])
       if (tarimaRes.rows.length === 0) {
         return res.status(404).json({ error: 'Tarima no encontrada' })
-      }
-
-      const tarima = tarimaRes.rows[0]
-      if (tarima.bloqueada) {
-        // Only total permission can delete blocked tarimas
-        const level = req.fullUser.permisos?.dropscan?.historial
-        if (level !== 'total' && req.fullUser.rol_nombre !== 'Administrador') {
-          return res.status(403).json({ error: 'Tarima bloqueada, se requiere nivel total' })
-        }
       }
 
       // Cascade deletes guias and alertas

@@ -75,6 +75,29 @@ router.put('/:id',
   }
 )
 
+// POST /api/roles/:id/duplicate
+router.post('/:id/duplicate',
+  authenticateToken, loadFullUser,
+  requirePermission('global.administracion', 'crear'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const sourceRole = await query('SELECT * FROM roles WHERE id = $1', [id])
+      if (sourceRole.rows.length === 0) return res.status(404).json({ error: 'Rol no encontrado' })
+      const source = sourceRole.rows[0]
+      const result = await query(
+        `INSERT INTO roles (nombre, descripcion, permisos) VALUES ($1, $2, $3) RETURNING *`,
+        [`${source.nombre} (copia)`, source.descripcion, JSON.stringify(source.permisos)]
+      )
+      res.status(201).json({ rol: result.rows[0] })
+    } catch (error) {
+      if (error.code === '23505') return res.status(409).json({ error: 'Ya existe un rol con ese nombre' })
+      console.error('Duplicate role error:', error)
+      res.status(500).json({ error: 'Error duplicando rol' })
+    }
+  }
+)
+
 // DELETE /api/roles/:id (soft delete)
 router.delete('/:id',
   authenticateToken, loadFullUser,

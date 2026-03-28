@@ -173,6 +173,28 @@ router.put('/canales/:id',
   }
 )
 
+// PATCH /api/dropscan/config/canales/:id/toggle - Toggle active status
+router.patch('/canales/:id/toggle',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.configuracion', 'editar'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const result = await query(
+        `UPDATE canales_escaneo SET activo = NOT activo, updated_by = $1 WHERE id = $2 RETURNING *`,
+        [req.user.id, id]
+      )
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Canal no encontrado' })
+      }
+      res.json(result.rows[0])
+    } catch (error) {
+      console.error('Toggle canal error:', error)
+      res.status(500).json({ error: 'Error cambiando estado del canal' })
+    }
+  }
+)
+
 // DELETE /api/dropscan/config/canales/:id - Delete channel
 router.delete('/canales/:id',
   authenticateToken, loadFullUser,
@@ -391,6 +413,28 @@ router.put('/empresas/:id',
       }
       
       res.status(500).json({ error: 'Error actualizando empresa' })
+    }
+  }
+)
+
+// PATCH /api/dropscan/config/empresas/:id/toggle - Toggle active status
+router.patch('/empresas/:id/toggle',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.configuracion', 'editar'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const result = await query(
+        `UPDATE empresas_paqueteria SET activo = NOT activo, updated_by = $1 WHERE id = $2 RETURNING *`,
+        [req.user.id, id]
+      )
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Empresa no encontrada' })
+      }
+      res.json(result.rows[0])
+    } catch (error) {
+      console.error('Toggle empresa error:', error)
+      res.status(500).json({ error: 'Error cambiando estado de la empresa' })
     }
   }
 )

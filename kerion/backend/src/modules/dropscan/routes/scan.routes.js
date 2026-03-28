@@ -240,7 +240,7 @@ router.post('/sessions/:id/scan',
       if (newPos >= 100) {
         tarima_completada = true
         await client.query(
-          `UPDATE tarimas SET estado = 'COMPLETA', fecha_cierre = CURRENT_TIMESTAMP WHERE id = $1`,
+          `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP WHERE id = $1`,
           [tarima.id]
         )
         await client.query(

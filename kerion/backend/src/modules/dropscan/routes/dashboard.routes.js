@@ -17,10 +17,11 @@ router.get('/',
       const summaryRes = await query(
         `SELECT
           COUNT(DISTINCT t.id) as total_tarimas,
-          COUNT(DISTINCT CASE WHEN t.estado = 'COMPLETA' THEN t.id END) as tarimas_completadas,
+          COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as tarimas_completadas,
           COUNT(DISTINCT CASE WHEN t.estado = 'EN_PROCESO' THEN t.id END) as tarimas_en_proceso,
+          COUNT(DISTINCT CASE WHEN t.estado = 'CANCELADA' THEN t.id END) as tarimas_canceladas,
           COALESCE(SUM(t.cantidad_guias), 0) as total_guias,
-          COALESCE(AVG(CASE WHEN t.estado = 'COMPLETA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio_seg
+          COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio_seg
          FROM tarimas t
          WHERE DATE(t.fecha_inicio) = $1`,
         [today]
@@ -93,6 +94,7 @@ router.get('/',
           total_tarimas: parseInt(summary.total_tarimas) || 0,
           tarimas_completadas: parseInt(summary.tarimas_completadas) || 0,
           tarimas_en_proceso: parseInt(summary.tarimas_en_proceso) || 0,
+          tarimas_canceladas: parseInt(summary.tarimas_canceladas) || 0,
           alertas_duplicados: parseInt(alertasRes.rows[0].total_alertas) || 0,
           tiempo_promedio_minutos: Math.round((parseFloat(summary.tiempo_promedio_seg) || 0) / 60 * 10) / 10,
         },
@@ -124,8 +126,8 @@ router.get('/metrics',
         `SELECT DATE(t.fecha_inicio) as fecha,
                 COUNT(DISTINCT t.id) as tarimas,
                 SUM(t.cantidad_guias) as guias,
-                COUNT(DISTINCT CASE WHEN t.estado = 'COMPLETA' THEN t.id END) as completadas,
-                COALESCE(AVG(CASE WHEN t.estado = 'COMPLETA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio
+                COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas,
+                COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio
          FROM tarimas t
          WHERE DATE(t.fecha_inicio) BETWEEN $1 AND $2
          GROUP BY DATE(t.fecha_inicio)
@@ -136,7 +138,7 @@ router.get('/metrics',
       const totalRes = await query(
         `SELECT COUNT(DISTINCT t.id) as tarimas,
                 SUM(t.cantidad_guias) as guias,
-                COUNT(DISTINCT CASE WHEN t.estado = 'COMPLETA' THEN t.id END) as completadas
+                COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas
          FROM tarimas t
          WHERE DATE(t.fecha_inicio) BETWEEN $1 AND $2`,
         [fecha_inicio, fecha_fin]

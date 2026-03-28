@@ -95,6 +95,31 @@ router.put('/:id',
   }
 )
 
+// POST /api/users/:id/reset-password
+router.post('/:id/reset-password',
+  authenticateToken, loadFullUser,
+  requirePermission('global.administracion', 'editar'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const { password } = req.body
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
+      }
+      const passwordHash = await bcrypt.hash(password, 10)
+      const result = await query(
+        'UPDATE usuarios SET password_hash = $1 WHERE id = $2 RETURNING id, nombre_completo',
+        [passwordHash, id]
+      )
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' })
+      res.json({ success: true, message: 'Contraseña actualizada' })
+    } catch (error) {
+      console.error('Reset password error:', error)
+      res.status(500).json({ error: 'Error reseteando contraseña' })
+    }
+  }
+)
+
 // DELETE /api/users/:id (soft delete - set INACTIVO)
 router.delete('/:id',
   authenticateToken, loadFullUser,
