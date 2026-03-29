@@ -109,7 +109,7 @@ export default function Administracion() {
 // ═══════════ PASSWORD RESET MODAL ═══════════
 function PasswordResetModal({ isOpen, onClose, user }) {
   const [password, setPassword] = useState('')
-  const toast = useToastStore
+  const toast = useToastStore.getState()
   const qc = useQueryClient()
 
   useEffect(() => {
@@ -155,11 +155,11 @@ function UsersTab({ canEdit, canDel }) {
   const [editUser, setEditUser] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
   const [resetUser, setResetUser] = useState(null)
-  const toast = useToastStore
+  const toast = useToastStore.getState()
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({ queryKey: ['admin-users'], queryFn: getUsers })
-  const { data: rolesData } = useQuery({ queryKey: ['admin-roles'], queryFn: getRoles })
+  const { data, isLoading, isError: usersError } = useQuery({ queryKey: ['admin-users'], queryFn: getUsers, retry: 1 })
+  const { data: rolesData } = useQuery({ queryKey: ['admin-roles'], queryFn: getRoles, retry: 1 })
   const users = data?.usuarios || data?.users || []
   const roles = rolesData?.roles || []
 
@@ -197,7 +197,9 @@ function UsersTab({ canEdit, canDel }) {
       </div>
 
       {/* Users table */}
-      {isLoading ? <LoadingSpinner text="Cargando usuarios..." /> : (
+      {isLoading ? <LoadingSpinner text="Cargando usuarios..." /> : usersError ? (
+        <div className="card p-6 text-center text-warm-500">Error cargando usuarios. Verifica tu sesión e intenta de nuevo.</div>
+      ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -278,7 +280,7 @@ function UsersTab({ canEdit, canDel }) {
 
 function UserFormModal({ isOpen, onClose, user, roles }) {
   const [form, setForm] = useState({ nombre_completo: '', email: '', codigo: '', password: '', rol_id: '', estado: 'ACTIVO' })
-  const toast = useToastStore
+  const toast = useToastStore.getState()
   const qc = useQueryClient()
 
   // Populate on open
@@ -376,11 +378,11 @@ function UserFormModal({ isOpen, onClose, user, roles }) {
 function RolesTab({ canEdit, canDel }) {
   const [editRole, setEditRole] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
-  const toast = useToastStore
+  const toast = useToastStore.getState()
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({ queryKey: ['admin-roles'], queryFn: getRoles })
-  const { data: usersData } = useQuery({ queryKey: ['admin-users'], queryFn: getUsers })
+  const { data, isLoading, isError: rolesError } = useQuery({ queryKey: ['admin-roles'], queryFn: getRoles, retry: 1 })
+  const { data: usersData } = useQuery({ queryKey: ['admin-users'], queryFn: getUsers, retry: 1 })
   const roles = data?.roles || data || []
   const users = usersData?.usuarios || usersData?.users || []
 
@@ -407,7 +409,9 @@ function RolesTab({ canEdit, canDel }) {
         )}
       </div>
 
-      {isLoading ? <LoadingSpinner text="Cargando roles..." /> : (
+      {isLoading ? <LoadingSpinner text="Cargando roles..." /> : rolesError ? (
+        <div className="card p-6 text-center text-warm-500">Error cargando roles. Verifica tu sesión e intenta de nuevo.</div>
+      ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -494,7 +498,7 @@ function RoleFormModal({ isOpen, onClose, role }) {
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [permisos, setPermisos] = useState({})
-  const toast = useToastStore
+  const toast = useToastStore.getState()
   const qc = useQueryClient()
 
   // Populate

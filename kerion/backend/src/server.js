@@ -9,6 +9,7 @@ import authRoutes from './core/routes/auth.routes.js'
 import usersRoutes from './core/routes/users.routes.js'
 import rolesRoutes from './core/routes/roles.routes.js'
 import configRoutes from './core/routes/config.routes.js'
+import setupRoutes from './core/routes/setup.routes.js'
 
 // Module routes
 import scanRoutes from './modules/dropscan/routes/scan.routes.js'
@@ -42,6 +43,7 @@ app.use('/api/auth', loginLimiter, authRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/roles', rolesRoutes)
 app.use('/api/config', configRoutes)
+app.use('/api/setup', setupRoutes)
 
 // DropScan module routes
 app.use('/api/dropscan', scanRoutes)
