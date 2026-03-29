@@ -17,7 +17,7 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client:', err)
-  process.exit(-1)
+  // Do NOT call process.exit() — it kills the Vercel serverless function
 })
 
 export const query = (text, params) => pool.query(text, params)

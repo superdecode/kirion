@@ -33,15 +33,9 @@ const loginLimiter = rateLimit({
 // Body parsing
 app.use(express.json({ limit: '10mb' }))
 
-// Health check + DB connectivity check
-app.get('/api/health', async (req, res) => {
-  try {
-    const { query } = await import('./config/database.js')
-    const r = await query('SELECT COUNT(*) as roles FROM roles, (SELECT COUNT(*) as users FROM usuarios) u')
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), db: 'connected', roles: parseInt(r.rows[0].roles), users: parseInt(r.rows[0].users) })
-  } catch (e) {
-    res.status(500).json({ status: 'error', db: 'unreachable', error: e.message })
-  }
+// Health check
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' })
 })
 
 // Core API routes
