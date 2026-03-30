@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import crypto from 'crypto'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import env from '../../config/env.js'
 import { query } from '../../config/database.js'

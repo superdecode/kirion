@@ -1,6 +1,6 @@
 import env from './env.js'
 import pg from 'pg'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 const { Client } = pg
 
