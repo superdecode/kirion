@@ -21,7 +21,8 @@
       "Bash(/Users/quiron/CascadeProjects/kerion/frontend/.env.local:*)",
       "Bash(gh run:*)",
       "Bash(git -C /Users/quiron/CascadeProjects status --short kerion/)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(node -e \"const lock = require\\(''/Users/quiron/CascadeProjects/kerion/frontend/package-lock.json''\\); const pkg = require\\(''/Users/quiron/CascadeProjects/kerion/frontend/package.json''\\); const mismatches = Object.entries\\(pkg.dependencies||{}\\).filter\\(\\([k,v]\\) => { const lv = lock.packages?.[''node_modules/''+k]?.version; return lv && !require\\(''semver''\\).satisfies\\(lv, v\\); }\\); console.log\\(''mismatches:'', mismatches\\);\")"
     ]
   }
 }
