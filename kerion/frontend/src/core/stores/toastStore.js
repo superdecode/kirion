@@ -5,7 +5,7 @@ let toastId = 0
 export const useToastStore = create((set) => ({
   toasts: [],
 
-  addToast: (message, type = 'info', duration = 4000) => {
+  addToast: (message, type = 'info', duration = 2500) => {
     const id = ++toastId
     set((state) => ({
       toasts: [...state.toasts, { id, message, type, duration }]
@@ -32,7 +32,7 @@ export const useToastStore = create((set) => ({
   },
   error: (msg, duration) => {
     const { addToast } = useToastStore.getState()
-    return addToast(msg, 'error', duration || 6000)
+    return addToast(msg, 'error', duration || 5100)
   },
   warning: (msg, duration) => {
     const { addToast } = useToastStore.getState()

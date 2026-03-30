@@ -11,7 +11,7 @@ import api from '../../../core/services/api'
 import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
-  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus
+  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X
 } from 'lucide-react'
 
 const playSound = (type) => {
@@ -44,6 +44,8 @@ const estadoBadgeClass = (estado) => {
   }
 }
 
+const formatEstado = (estado) => estado ? estado.replace(/_/g, ' ') : estado
+
 export default function Escaneo() {
   const [sessionActive, setSessionActive] = useState(false)
   const [session, setSession] = useState(null)
@@ -51,6 +53,8 @@ export default function Escaneo() {
   const [tarimasActivas, setTarimasActivas] = useState([]) // Multi-tarima support
   const [guias, setGuias] = useState([])
   const [duplicados, setDuplicados] = useState([])
+  // Per-tarima counters: { [tarimaId]: { guias: n, duplicados: n } }
+  const [tarimaCounters, setTarimaCounters] = useState({})
   const [completedTarimas, setCompletedTarimas] = useState([])
   const [scanInput, setScanInput] = useState('')
   const [lastScan, setLastScan] = useState(null)
@@ -210,6 +214,9 @@ export default function Escaneo() {
       }
       setScanInput('')
       setSession(prev => prev ? { ...prev, total_guias: (prev.total_guias || 0) + 1 } : prev)
+      // Update per-tarima guias counter
+      const tid = data.tarima?.id || tarima?.id
+      if (tid) setTarimaCounters(prev => ({ ...prev, [tid]: { ...(prev[tid] || { guias: 0, duplicados: 0 }), guias: (prev[tid]?.guias || 0) + 1 } }))
     },
     onError: (err) => {
       const d = err.response?.data
@@ -238,6 +245,9 @@ export default function Escaneo() {
           timestamp: new Date()
         }, ...prev])
         setSession(prev => prev ? { ...prev, alertas_duplicados: (prev.alertas_duplicados || 0) + 1 } : prev)
+        // Update per-tarima duplicados counter
+        const tid = tarima?.id
+        if (tid) setTarimaCounters(prev => ({ ...prev, [tid]: { ...(prev[tid] || { guias: 0, duplicados: 0 }), duplicados: (prev[tid]?.duplicados || 0) + 1 } }))
       } else {
         toast.error(d?.error || t('toast.error'))
         setFlashType('error')
@@ -264,18 +274,60 @@ export default function Escaneo() {
       toast.success(t('scan.palletCancelled'))
       setShowCancelModal(false)
       setCancelReason('')
+      const cancelledId = tarima.id
+      // Remove cancelled tarima from active tabs
+      setTarimasActivas(prev => prev.filter(ta => ta.id !== cancelledId))
+      // Clear per-tarima counters for cancelled
+      setTarimaCounters(prev => { const n = { ...prev }; delete n[cancelledId]; return n })
       if (data.nueva_tarima) {
         setTarima(data.nueva_tarima)
+        setTarimasActivas(prev => [...prev, data.nueva_tarima])
         setGuias([])
+        setDuplicados([])
       } else {
-        // If backend does not auto-create a new tarima, prompt or end
-        setTarima(null)
-        setGuias([])
-        toast.info(t('scan.newPalletCreated'))
+        // Switch to another active tarima if available
+        setTarimasActivas(prev => {
+          if (prev.length > 0) {
+            switchTarimaMutation.mutate(prev[0].id)
+          } else {
+            setTarima(null)
+            setGuias([])
+            setDuplicados([])
+          }
+          return prev
+        })
       }
     },
     onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
   })
+
+  // Close a tarima tab: if empty → just close, if has data → show cancel modal
+  const handleCloseTab = (pallet) => {
+    if (pallet.cantidad_guias === 0) {
+      // Empty tarima: cancel silently via API
+      api.post(`/dropscan/tarimas/${pallet.id}/cancel`, { razon: 'Cerrada sin escaneos' }).then(() => {
+        setTarimasActivas(prev => prev.filter(ta => ta.id !== pallet.id))
+        setTarimaCounters(prev => { const n = { ...prev }; delete n[pallet.id]; return n })
+        if (pallet.id === tarima?.id) {
+          const remaining = tarimasActivas.filter(ta => ta.id !== pallet.id)
+          if (remaining.length > 0) {
+            switchTarimaMutation.mutate(remaining[0].id)
+          } else {
+            setTarima(null)
+            setGuias([])
+            setDuplicados([])
+          }
+        }
+        toast.info(t('scan.palletCancelled'))
+      }).catch(err => toast.error(err.response?.data?.error || t('toast.error')))
+    } else {
+      // Has data: switch to it first then show cancel modal
+      if (pallet.id !== tarima?.id) {
+        switchTarimaMutation.mutate(pallet.id)
+      }
+      setShowCancelModal(true)
+    }
+  }
 
   const handleScan = useCallback((e) => {
     e.preventDefault()
@@ -305,9 +357,12 @@ export default function Escaneo() {
       ? 'from-warning-400 to-warning-600'
       : 'from-primary-400 to-accent-500'
 
-  // Get empresa color for summary card
-  const sessionEmpresa = empresas.find(e => e.id === parseInt(selectedEmpresa) || e.nombre === session?.empresa_nombre)
+  // Get empresa color for summary card — prioritize session empresa_id, fallback to name match
+  const sessionEmpresa = empresas.find(e => e.id === session?.empresa_id) || empresas.find(e => e.id === parseInt(selectedEmpresa)) || empresas.find(e => e.nombre === session?.empresa_nombre)
   const empresaColor = sessionEmpresa?.color || '#8b5cf6'
+
+  // Per-tarima counters for current tarima
+  const currentTarimaCounters = tarimaCounters[tarima?.id] || { guias: 0, duplicados: 0 }
 
   // Panel filtered tarimas
   const allTarimas = tarima ? [{ ...tarima, isCurrent: true }, ...completedTarimas] : completedTarimas
@@ -385,7 +440,7 @@ export default function Escaneo() {
                         </p>
                       </div>
                       <span className={`badge text-[9px] ${estadoBadgeClass(pallet.estado)}`}>
-                        {pallet.estado}
+                        {formatEstado(pallet.estado)}
                       </span>
                     </div>
                   ))}
@@ -471,30 +526,43 @@ export default function Escaneo() {
               >
                 <div className="flex items-center gap-1.5 flex-1 overflow-x-auto pb-1">
                   {tarimasActivas.map((pallet, idx) => (
-                    <button
-                      key={pallet.id}
-                      onClick={() => {
-                        if (pallet.id !== tarima?.id) {
-                          switchTarimaMutation.mutate(pallet.id)
-                        }
-                      }}
-                      disabled={switchTarimaMutation.isPending}
-                      className={`relative px-4 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 ${
-                        pallet.id === tarima?.id
-                          ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30'
-                          : 'bg-white border-2 border-warm-200 text-warm-600 hover:border-primary-300 hover:text-primary-600'
-                      }`}
-                    >
-                      <span className="font-mono">{pallet.codigo?.split('-').pop() || `#${idx + 1}`}</span>
-                      <span className="ml-2 text-xs opacity-80">({pallet.cantidad_guias}/100)</span>
-                      {pallet.id === tarima?.id && (
-                        <motion.div
-                          layoutId="active-tarima-indicator"
-                          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow"
-                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                        />
-                      )}
-                    </button>
+                    <div key={pallet.id} className="relative shrink-0 group">
+                      <button
+                        onClick={() => {
+                          if (pallet.id !== tarima?.id) {
+                            switchTarimaMutation.mutate(pallet.id)
+                          }
+                        }}
+                        disabled={switchTarimaMutation.isPending}
+                        className={`relative pl-4 pr-8 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                          pallet.id === tarima?.id
+                            ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30'
+                            : 'bg-white border-2 border-warm-200 text-warm-600 hover:border-primary-300 hover:text-primary-600'
+                        }`}
+                      >
+                        <span className="font-mono">{pallet.codigo?.split('-').pop() || `#${idx + 1}`}</span>
+                        <span className="ml-2 text-xs opacity-80">({pallet.cantidad_guias}/100)</span>
+                        {pallet.id === tarima?.id && (
+                          <motion.div
+                            layoutId="active-tarima-indicator"
+                            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow"
+                            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                          />
+                        )}
+                      </button>
+                      {/* Close tab button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCloseTab(pallet) }}
+                        className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 ${
+                          pallet.id === tarima?.id
+                            ? 'bg-white text-danger-500 shadow-sm hover:bg-danger-50'
+                            : 'bg-danger-100 text-danger-500 hover:bg-danger-200'
+                        }`}
+                        title={pallet.cantidad_guias === 0 ? 'Cerrar tarima vacía' : t('scan.cancelPallet')}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
                   ))}
                 </div>
                 {/* Add tarima button */}
@@ -572,11 +640,11 @@ export default function Escaneo() {
               {/* Session stats - 2 columns */}
               <div className="grid grid-cols-2 gap-4 mt-5 pt-5 border-t" style={{ borderColor: empresaColor + '25' }}>
                 <div className="text-center p-2 rounded-xl bg-white/60">
-                  <p className="text-2xl font-extrabold text-warm-800">{session?.total_guias || 0}</p>
+                  <p className="text-2xl font-extrabold text-warm-800">{currentTarimaCounters.guias}</p>
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{t('scan.totalGuides')}</p>
                 </div>
                 <div className="text-center p-2 rounded-xl bg-white/60">
-                  <p className="text-2xl font-extrabold text-danger-500">{session?.alertas_duplicados || 0}</p>
+                  <p className="text-2xl font-extrabold text-danger-500">{currentTarimaCounters.duplicados}</p>
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{t('scan.duplicates')}</p>
                 </div>
               </div>
@@ -769,7 +837,7 @@ export default function Escaneo() {
                       {pallet.isCurrent ? (
                         <span className="badge bg-primary-100 text-primary-700 text-[9px]">ACTIVA</span>
                       ) : (
-                        <span className={`badge text-[9px] ${estadoBadgeClass(pallet.estado)}`}>{pallet.estado}</span>
+                        <span className={`badge text-[9px] ${estadoBadgeClass(pallet.estado)}`}>{formatEstado(pallet.estado)}</span>
                       )}
                     </div>
                     <div className="flex items-center justify-between">
@@ -805,7 +873,7 @@ export default function Escaneo() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               {[
                 { l: t('history.guides'), v: `${panelDetailData.tarima.cantidad_guias}/100` },
-                { l: t('common.status'), v: panelDetailData.tarima.estado },
+                { l: t('common.status'), v: formatEstado(panelDetailData.tarima.estado) },
                 { l: t('history.operator'), v: panelDetailData.tarima.operador_nombre },
                 { l: t('history.company'), v: panelDetailData.tarima.empresa_nombre },
               ].map(f => (

@@ -6,6 +6,7 @@ import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
 import { BarChart3, Download, Calendar, TrendingUp, Package, CheckCircle, Building2, Radio } from 'lucide-react'
+import MultiSelect from '../../../core/components/common/MultiSelect'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import * as XLSX from 'xlsx'
 
@@ -16,8 +17,8 @@ export default function Reportes() {
 
   const [fechaInicio, setFechaInicio] = useState(weekAgo)
   const [fechaFin, setFechaFin] = useState(today)
-  const [empresaFilter, setEmpresaFilter] = useState('')
-  const [canalFilter, setCanalFilter] = useState('')
+  const [empresaFilter, setEmpresaFilter] = useState([])
+  const [canalFilter, setCanalFilter] = useState([])
 
   // Fetch empresas and canales for filters
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
@@ -27,7 +28,7 @@ export default function Reportes() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['dropscan-metrics', fechaInicio, fechaFin, empresaFilter, canalFilter],
-    queryFn: () => ds.getMetrics(fechaInicio, fechaFin, empresaFilter || undefined, canalFilter || undefined),
+    queryFn: () => ds.getMetrics(fechaInicio, fechaFin, empresaFilter.length ? empresaFilter : undefined, canalFilter.length ? canalFilter : undefined),
     enabled: !!fechaInicio && !!fechaFin,
   })
 
@@ -114,31 +115,25 @@ export default function Reportes() {
                 {t('common.last30Days')}
               </button>
             </div>
-            {/* Empresa filter */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">{t('history.company')}</label>
-              <select
-                value={empresaFilter}
-                onChange={(e) => setEmpresaFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:border-primary-500 min-w-[160px]"
-              >
-                <option value="">{t('common.all')}</option>
-                {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-              </select>
-            </div>
+            {/* Empresa filter - multi-select */}
+            <MultiSelect
+              label={t('history.company')}
+              icon={Building2}
+              placeholder={t('common.all')}
+              options={empresas.map(e => ({ value: e.id, label: e.nombre, color: e.color }))}
+              selected={empresaFilter}
+              onChange={setEmpresaFilter}
+            />
 
-            {/* Canal filter */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">{t('history.channel')}</label>
-              <select
-                value={canalFilter}
-                onChange={(e) => setCanalFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:border-primary-500 min-w-[160px]"
-              >
-                <option value="">{t('common.all')}</option>
-                {canales.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </div>
+            {/* Canal filter - multi-select */}
+            <MultiSelect
+              label={t('history.channel')}
+              icon={Radio}
+              placeholder={t('common.all')}
+              options={canales.map(c => ({ value: c.id, label: c.nombre }))}
+              selected={canalFilter}
+              onChange={setCanalFilter}
+            />
 
             <div className="flex-1" />
             <button
