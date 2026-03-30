@@ -28,6 +28,7 @@ const MODULE_GROUPS = [
   {
     group: 'Sistema',
     modules: [
+      { key: 'global.inicio', label: 'Inicio (Dashboard Global)' },
       { key: 'global.administracion', label: 'Administración' },
     ]
   },
@@ -78,15 +79,15 @@ export default function Administracion() {
             {[
               { key: 'usuarios', label: t('admin.users'), icon: Users },
               { key: 'roles', label: t('admin.roles'), icon: Shield },
-            ].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
+            ].map(item => (
+              <button key={item.key} onClick={() => setTab(item.key)}
                 className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all duration-200
-                  ${tab === t.key
+                  ${tab === item.key
                     ? 'border-primary-600 text-primary-700 bg-primary-50/50'
                     : 'border-transparent text-warm-500 hover:text-warm-700 hover:bg-warm-50'
                   }`}>
-                <t.icon className="w-4 h-4" />
-                {t.label}
+                <item.icon className="w-4 h-4" />
+                {item.label}
               </button>
             ))}
           </div>

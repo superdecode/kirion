@@ -129,7 +129,7 @@ export default function Historial() {
     try {
       const csv = [
         ['Codigo', 'Empresa', 'Canal', 'Operador', 'Guias', 'Estado', 'Fecha'].join(','),
-        ...tarimas.map(t => [t.codigo, t.empresa_nombre, t.canal_nombre, t.operador_nombre, t.cantidad_guias, t.estado, new Date(t.fecha_inicio).toLocaleString('es-MX')].join(','))
+        ...tarimas.map(row => [row.codigo, row.empresa_nombre, row.canal_nombre, row.operador_nombre, row.cantidad_guias, row.estado, new Date(row.fecha_inicio).toLocaleString('es-MX')].join(','))
       ].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
@@ -254,35 +254,35 @@ export default function Historial() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-warm-50">
-                      {tarimas.map(t => (
-                        <tr key={t.id} className="hover:bg-warm-50/50 transition-colors group">
+                      {tarimas.map(row => (
+                        <tr key={row.id} className="hover:bg-warm-50/50 transition-colors group">
                           <td className="table-cell">
-                            <span className="font-mono font-semibold text-warm-700">{t.codigo}</span>
+                            <span className="font-mono font-semibold text-warm-700">{row.codigo}</span>
                           </td>
-                          <td className="table-cell text-warm-600">{t.empresa_nombre}</td>
-                          <td className="table-cell text-warm-600">{t.canal_nombre}</td>
-                          <td className="table-cell text-warm-600">{t.operador_nombre}</td>
+                          <td className="table-cell text-warm-600">{row.empresa_nombre}</td>
+                          <td className="table-cell text-warm-600">{row.canal_nombre}</td>
+                          <td className="table-cell text-warm-600">{row.operador_nombre}</td>
                           <td className="table-cell text-center">
-                            <span className="font-bold text-warm-700">{t.cantidad_guias}</span>
+                            <span className="font-bold text-warm-700">{row.cantidad_guias}</span>
                             <span className="text-warm-400">/100</span>
                           </td>
                           <td className="table-cell text-center">
-                            <span className={`badge text-[10px] ${estadoColors[t.estado] || 'bg-warm-100 text-warm-600'}`}>
-                              {estadoLabels[t.estado] || t.estado}
+                            <span className={`badge text-[10px] ${estadoColors[row.estado] || 'bg-warm-100 text-warm-600'}`}>
+                              {estadoLabels[row.estado] || row.estado}
                             </span>
                           </td>
                           <td className="table-cell text-warm-500 text-xs">
-                            {new Date(t.fecha_inicio).toLocaleDateString('es-MX')}
-                            <br /><span className="text-warm-400">{new Date(t.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                            {new Date(row.fecha_inicio).toLocaleDateString('es-MX')}
+                            <br /><span className="text-warm-400">{new Date(row.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
                           </td>
                           <td className="table-cell">
                             <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => handleOpenDetail(t.id)}
+                              <button onClick={() => handleOpenDetail(row.id)}
                                 className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title="Ver detalle">
                                 <Eye className="w-4 h-4" />
                               </button>
                               {canDelete('dropscan.historial') && (
-                                <button onClick={() => { if (confirm(`Eliminar tarima ${t.codigo}?`)) deleteMutation.mutate(t.id) }}
+                                <button onClick={() => { if (confirm(`Eliminar tarima ${row.codigo}?`)) deleteMutation.mutate(row.id) }}
                                   className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title="Eliminar">
                                   <Trash2 className="w-4 h-4" />
                                 </button>

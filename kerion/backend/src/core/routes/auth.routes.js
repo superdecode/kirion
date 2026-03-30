@@ -1,9 +1,10 @@
 import { Router } from 'express'
+import crypto from 'crypto'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import env from '../../config/env.js'
 import { query } from '../../config/database.js'
-import { authenticateToken } from '../../shared/middleware/auth.js'
+import { authenticateToken, auditLog } from '../../shared/middleware/auth.js'
 
 const router = Router()
 
@@ -45,15 +46,20 @@ router.post('/login', async (req, res) => {
     // Build permissions from role or override
     const permisos = user.permisos_override || user.rol_permisos || {}
 
+    const jti = crypto.randomBytes(16).toString('hex')
     const payload = {
       id: user.id,
       codigo: user.codigo,
       email: user.email,
       rol_id: user.rol_id,
       rol_nombre: user.rol_nombre,
+      jti,
     }
 
     const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN })
+
+    // Audit: login
+    auditLog(req, 'LOGIN', 'usuario', user.id, { email: user.email, rol: user.rol_nombre })
 
     res.json({
       success: true,
@@ -114,9 +120,26 @@ router.get('/me', authenticateToken, async (req, res) => {
 })
 
 // POST /api/auth/logout
-router.post('/logout', authenticateToken, (req, res) => {
-  // JWT is stateless; actual invalidation happens client-side (clear token from storage)
-  res.json({ success: true, message: 'Sesión cerrada' })
+router.post('/logout', authenticateToken, async (req, res) => {
+  try {
+    // Blacklist the token if it has a JTI
+    if (req.user.jti) {
+      const expiresAt = new Date(req.user.exp * 1000)
+      await query(
+        'INSERT INTO token_blacklist (token_jti, user_id, expires_at) VALUES ($1, $2, $3) ON CONFLICT (token_jti) DO NOTHING',
+        [req.user.jti, req.user.id, expiresAt]
+      )
+    }
+    // Cleanup expired tokens opportunistically (1 in 10 chance)
+    if (Math.random() < 0.1) {
+      query('DELETE FROM token_blacklist WHERE expires_at < CURRENT_TIMESTAMP').catch(() => {})
+    }
+    auditLog(req, 'LOGOUT', 'usuario', req.user.id, null)
+    res.json({ success: true, message: 'Sesión cerrada' })
+  } catch (error) {
+    console.error('Logout error:', error)
+    res.json({ success: true, message: 'Sesión cerrada' })
+  }
 })
 
 export default router

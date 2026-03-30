@@ -50,7 +50,9 @@ function AppRoutes() {
         }
       >
         {/* Global */}
-        <Route path="/" element={<GlobalDashboard />} />
+        <Route path="/" element={
+          <PermissionRoute module="global.inicio"><GlobalDashboard /></PermissionRoute>
+        } />
 
         {/* DropScan Module */}
         <Route path="/dropscan" element={

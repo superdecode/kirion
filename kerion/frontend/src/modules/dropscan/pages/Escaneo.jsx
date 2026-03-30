@@ -115,8 +115,8 @@ export default function Escaneo() {
 
   useEffect(() => {
     if (flashType) {
-      const t = setTimeout(() => setFlashType(null), 500)
-      return () => clearTimeout(t)
+      const timer = setTimeout(() => setFlashType(null), 500)
+      return () => clearTimeout(timer)
     }
   }, [flashType])
 
@@ -191,7 +191,7 @@ export default function Escaneo() {
         setTarima(data.nueva_tarima)
         // Update tarimasActivas: remove completed, add new
         setTarimasActivas(prev => {
-          const filtered = prev.filter(t => t.id !== data.tarima.id)
+          const filtered = prev.filter(ta => ta.id !== data.tarima.id)
           return data.nueva_tarima ? [...filtered, data.nueva_tarima] : filtered
         })
         setGuias([])
@@ -200,7 +200,7 @@ export default function Escaneo() {
       } else {
         setTarima(data.tarima)
         // Update the tarima in tarimasActivas
-        setTarimasActivas(prev => prev.map(t => t.id === data.tarima.id ? data.tarima : t))
+        setTarimasActivas(prev => prev.map(ta => ta.id === data.tarima.id ? data.tarima : ta))
         setGuias(prev => [data.guia, ...prev].slice(0, 20))
       }
 
@@ -312,7 +312,7 @@ export default function Escaneo() {
   // Panel filtered tarimas
   const allTarimas = tarima ? [{ ...tarima, isCurrent: true }, ...completedTarimas] : completedTarimas
   const filteredPanel = panelSearch
-    ? allTarimas.filter(t => t.codigo?.toLowerCase().includes(panelSearch.toLowerCase()))
+    ? allTarimas.filter(pallet => pallet.codigo?.toLowerCase().includes(panelSearch.toLowerCase()))
     : allTarimas
 
   // --- NO SESSION VIEW ---
@@ -372,20 +372,20 @@ export default function Escaneo() {
                 </div>
               ) : (
                 <div className="divide-y divide-warm-50">
-                  {todayTarimas.map(t => (
-                    <div key={t.id} className="flex items-center gap-4 px-5 py-3 hover:bg-warm-50/50 transition-colors">
+                  {todayTarimas.map(pallet => (
+                    <div key={pallet.id} className="flex items-center gap-4 px-5 py-3 hover:bg-warm-50/50 transition-colors">
                       <div className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
                         <Package className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-mono font-semibold text-warm-700 truncate">{t.codigo}</p>
+                        <p className="text-sm font-mono font-semibold text-warm-700 truncate">{pallet.codigo}</p>
                         <p className="text-[10px] text-warm-400 font-medium">
-                          {t.cantidad_guias} {t('dashboard.guides')}
-                          {t.created_at && ` · ${new Date(t.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`}
+                          {pallet.cantidad_guias} {t('dashboard.guides')}
+                          {pallet.created_at && ` · ${new Date(pallet.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`}
                         </p>
                       </div>
-                      <span className={`badge text-[9px] ${estadoBadgeClass(t.estado)}`}>
-                        {t.estado}
+                      <span className={`badge text-[9px] ${estadoBadgeClass(pallet.estado)}`}>
+                        {pallet.estado}
                       </span>
                     </div>
                   ))}
@@ -470,24 +470,24 @@ export default function Escaneo() {
                 transition={{ duration: 0.3 }}
               >
                 <div className="flex items-center gap-1.5 flex-1 overflow-x-auto pb-1">
-                  {tarimasActivas.map((t, idx) => (
+                  {tarimasActivas.map((pallet, idx) => (
                     <button
-                      key={t.id}
+                      key={pallet.id}
                       onClick={() => {
-                        if (t.id !== tarima?.id) {
-                          switchTarimaMutation.mutate(t.id)
+                        if (pallet.id !== tarima?.id) {
+                          switchTarimaMutation.mutate(pallet.id)
                         }
                       }}
                       disabled={switchTarimaMutation.isPending}
                       className={`relative px-4 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 ${
-                        t.id === tarima?.id
+                        pallet.id === tarima?.id
                           ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30'
                           : 'bg-white border-2 border-warm-200 text-warm-600 hover:border-primary-300 hover:text-primary-600'
                       }`}
                     >
-                      <span className="font-mono">{t.codigo?.split('-').pop() || `#${idx + 1}`}</span>
-                      <span className="ml-2 text-xs opacity-80">({t.cantidad_guias}/100)</span>
-                      {t.id === tarima?.id && (
+                      <span className="font-mono">{pallet.codigo?.split('-').pop() || `#${idx + 1}`}</span>
+                      <span className="ml-2 text-xs opacity-80">({pallet.cantidad_guias}/100)</span>
+                      {pallet.id === tarima?.id && (
                         <motion.div
                           layoutId="active-tarima-indicator"
                           className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow"
@@ -756,38 +756,38 @@ export default function Escaneo() {
               {filteredPanel.length === 0 ? (
                 <div className="py-8 text-center text-xs text-warm-400">{t('scan.noPalletsYet')}</div>
               ) : (
-                filteredPanel.map(t => (
-                  <div key={t.id} onClick={() => setPanelDetailId(t.id)}
+                filteredPanel.map(pallet => (
+                  <div key={pallet.id} onClick={() => setPanelDetailId(pallet.id)}
                     className={`p-3 rounded-xl border transition-all cursor-pointer
-                      ${t.isCurrent
+                      ${pallet.isCurrent
                         ? 'border-primary-200 bg-primary-50/50 shadow-sm'
-                        : t.estado === 'CANCELADA'
+                        : pallet.estado === 'CANCELADA'
                           ? 'border-danger-100 bg-danger-50/30 hover:border-danger-200'
                           : 'border-warm-100 hover:border-warm-200 hover:bg-warm-50'}`}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-warm-700 font-mono">{t.codigo}</span>
-                      {t.isCurrent ? (
+                      <span className="text-xs font-bold text-warm-700 font-mono">{pallet.codigo}</span>
+                      {pallet.isCurrent ? (
                         <span className="badge bg-primary-100 text-primary-700 text-[9px]">ACTIVA</span>
                       ) : (
-                        <span className={`badge text-[9px] ${estadoBadgeClass(t.estado)}`}>{t.estado}</span>
+                        <span className={`badge text-[9px] ${estadoBadgeClass(pallet.estado)}`}>{pallet.estado}</span>
                       )}
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-warm-400 font-medium">{t.cantidad_guias}/100 guias</span>
-                      {t.completedAt && (
+                      <span className="text-[10px] text-warm-400 font-medium">{pallet.cantidad_guias}/100 guias</span>
+                      {pallet.completedAt && (
                         <span className="text-[10px] text-warm-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />{new Date(t.completedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                          <Clock className="w-3 h-3" />{new Date(pallet.completedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
                     </div>
                     {/* Mini progress */}
                     <div className="w-full h-1.5 bg-warm-100 rounded-full mt-2 overflow-hidden">
                       <div className={`h-full rounded-full ${
-                        t.isCurrent ? 'bg-gradient-to-r from-primary-400 to-accent-500'
-                        : t.estado === 'CANCELADA' ? 'bg-danger-400'
+                        pallet.isCurrent ? 'bg-gradient-to-r from-primary-400 to-accent-500'
+                        : pallet.estado === 'CANCELADA' ? 'bg-danger-400'
                         : 'bg-success-400'
                       }`}
-                        style={{ width: `${(t.cantidad_guias / 100) * 100}%` }} />
+                        style={{ width: `${(pallet.cantidad_guias / 100) * 100}%` }} />
                     </div>
                   </div>
                 ))

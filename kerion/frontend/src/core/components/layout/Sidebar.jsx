@@ -102,8 +102,10 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-4 px-2.5 relative z-10">
-        {/* Global Dashboard */}
-        <NavItem to="/" icon={LayoutDashboard} label={t('nav.home')} collapsed={collapsed} end />
+        {/* Global Dashboard - Inicio */}
+        {canView('global.inicio') && (
+          <NavItem to="/" icon={LayoutDashboard} label={t('nav.home')} collapsed={collapsed} end />
+        )}
 
         {/* Module sections */}
         {getModuleNav(t).map((mod) => {

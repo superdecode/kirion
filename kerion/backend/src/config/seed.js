@@ -32,7 +32,7 @@ async function seedDatabase() {
         nombre: 'Administrador',
         descripcion: 'Acceso total al sistema',
         permisos: {
-          global: { dashboard: 'total', administracion: 'total' },
+          global: { inicio: 'total', administracion: 'total' },
           dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total' }
         }
       },
@@ -40,7 +40,7 @@ async function seedDatabase() {
         nombre: 'Jefe',
         descripcion: 'Supervisor de operaciones',
         permisos: {
-          global: { dashboard: 'lectura', administracion: 'sin_acceso' },
+          global: { inicio: 'lectura', administracion: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' }
         }
       },
@@ -48,7 +48,7 @@ async function seedDatabase() {
         nombre: 'Operador',
         descripcion: 'Operador de escaneo',
         permisos: {
-          global: { dashboard: 'lectura', administracion: 'sin_acceso' },
+          global: { inicio: 'lectura', administracion: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' }
         }
       },
@@ -56,7 +56,7 @@ async function seedDatabase() {
         nombre: 'Usuario',
         descripcion: 'Solo consulta',
         permisos: {
-          global: { dashboard: 'lectura', administracion: 'sin_acceso' },
+          global: { inicio: 'lectura', administracion: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' }
         }
       }
