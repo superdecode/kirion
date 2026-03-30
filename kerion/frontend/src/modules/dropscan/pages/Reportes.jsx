@@ -35,30 +35,74 @@ export default function Reportes() {
   const totales = data?.totales || {}
   const porDia = data?.por_dia || []
 
-  const handleExport = () => {
-    if (!porDia.length) return
+  const [isExporting, setIsExporting] = useState(false)
 
-    const wsData = [
-      [t('history.date'), t('dashboard.pallets'), t('dashboard.completedPallets'), t('dashboard.guides'), t('reports.avgTime')],
-      ...porDia.map(d => [
-        new Date(d.fecha).toLocaleDateString('es-MX'),
-        d.tarimas,
-        d.completadas,
-        d.guias,
-        d.tiempo_promedio_min
-      ]),
-      [],
-      ['TOTALES', totales.tarimas, totales.completadas, totales.guias, '']
-    ]
+  const handleExport = async () => {
+    setIsExporting(true)
+    try {
+      const exportData = await ds.getExportData(
+        fechaInicio, fechaFin,
+        empresaFilter.length ? empresaFilter : undefined,
+        canalFilter.length ? canalFilter : undefined
+      )
+      const registros = exportData?.registros || []
 
-    const ws = XLSX.utils.aoa_to_sheet(wsData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Reporte DropScan')
+      const wb = XLSX.utils.book_new()
 
-    // Column widths
-    ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 18 }]
+      // Sheet 1: Daily summary
+      if (porDia.length) {
+        const resumenData = [
+          [t('history.date'), t('dashboard.pallets'), t('dashboard.completedPallets'), t('dashboard.guides'), t('reports.avgTime')],
+          ...porDia.map(d => [
+            new Date(d.fecha).toLocaleDateString('es-MX'),
+            d.tarimas,
+            d.completadas,
+            d.guias,
+            d.tiempo_promedio_min
+          ]),
+          [],
+          ['TOTALES', totales.tarimas, totales.completadas, totales.guias, '']
+        ]
+        const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
+        wsResumen['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 18 }]
+        XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
+      }
 
-    XLSX.writeFile(wb, `reporte-dropscan-${fechaInicio}-${fechaFin}.xlsx`)
+      // Sheet 2: All guides detail
+      if (registros.length) {
+        const detalleData = [
+          ['Tarima', 'Empresa', 'Canal', 'Operador Tarima', 'Estado', 'Guías en Tarima', 'Inicio Tarima', 'Cierre Tarima', 'Duración (min)', 'Código Guía', 'Posición', 'Fecha Escaneo', 'Operador Escaneo'],
+          ...registros.map(r => [
+            r.tarima_codigo,
+            r.empresa,
+            r.canal,
+            r.operador,
+            r.estado,
+            r.cantidad_guias,
+            r.fecha_inicio ? new Date(r.fecha_inicio).toLocaleString('es-MX') : '',
+            r.fecha_cierre ? new Date(r.fecha_cierre).toLocaleString('es-MX') : '',
+            r.duracion_min || '',
+            r.codigo_guia || '',
+            r.posicion || '',
+            r.timestamp_escaneo ? new Date(r.timestamp_escaneo).toLocaleString('es-MX') : '',
+            r.operador_guia || ''
+          ])
+        ]
+        const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData)
+        wsDetalle['!cols'] = [
+          { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 12 },
+          { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 22 },
+          { wch: 10 }, { wch: 20 }, { wch: 20 }
+        ]
+        XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle Guías')
+      }
+
+      XLSX.writeFile(wb, `reporte-dropscan-${fechaInicio}-${fechaFin}.xlsx`)
+    } catch {
+      // silent fail — toast would need import
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   return (
@@ -138,12 +182,12 @@ export default function Reportes() {
             <div className="flex-1" />
             <button
               onClick={handleExport}
-              disabled={!porDia.length}
+              disabled={!porDia.length || isExporting}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-success-600 text-white rounded-lg text-sm font-medium
                          hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Download className="w-4 h-4" />
-              {t('reports.exportExcel')}
+              {isExporting ? '...' : t('reports.exportExcel')}
             </button>
           </motion.div>
 

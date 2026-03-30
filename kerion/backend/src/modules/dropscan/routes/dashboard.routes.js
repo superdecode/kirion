@@ -166,6 +166,76 @@ router.get('/metrics',
   }
 )
 
+// GET /api/dropscan/dashboard/export?fecha_inicio=&fecha_fin=
+router.get('/export',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.reportes', 'ver'),
+  async (req, res) => {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id, canal_id } = req.query
+
+      if (!fecha_inicio || !fecha_fin) {
+        return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' })
+      }
+
+      let where = [`DATE(t.fecha_inicio) BETWEEN $1 AND $2`]
+      let params = [fecha_inicio, fecha_fin]
+      let paramCount = 2
+
+      if (empresa_id) {
+        const ids = empresa_id.split(',').map(Number).filter(Boolean)
+        if (ids.length > 0) {
+          paramCount++
+          where.push(`t.empresa_id = ANY($${paramCount})`)
+          params.push(ids)
+        }
+      }
+      if (canal_id) {
+        const ids = canal_id.split(',').map(Number).filter(Boolean)
+        if (ids.length > 0) {
+          paramCount++
+          where.push(`t.canal_id = ANY($${paramCount})`)
+          params.push(ids)
+        }
+      }
+
+      const whereClause = where.join(' AND ')
+
+      const result = await query(
+        `SELECT
+          t.codigo as tarima_codigo,
+          e.nombre as empresa,
+          c.nombre as canal,
+          u.nombre_completo as operador,
+          t.estado,
+          t.cantidad_guias,
+          t.fecha_inicio,
+          t.fecha_cierre,
+          ROUND((t.tiempo_armado_segundos::numeric / 60), 1) as duracion_min,
+          t.cancelada_razon,
+          g.codigo_guia,
+          g.posicion,
+          g.timestamp_escaneo,
+          gu.nombre_completo as operador_guia
+        FROM tarimas t
+        JOIN configuraciones e ON t.empresa_id = e.id
+        JOIN configuraciones c ON t.canal_id = c.id
+        JOIN usuarios u ON t.operador_id = u.id
+        LEFT JOIN guias g ON g.tarima_id = t.id
+        LEFT JOIN usuarios gu ON g.operador_id = gu.id
+        WHERE ${whereClause}
+        ORDER BY t.fecha_inicio ASC, t.codigo ASC, g.posicion ASC`,
+        params
+      )
+
+      res.json({ registros: result.rows })
+    } catch (error) {
+      console.error('Export error:', error)
+      res.status(500).json({ error: 'Error generando exportación' })
+    }
+  }
+)
+
 // GET /api/dropscan/guias/search?q=
 router.get('/guias/search',
   authenticateToken,
