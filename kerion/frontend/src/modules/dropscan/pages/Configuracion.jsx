@@ -69,12 +69,13 @@ function EmpresasTab({ canEdit, canRemove }) {
   const [showModal, setShowModal] = useState(false)
   const [editingEmpresa, setEditingEmpresa] = useState(null)
   const queryClient = useQueryClient()
-  const toast = useToastStore
+  const toast = useToastStore.getState()
 
-  const { data: empresas = [], isLoading } = useQuery({
+  const { data: empresasRaw, isLoading, isError } = useQuery({
     queryKey: ['dropscan-empresas'],
     queryFn: () => configService.getEmpresas()
   })
+  const empresas = Array.isArray(empresasRaw) ? empresasRaw : empresasRaw?.items || empresasRaw?.empresas || []
 
   const createMutation = useMutation({
     mutationFn: configService.createEmpresa,
@@ -317,6 +318,7 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
       title={empresa ? 'Editar Empresa' : 'Nueva Empresa'}
       icon={Package}
       size="md"
+      preventBackdropClose
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -419,12 +421,13 @@ function CanalesTab({ canEdit, canRemove }) {
   const [showModal, setShowModal] = useState(false)
   const [editingCanal, setEditingCanal] = useState(null)
   const queryClient = useQueryClient()
-  const toast = useToastStore
+  const toast = useToastStore.getState()
 
-  const { data: canales = [], isLoading } = useQuery({
+  const { data: canalesRaw, isLoading, isError } = useQuery({
     queryKey: ['dropscan-canales'],
     queryFn: () => configService.getCanales()
   })
+  const canales = Array.isArray(canalesRaw) ? canalesRaw : canalesRaw?.items || canalesRaw?.canales || []
 
   const createMutation = useMutation({
     mutationFn: configService.createCanal,
@@ -680,10 +683,11 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
     empresa_ids: canal?.empresas?.map(e => e.id) || []
   })
 
-  const { data: empresas = [] } = useQuery({
+  const { data: empresasRaw } = useQuery({
     queryKey: ['dropscan-empresas'],
     queryFn: () => configService.getEmpresas()
   })
+  const empresas = Array.isArray(empresasRaw) ? empresasRaw : empresasRaw?.items || empresasRaw?.empresas || []
 
   const activeEmpresas = empresas.filter(e => e.activo)
 
@@ -708,6 +712,7 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
       title={canal ? 'Editar Canal' : 'Nuevo Canal'}
       icon={Radio}
       size="md"
+      preventBackdropClose
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -824,7 +829,7 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
 function ParametrosTab({ canEdit }) {
   const [guiasPorTarima, setGuiasPorTarima] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
-  const toast = useToastStore
+  const toast = useToastStore.getState()
 
   const { data: parametros, isLoading } = useQuery({
     queryKey: ['dropscan-parametros'],

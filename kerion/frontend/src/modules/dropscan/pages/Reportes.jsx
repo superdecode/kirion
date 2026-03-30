@@ -5,7 +5,7 @@ import Header from '../../../core/components/layout/Header'
 import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
-import { BarChart3, Download, Calendar, TrendingUp, Package, CheckCircle } from 'lucide-react'
+import { BarChart3, Download, Calendar, TrendingUp, Package, CheckCircle, Building2, Radio } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import * as XLSX from 'xlsx'
 
@@ -16,10 +16,18 @@ export default function Reportes() {
 
   const [fechaInicio, setFechaInicio] = useState(weekAgo)
   const [fechaFin, setFechaFin] = useState(today)
+  const [empresaFilter, setEmpresaFilter] = useState('')
+  const [canalFilter, setCanalFilter] = useState('')
+
+  // Fetch empresas and canales for filters
+  const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
+  const { data: canalesData } = useQuery({ queryKey: ['dropscan-canales'], queryFn: ds.getCanales })
+  const empresas = (Array.isArray(empresasData) ? empresasData : empresasData?.items || empresasData?.empresas || []).filter(e => e.activo !== false)
+  const canales = (Array.isArray(canalesData) ? canalesData : canalesData?.items || canalesData?.canales || []).filter(c => c.activo !== false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dropscan-metrics', fechaInicio, fechaFin],
-    queryFn: () => ds.getMetrics(fechaInicio, fechaFin),
+    queryKey: ['dropscan-metrics', fechaInicio, fechaFin, empresaFilter, canalFilter],
+    queryFn: () => ds.getMetrics(fechaInicio, fechaFin, empresaFilter || undefined, canalFilter || undefined),
     enabled: !!fechaInicio && !!fechaFin,
   })
 
@@ -32,7 +40,7 @@ export default function Reportes() {
     const wsData = [
       [t('history.date'), t('dashboard.pallets'), t('dashboard.completedPallets'), t('dashboard.guides'), t('reports.avgTime')],
       ...porDia.map(d => [
-        new Date(d.fecha).toLocaleDateString('zh-CN'),
+        new Date(d.fecha).toLocaleDateString('es-MX'),
         d.tarimas,
         d.completadas,
         d.guias,
@@ -106,6 +114,32 @@ export default function Reportes() {
                 {t('common.last30Days')}
               </button>
             </div>
+            {/* Empresa filter */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">{t('history.company')}</label>
+              <select
+                value={empresaFilter}
+                onChange={(e) => setEmpresaFilter(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:border-primary-500 min-w-[160px]"
+              >
+                <option value="">{t('common.all')}</option>
+                {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+              </select>
+            </div>
+
+            {/* Canal filter */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">{t('history.channel')}</label>
+              <select
+                value={canalFilter}
+                onChange={(e) => setCanalFilter(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:border-primary-500 min-w-[160px]"
+              >
+                <option value="">{t('common.all')}</option>
+                {canales.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
+
             <div className="flex-1" />
             <button
               onClick={handleExport}
@@ -159,12 +193,12 @@ export default function Reportes() {
                         <XAxis
                           dataKey="fecha"
                           tick={{ fontSize: 10 }}
-                          tickFormatter={(d) => new Date(d).toLocaleDateString('zh-CN', { day: '2-digit', month: '2-digit' })}
+                          tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
                         />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip
                           contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                          labelFormatter={(d) => new Date(d).toLocaleDateString('zh-CN')}
+                          labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')}
                         />
                         <Bar dataKey="guias" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Guías" />
                       </BarChart>
@@ -180,12 +214,12 @@ export default function Reportes() {
                         <XAxis
                           dataKey="fecha"
                           tick={{ fontSize: 10 }}
-                          tickFormatter={(d) => new Date(d).toLocaleDateString('zh-CN', { day: '2-digit', month: '2-digit' })}
+                          tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
                         />
                         <YAxis tick={{ fontSize: 10 }} unit=" min" />
                         <Tooltip
                           contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                          labelFormatter={(d) => new Date(d).toLocaleDateString('zh-CN')}
+                          labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')}
                         />
                         <Line
                           type="monotone"
@@ -222,7 +256,7 @@ export default function Reportes() {
                         {porDia.map(d => (
                           <tr key={d.fecha} className="hover:bg-primary-50/20 transition-colors">
                             <td className="px-4 py-3 text-warm-700">
-                              {new Date(d.fecha).toLocaleDateString('zh-CN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                              {new Date(d.fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })}
                             </td>
                             <td className="px-4 py-3 text-center text-warm-600">{d.tarimas}</td>
                             <td className="px-4 py-3 text-center text-success-600 font-semibold">{d.completadas}</td>

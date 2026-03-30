@@ -68,14 +68,18 @@ export default function Escaneo() {
   const inputRef = useRef(null)
   const qc = useQueryClient()
   const { canDelete, user } = useAuthStore()
-  const toast = useToastStore
+  const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const isSupervisor = user?.rol_nombre === 'Supervisor' || user?.rol_nombre === 'Jefe' || user?.rol_nombre === 'Administrador'
 
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
   const { data: canalesData } = useQuery({ queryKey: ['dropscan-canales'], queryFn: ds.getCanales })
-  const empresas = empresasData?.items || []
-  const canales = canalesData?.items || []
+  const empresas = (Array.isArray(empresasData) ? empresasData : empresasData?.items || empresasData?.empresas || []).filter(e => e.activo !== false)
+  const allCanales = Array.isArray(canalesData) ? canalesData : canalesData?.items || canalesData?.canales || []
+  // Filter canales: show only those linked to selected empresa (or all active if no empresa selected)
+  const canales = selectedEmpresa
+    ? allCanales.filter(c => c.activo !== false && (c.empresas?.some(e => e.id === parseInt(selectedEmpresa)) || !c.empresas?.length))
+    : allCanales.filter(c => c.activo !== false)
 
   // Today's history for no-session view
   const todayStr = getTodayDateStr()
@@ -292,12 +296,18 @@ export default function Escaneo() {
     cancelTarimaMutation.mutate(cancelReason.trim())
   }
 
-  const progressPercent = tarima ? (tarima.cantidad_guias / 100) * 100 : 0
+  // Individual progress per tarima (use the current tarima's own count, not session total)
+  const currentTarimaGuias = tarima?.cantidad_guias || 0
+  const progressPercent = (currentTarimaGuias / 100) * 100
   const progressGradient = progressPercent >= 95
     ? 'from-danger-400 to-danger-600'
     : progressPercent >= 90
       ? 'from-warning-400 to-warning-600'
       : 'from-primary-400 to-accent-500'
+
+  // Get empresa color for summary card
+  const sessionEmpresa = empresas.find(e => e.id === parseInt(selectedEmpresa) || e.nombre === session?.empresa_nombre)
+  const empresaColor = sessionEmpresa?.color || '#8b5cf6'
 
   // Panel filtered tarimas
   const allTarimas = tarima ? [{ ...tarima, isCurrent: true }, ...completedTarimas] : completedTarimas
@@ -309,7 +319,7 @@ export default function Escaneo() {
   if (!sessionActive) {
     return (
       <div className="flex flex-col h-full">
-        <Header title={t('scan.title')} subtitle="DropScan" />
+        <Header title={t('scan.title')} subtitle="DropScan" showSearch />
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto">
             {/* Start session CTA */}
@@ -371,7 +381,7 @@ export default function Escaneo() {
                         <p className="text-sm font-mono font-semibold text-warm-700 truncate">{t.codigo}</p>
                         <p className="text-[10px] text-warm-400 font-medium">
                           {t.cantidad_guias} {t('dashboard.guides')}
-                          {t.created_at && ` · ${new Date(t.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`}
+                          {t.created_at && ` · ${new Date(t.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`}
                         </p>
                       </div>
                       <span className={`badge text-[9px] ${estadoBadgeClass(t.estado)}`}>
@@ -396,7 +406,7 @@ export default function Escaneo() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('scan.company')}</label>
-              <select value={selectedEmpresa} onChange={(e) => setSelectedEmpresa(e.target.value)} className="select-field">
+              <select value={selectedEmpresa} onChange={(e) => { setSelectedEmpresa(e.target.value); setSelectedCanal('') }} className="select-field">
                 <option value="">{t('scan.selectCompany')}</option>
                 {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
               </select>
@@ -417,7 +427,7 @@ export default function Escaneo() {
   // --- ACTIVE SESSION VIEW ---
   return (
     <div className="flex flex-col h-full">
-      <Header title={t('scan.activeTitle')} subtitle={`${session?.empresa_nombre || ''} · ${session?.canal_nombre || ''}`}
+      <Header title={t('scan.activeTitle')} subtitle={`${session?.empresa_nombre || ''} · ${session?.canal_nombre || ''}`} showSearch
         actions={
           <div className="flex items-center gap-1.5">
             <button onClick={() => setSoundEnabled(!soundEnabled)}
@@ -505,13 +515,31 @@ export default function Escaneo() {
               </motion.div>
             )}
 
-            {/* Tarima Status Card */}
+            {/* Tarima Status Card with empresa/canal info and empresa color */}
             <motion.div
-              className="card p-6 mb-6 bg-gradient-to-br from-white via-primary-50/30 to-accent-50/20 border-2 border-primary-100/50 shadow-lg"
+              className="card p-6 mb-6 shadow-lg overflow-hidden relative"
+              style={{
+                borderWidth: '2px',
+                borderColor: empresaColor + '40',
+                background: `linear-gradient(135deg, white 0%, ${empresaColor}08 50%, ${empresaColor}12 100%)`
+              }}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
+              {/* Empresa/Canal info bar */}
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b" style={{ borderColor: empresaColor + '25' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: empresaColor + '18' }}>
+                  <Package className="w-5 h-5" style={{ color: empresaColor }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-warm-800 truncate">{session?.empresa_nombre || '—'}</p>
+                  <p className="text-xs text-warm-500 truncate">{session?.canal_nombre || '—'}</p>
+                </div>
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: empresaColor }} />
+              </div>
+
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <p className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-1">{t('scan.activePallet')}</p>
@@ -519,7 +547,7 @@ export default function Escaneo() {
                 </div>
                 <div className="text-right">
                   <p className="text-5xl font-black text-warm-800 tracking-tighter leading-none">
-                    {tarima?.cantidad_guias || 0}
+                    {currentTarimaGuias}
                   </p>
                   <p className="text-xs text-warm-400 font-semibold mt-1">{t('scan.of100Guides')}</p>
                 </div>
@@ -542,7 +570,7 @@ export default function Escaneo() {
               </div>
 
               {/* Session stats - 2 columns */}
-              <div className="grid grid-cols-2 gap-4 mt-5 pt-5 border-t border-primary-100/40">
+              <div className="grid grid-cols-2 gap-4 mt-5 pt-5 border-t" style={{ borderColor: empresaColor + '25' }}>
                 <div className="text-center p-2 rounded-xl bg-white/60">
                   <p className="text-2xl font-extrabold text-warm-800">{session?.total_guias || 0}</p>
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{t('scan.totalGuides')}</p>
@@ -649,7 +677,7 @@ export default function Escaneo() {
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-mono font-semibold text-warm-700 truncate">{g.codigo_guia}</p>
-                              <p className="text-[10px] text-warm-400 font-medium">{new Date(g.timestamp_escaneo).toLocaleTimeString('zh-CN')}</p>
+                              <p className="text-[10px] text-warm-400 font-medium">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</p>
                             </div>
                             {canDelete('dropscan.escaneo') && (isSupervisor || i === 0) && (
                               <button onClick={() => { if (confirm(t('scan.deleteGuideConfirm'))) deleteMutation.mutate(g.id) }}
@@ -693,7 +721,7 @@ export default function Escaneo() {
                                     : `${t('scan.position')} #${d.posicion_original} → ${d.tarima_original}`
                                 ) : d.message}
                               </p>
-                              <p className="text-[10px] text-warm-400 font-medium">{d.timestamp.toLocaleTimeString('zh-CN')}</p>
+                              <p className="text-[10px] text-warm-400 font-medium">{d.timestamp.toLocaleTimeString('es-MX')}</p>
                             </div>
                             {(isSupervisor || i === 0) && (
                               <button onClick={() => handleDeleteDuplicado(i)}
@@ -748,7 +776,7 @@ export default function Escaneo() {
                       <span className="text-[10px] text-warm-400 font-medium">{t.cantidad_guias}/100 guias</span>
                       {t.completedAt && (
                         <span className="text-[10px] text-warm-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />{new Date(t.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          <Clock className="w-3 h-3" />{new Date(t.completedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
                     </div>
@@ -802,7 +830,7 @@ export default function Escaneo() {
                     <tr key={g.id} className="hover:bg-purple-50/50 transition-colors">
                       <td className="px-4 py-2.5 text-warm-500 font-medium">{g.posicion}</td>
                       <td className="px-4 py-2.5 font-mono font-semibold text-warm-700">{g.codigo_guia}</td>
-                      <td className="px-4 py-2.5 text-warm-500">{new Date(g.timestamp_escaneo).toLocaleTimeString('zh-CN')}</td>
+                      <td className="px-4 py-2.5 text-warm-500">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
                     </tr>
                   ))}
                 </tbody>

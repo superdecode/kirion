@@ -23,10 +23,22 @@ const env = {
   SUPABASE_URL: process.env.SUPABASE_URL || '',
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-  JWT_SECRET: process.env.JWT_SECRET || 'dev_secret',
+  JWT_SECRET: process.env.JWT_SECRET || 'dev_secret_change_in_production',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
+}
+
+// Fail fast in production if required secrets are missing or weak
+if (env.NODE_ENV === 'production') {
+  const requiredVars = ['JWT_SECRET', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']
+  const missing = requiredVars.filter(k => !process.env[k])
+  if (missing.length > 0) {
+    throw new Error(`[env] Missing required environment variables: ${missing.join(', ')}`)
+  }
+  if (env.JWT_SECRET.length < 32 || env.JWT_SECRET.startsWith('dev_')) {
+    throw new Error('[env] JWT_SECRET must be at least 32 characters and not a dev default in production')
+  }
 }
 
 export default env

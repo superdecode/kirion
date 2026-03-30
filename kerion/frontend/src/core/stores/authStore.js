@@ -76,7 +76,10 @@ export const useAuthStore = create(
         }
       },
 
-      logout: () => {
+      logout: async () => {
+        try {
+          await api.post('/auth/logout')
+        } catch (_e) { /* ignore — token may already be expired */ }
         set({ user: null, token: null, isAuthenticated: false })
         localStorage.removeItem('wms-auth')
       },

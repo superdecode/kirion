@@ -52,11 +52,7 @@ export function requirePermission(modulePath, action) {
     const hasPermission = resolvePermission(level, action)
 
     if (!hasPermission) {
-      return res.status(403).json({
-        error: 'No tienes permisos para esta acción',
-        required: `${modulePath}.${action}`,
-        current: level,
-      })
+      return res.status(403).json({ error: 'No tienes permisos para esta acción' })
     }
 
     next()

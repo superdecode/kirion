@@ -40,6 +40,10 @@ router.post('/',
         return res.status(400).json({ error: 'Campos requeridos: codigo, nombre_completo, email, password' })
       }
 
+      if (password.length < 8) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' })
+      }
+
       const passwordHash = await bcrypt.hash(password, 10)
 
       const result = await query(
@@ -103,8 +107,8 @@ router.post('/:id/reset-password',
     try {
       const { id } = req.params
       const { password } = req.body
-      if (!password || password.length < 6) {
-        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' })
+      if (!password || password.length < 8) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' })
       }
       const passwordHash = await bcrypt.hash(password, 10)
       const result = await query(

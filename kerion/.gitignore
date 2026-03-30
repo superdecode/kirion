@@ -8,9 +8,11 @@ yarn-error.log*
 dist/
 build/
 
-# Environment variables
+# Environment variables — never commit files containing real secrets
 .env
 .env.local
+.env.development
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local

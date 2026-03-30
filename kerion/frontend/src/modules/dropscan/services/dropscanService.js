@@ -49,8 +49,8 @@ export const deleteTarima = (id) =>
 export const getDashboard = () =>
   api.get('/dropscan/dashboard').then(r => r.data)
 
-export const getMetrics = (fecha_inicio, fecha_fin) =>
-  api.get('/dropscan/dashboard/metrics', { params: { fecha_inicio, fecha_fin } }).then(r => r.data)
+export const getMetrics = (fecha_inicio, fecha_fin, empresa_id, canal_id) =>
+  api.get('/dropscan/dashboard/metrics', { params: { fecha_inicio, fecha_fin, empresa_id, canal_id } }).then(r => r.data)
 
 export const searchGuias = (q) =>
   api.get('/dropscan/dashboard/guias/search', { params: { q } }).then(r => r.data)

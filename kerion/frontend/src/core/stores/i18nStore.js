@@ -413,6 +413,9 @@ const translations = {
     'auth.profile': 'Mi perfil',
     'auth.preferences': 'Preferencias',
     'auth.lastAccess': 'Último acceso',
+    'auth.wmsSystem': 'Sistema de Gestión de Almacén',
+    'auth.enterUsername': 'Ingresa tu email',
+    'auth.enterPassword': 'Ingresa tu contraseña',
 
     // Nav
     'nav.home': 'Inicio',

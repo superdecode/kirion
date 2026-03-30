@@ -23,15 +23,27 @@ const app = express()
 app.use(helmet())
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
 
-// Rate limiting for login
+// Rate limiting — global (all /api routes)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes, intenta más tarde' }
+})
+app.use('/api', generalLimiter)
+
+// Rate limiting — stricter for login
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: 'Demasiados intentos, intenta más tarde' }
 })
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }))
+// Body parsing — 1mb is sufficient for all API payloads
+app.use(express.json({ limit: '1mb' }))
 
 // Health check
 app.get('/api/health', (_req, res) => {

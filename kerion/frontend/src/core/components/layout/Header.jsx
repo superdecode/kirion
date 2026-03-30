@@ -10,7 +10,7 @@ import {
   Shield, Clock, Activity
 } from 'lucide-react'
 
-export default function Header({ title, subtitle, actions }) {
+export default function Header({ title, subtitle, actions, showSearch = false }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -62,37 +62,30 @@ export default function Header({ title, subtitle, actions }) {
           </div>
         )}
 
-        {/* Collapsible search */}
-        <div className="relative">
-          {searchOpen ? (
-            <div className="flex items-center gap-2 animate-scale-in">
-              <SearchBar />
+        {/* Collapsible search - only shown on historial/escaneo */}
+        {showSearch && (
+          <div className="relative">
+            {searchOpen ? (
+              <div className="flex items-center gap-2 animate-scale-in">
+                <SearchBar />
+                <button
+                  onClick={() => setSearchOpen(false)}
+                  className="p-2 rounded-xl text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={() => setSearchOpen(false)}
-                className="p-2 rounded-xl text-warm-400 hover:text-warm-600 hover:bg-warm-100 transition-all"
+                onClick={() => setSearchOpen(true)}
+                className="p-2.5 rounded-xl text-warm-400 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200"
+                title={t('common.search')}
               >
-                <X className="w-4 h-4" />
+                <Search className="w-[18px] h-[18px]" />
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="p-2.5 rounded-xl text-warm-400 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200"
-              title={t('common.search')}
-            >
-              <Search className="w-[18px] h-[18px]" />
-            </button>
-          )}
-        </div>
-
-        {/* Language toggle */}
-        <button
-          onClick={() => setLocale(locale === 'es' ? 'zh' : 'es')}
-          className="p-2.5 rounded-xl text-warm-400 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200"
-          title={locale === 'es' ? '切换中文' : 'Cambiar a Español'}
-        >
-          <Globe className="w-[18px] h-[18px]" />
-        </button>
+            )}
+          </div>
+        )}
 
         {/* User menu */}
         <div ref={menuRef} className="relative">

@@ -113,4 +113,10 @@ router.get('/me', authenticateToken, async (req, res) => {
   }
 })
 
+// POST /api/auth/logout
+router.post('/logout', authenticateToken, (req, res) => {
+  // JWT is stateless; actual invalidation happens client-side (clear token from storage)
+  res.json({ success: true, message: 'Sesión cerrada' })
+})
+
 export default router

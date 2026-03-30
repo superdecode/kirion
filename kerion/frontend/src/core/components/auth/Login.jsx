@@ -93,12 +93,12 @@ export default function Login() {
             </AnimatePresence>
 
             <div>
-              <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('auth.email')}</label>
+              <label className="block text-sm font-semibold text-warm-700 mb-1.5">Usuario</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={t('auth.enterUsername') || t('auth.email')}
+                placeholder={t('auth.enterUsername')}
                 required
                 autoFocus
                 className="input-field py-3 bg-white/70 backdrop-blur-sm"
@@ -106,7 +106,7 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('auth.password')}</label>
+              <label className="block text-sm font-semibold text-warm-700 mb-1.5">Contraseña</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}

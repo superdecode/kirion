@@ -12,7 +12,9 @@ router.get('/',
   async (req, res) => {
     try {
       const { fecha_inicio, fecha_fin, empresa_id, canal_id, estado, operador_id, page = 1, limit = 20 } = req.query
-      const offset = (parseInt(page) - 1) * parseInt(limit)
+      const safePage = Math.max(1, parseInt(page) || 1)
+      const safeLimit = Math.min(100, Math.max(1, parseInt(limit) || 20))
+      const offset = (safePage - 1) * safeLimit
 
       let where = []
       let params = []
@@ -60,7 +62,7 @@ router.get('/',
 
       // Get paginated results
       paramCount++
-      params.push(parseInt(limit))
+      params.push(safeLimit)
       paramCount++
       params.push(offset)
 
@@ -83,10 +85,10 @@ router.get('/',
       res.json({
         tarimas: result.rows,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: safePage,
+          limit: safeLimit,
           total,
-          pages: Math.ceil(total / parseInt(limit))
+          pages: Math.ceil(total / safeLimit)
         }
       })
     } catch (error) {

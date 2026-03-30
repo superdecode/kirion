@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -18,10 +18,14 @@ import {
 export default function Historial() {
   const [searchParams] = useSearchParams()
   const [page, setPage] = useState(1)
+  // Default date range: last 30 days
+  const defaultEnd = new Date().toISOString().slice(0, 10)
+  const defaultStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+
   const [filters, setFilters] = useState({
     estado: searchParams.get('estado') || '',
-    fecha_inicio: searchParams.get('fecha_inicio') || '',
-    fecha_fin: searchParams.get('fecha_fin') || '',
+    fecha_inicio: searchParams.get('fecha_inicio') || defaultStart,
+    fecha_fin: searchParams.get('fecha_fin') || defaultEnd,
     search: searchParams.get('search') || ''
   })
   const [selectedTarima, setSelectedTarima] = useState(null)
@@ -29,9 +33,18 @@ export default function Historial() {
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
   const { canDelete, user } = useAuthStore()
-  const toast = useToastStore
+  const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const qc = useQueryClient()
+
+  // Auto-open tarima detail if navigated from SearchBar with tarima_id param
+  useEffect(() => {
+    const tarimaId = searchParams.get('tarima_id')
+    if (tarimaId) {
+      setDetailTab('guias')
+      setSelectedTarima(parseInt(tarimaId))
+    }
+  }, [searchParams])
 
   const { data, isLoading } = useQuery({
     queryKey: ['dropscan-tarimas', page, filters],
@@ -116,7 +129,7 @@ export default function Historial() {
     try {
       const csv = [
         ['Codigo', 'Empresa', 'Canal', 'Operador', 'Guias', 'Estado', 'Fecha'].join(','),
-        ...tarimas.map(t => [t.codigo, t.empresa_nombre, t.canal_nombre, t.operador_nombre, t.cantidad_guias, t.estado, new Date(t.fecha_inicio).toLocaleString('zh-CN')].join(','))
+        ...tarimas.map(t => [t.codigo, t.empresa_nombre, t.canal_nombre, t.operador_nombre, t.cantidad_guias, t.estado, new Date(t.fecha_inicio).toLocaleString('es-MX')].join(','))
       ].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
@@ -136,7 +149,7 @@ export default function Historial() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title={t('history.title')} subtitle={t('history.subtitle')} />
+      <Header title={t('history.title')} subtitle={t('history.subtitle')} showSearch />
 
       <div className="flex-1 overflow-y-auto">
         {/* Filter bar */}
@@ -163,6 +176,22 @@ export default function Historial() {
                 {s === '' ? t('common.all') : estadoLabels[s]}
               </button>
             ))}
+
+            {/* Quick date filters */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => { setFilters(f => ({ ...f, fecha_inicio: defaultEnd, fecha_fin: defaultEnd })); setPage(1) }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors"
+              >Hoy</button>
+              <button
+                onClick={() => { setFilters(f => ({ ...f, fecha_inicio: new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10), fecha_fin: defaultEnd })); setPage(1) }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors"
+              >7 días</button>
+              <button
+                onClick={() => { setFilters(f => ({ ...f, fecha_inicio: defaultStart, fecha_fin: defaultEnd })); setPage(1) }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors"
+              >Último mes</button>
+            </div>
 
             <div className="flex items-center gap-2 ml-auto">
               <input type="date" value={filters.fecha_inicio} onChange={e => { setFilters(f => ({ ...f, fecha_inicio: e.target.value })); setPage(1) }}
@@ -243,8 +272,8 @@ export default function Historial() {
                             </span>
                           </td>
                           <td className="table-cell text-warm-500 text-xs">
-                            {new Date(t.fecha_inicio).toLocaleDateString('zh-CN')}
-                            <br /><span className="text-warm-400">{new Date(t.fecha_inicio).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            {new Date(t.fecha_inicio).toLocaleDateString('es-MX')}
+                            <br /><span className="text-warm-400">{new Date(t.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
                           </td>
                           <td className="table-cell">
                             <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
@@ -315,8 +344,8 @@ export default function Historial() {
                 { icon: Package, l: t('history.operator'), v: detail.operador_nombre },
                 { icon: Package, l: t('history.guides'), v: `${detail.cantidad_guias}/100` },
                 { icon: CheckCircle, l: t('common.status'), v: estadoLabels[detail.estado] || detail.estado },
-                { icon: Clock, l: t('history.startTime'), v: new Date(detail.fecha_inicio).toLocaleString('zh-CN') },
-                { icon: Clock, l: t('history.endTime'), v: detail.fecha_cierre ? new Date(detail.fecha_cierre).toLocaleString('zh-CN') : '--' },
+                { icon: Clock, l: t('history.startTime'), v: new Date(detail.fecha_inicio).toLocaleString('es-MX') },
+                { icon: Clock, l: t('history.endTime'), v: detail.fecha_cierre ? new Date(detail.fecha_cierre).toLocaleString('es-MX') : '--' },
                 { icon: Clock, l: t('history.duration'), v: detail.tiempo_armado_segundos ? `${Math.round(detail.tiempo_armado_segundos / 60)} min` : '--' },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-warm-50 border border-warm-100/50">
@@ -381,7 +410,7 @@ export default function Historial() {
                             <td className="px-3 py-2 text-warm-400 font-bold">{g.posicion}</td>
                             <td className="px-3 py-2 font-mono font-semibold text-warm-700">{g.codigo_guia}</td>
                             <td className="px-3 py-2 text-warm-500">{g.operador_nombre}</td>
-                            <td className="px-3 py-2 text-warm-400">{new Date(g.timestamp_escaneo).toLocaleTimeString('zh-CN')}</td>
+                            <td className="px-3 py-2 text-warm-400">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -418,7 +447,7 @@ export default function Historial() {
                             <td className="px-3 py-2 font-mono font-semibold text-danger-600">{d.codigo_guia}</td>
                             <td className="px-3 py-2 font-mono text-warm-600">{d.guia_original || d.codigo_guia_original || '--'}</td>
                             <td className="px-3 py-2 text-warm-500">{d.operador_nombre}</td>
-                            <td className="px-3 py-2 text-warm-400">{d.timestamp ? new Date(d.timestamp).toLocaleTimeString('zh-CN') : '--'}</td>
+                            <td className="px-3 py-2 text-warm-400">{d.timestamp ? new Date(d.timestamp).toLocaleTimeString('es-MX') : '--'}</td>
                           </tr>
                         ))}
                       </tbody>

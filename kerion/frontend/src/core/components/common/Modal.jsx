@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 
-export default function Modal({ isOpen, onClose, title, icon: Icon, children, size = 'md', footer }) {
+export default function Modal({ isOpen, onClose, title, icon: Icon, children, size = 'md', footer, preventBackdropClose = false }) {
   const overlayRef = useRef(null)
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function Modal({ isOpen, onClose, title, icon: Icon, children, si
 
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape' && isOpen) onClose()
+      if (e.key === 'Escape' && isOpen && !preventBackdropClose) onClose()
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
@@ -36,7 +36,7 @@ export default function Modal({ isOpen, onClose, title, icon: Icon, children, si
         <motion.div
           ref={overlayRef}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+          onClick={(e) => { if (e.target === overlayRef.current && !preventBackdropClose) onClose() }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
