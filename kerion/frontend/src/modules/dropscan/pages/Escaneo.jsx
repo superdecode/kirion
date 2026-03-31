@@ -82,6 +82,7 @@ export default function Escaneo() {
   const [showPanel, setShowPanel] = useState(true)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [showRecount, setShowRecount] = useState(false)
+  const [completionPrompt, setCompletionPrompt] = useState(null) // { tabId, tarima, nuevaTarima }
 
   // empresa/canal pickers for modals
   const [pickerEmpresa, setPickerEmpresa] = useState('')
@@ -264,7 +265,6 @@ export default function Escaneo() {
       const data = await ds.scanGuia(tab.session.id, code, tab.tarima?.id)
       if (soundEnabled) playSound('success')
       if (data.tarima_completada) {
-        // tarima completed → accumulate its final count into session total, start fresh
         const completedCount = (data.tarima?.cantidad_guias || (tab.tarima?.cantidad_guias || 0) + 1)
         updateTab(tabId, {
           tarima: data.nueva_tarima,
@@ -275,7 +275,8 @@ export default function Escaneo() {
           completedTarimas: [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...tab.completedTarimas],
         })
         if (soundEnabled) playSound('complete')
-        toast.success(t('scan.palletCompleted'))
+        // Show quick completion prompt instead of plain toast
+        setCompletionPrompt({ tabId, tarima: data.tarima, nuevaTarima: data.nueva_tarima })
       } else {
         // normal scan → tarima object from backend is the source of truth
         updateTab(tabId, {
@@ -364,6 +365,31 @@ export default function Escaneo() {
       removeTab(cancelTargetTabId)
       qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
     } catch (err) { toast.error(err.response?.data?.error || t('toast.error')) }
+  }
+
+  /* ── tarima completion prompt handlers ───────────── */
+  const handleCompletionContinue = () => setCompletionPrompt(null)
+
+  const handleCompletionNewEmpresa = async () => {
+    const tabId = completionPrompt?.tabId
+    setCompletionPrompt(null)
+    const tab = tabs.find(t => t.tabId === tabId)
+    if (!tab) return
+    try { await ds.endSession(tab.session.id) } catch {}
+    removeTab(tabId)
+    qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
+    setPickerEmpresa(''); setPickerCanal(''); setShowStartModal(true)
+  }
+
+  const handleCompletionFinish = async () => {
+    const tabId = completionPrompt?.tabId
+    setCompletionPrompt(null)
+    const tab = tabs.find(t => t.tabId === tabId)
+    if (!tab) return
+    try { await ds.endSession(tab.session.id) } catch {}
+    removeTab(tabId)
+    qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
+    toast.info(t('scan.sessionEnded'))
   }
 
   /* ── derived values for active tab ───────────────── */
@@ -835,6 +861,46 @@ export default function Escaneo() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Tarima completion prompt */}
+      <Modal isOpen={!!completionPrompt} onClose={handleCompletionContinue}
+        title="Tarima Completada" icon={CheckCircle} size="sm">
+        <div className="space-y-3">
+          <div className="p-4 rounded-xl bg-success-50 border border-success-200 text-center">
+            <p className="text-sm font-bold text-success-800 font-mono">
+              {completionPrompt?.tarima?.codigo}
+            </p>
+            <p className="text-xs text-success-600 mt-0.5">100 guías registradas exitosamente</p>
+          </div>
+          <p className="text-xs text-warm-500 text-center font-medium">¿Cómo desea continuar?</p>
+          <div className="grid gap-2">
+            <button onClick={handleCompletionContinue}
+              className="w-full px-4 py-3 rounded-xl bg-primary-50 border-2 border-primary-200 text-primary-700 font-semibold text-sm hover:bg-primary-100 transition-all text-left flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 shrink-0 text-primary-500" />
+              <div>
+                <p className="font-bold text-sm">Continuar</p>
+                <p className="text-xs font-normal opacity-70">Mismo canal y empresa · Nueva tarima lista</p>
+              </div>
+            </button>
+            <button onClick={handleCompletionNewEmpresa}
+              className="w-full px-4 py-3 rounded-xl bg-warm-50 border-2 border-warm-200 text-warm-700 font-semibold text-sm hover:bg-warm-100 transition-all text-left flex items-center gap-3">
+              <Building2 className="w-5 h-5 shrink-0 text-warm-400" />
+              <div>
+                <p className="font-bold text-sm">Nueva empresa o canal</p>
+                <p className="text-xs font-normal opacity-70">Seleccionar empresa / canal diferente</p>
+              </div>
+            </button>
+            <button onClick={handleCompletionFinish}
+              className="w-full px-4 py-3 rounded-xl bg-danger-50 border-2 border-danger-200 text-danger-700 font-semibold text-sm hover:bg-danger-100 transition-all text-left flex items-center gap-3">
+              <Square className="w-5 h-5 shrink-0 text-danger-500" />
+              <div>
+                <p className="font-bold text-sm">Finalizar</p>
+                <p className="text-xs font-normal opacity-70">Terminar esta sesión de escaneo</p>
+              </div>
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Cancel tarima modal */}

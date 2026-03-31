@@ -29,6 +29,7 @@ export default function Historial() {
     search: searchParams.get('search') || ''
   })
   const [selectedTarima, setSelectedTarima] = useState(null)
+  const [deletingTarima, setDeletingTarima] = useState(null) // tarima row to delete
   const [sortCol, setSortCol] = useState('fecha_inicio')
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
@@ -292,7 +293,7 @@ export default function Historial() {
                                 <Eye className="w-4 h-4" />
                               </button>
                               {canDelete('dropscan.historial') && (
-                                <button onClick={() => { if (confirm(`Eliminar tarima ${row.codigo}?`)) deleteMutation.mutate(row.id) }}
+                                <button onClick={() => setDeletingTarima(row)}
                                   className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title="Eliminar">
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -476,6 +477,48 @@ export default function Historial() {
             )}
           </div>
         ) : null}
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal isOpen={!!deletingTarima} onClose={() => setDeletingTarima(null)}
+        title="Eliminar Tarima" icon={Trash2} size="sm"
+        footer={<>
+          <button onClick={() => setDeletingTarima(null)} className="btn-ghost">Cancelar</button>
+          <button
+            onClick={() => { deleteMutation.mutate(deletingTarima.id); setDeletingTarima(null) }}
+            disabled={deleteMutation.isPending}
+            className="btn-danger inline-flex items-center gap-2">
+            <Trash2 className="w-4 h-4" />
+            {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar permanentemente'}
+          </button>
+        </>}>
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-danger-50 border border-danger-200 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-danger-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-danger-800">Esta acción no se puede revertir</p>
+              <p className="text-xs text-danger-600 mt-1">
+                Se eliminarán permanentemente la tarima y todas sus guías escaneadas.
+              </p>
+            </div>
+          </div>
+          {deletingTarima && (
+            <div className="p-3 rounded-xl bg-warm-50 border border-warm-200 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Tarima</span>
+                <span className="text-sm font-bold font-mono text-warm-800">{deletingTarima.codigo}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Empresa</span>
+                <span className="text-sm font-semibold text-warm-700">{deletingTarima.empresa_nombre}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Guías</span>
+                <span className="text-sm font-semibold text-warm-700">{deletingTarima.cantidad_guias}</span>
+              </div>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   )
