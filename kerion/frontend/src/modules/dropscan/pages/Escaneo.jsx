@@ -285,7 +285,7 @@ export default function Escaneo() {
         // normal scan → tarima object from backend is the source of truth
         updateTab(tabId, {
           tarima: data.tarima,
-          guias: [data.guia, ...tab.guias].slice(0, 20),
+          guias: [data.guia, ...tab.guias],
           lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
           flashType: 'success',
         })
@@ -568,8 +568,8 @@ export default function Escaneo() {
                 <span className="text-xs opacity-70">{tb.empresa?.nombre || '?'}</span>
                 <span className="text-[10px] font-bold opacity-60">({tb.tarima?.cantidad_guias || 0}/100)</span>
                 {/* counters badges */}
-                {tb.duplicadosCount > 0 && (
-                  <span className="badge bg-danger-100 text-danger-600 text-[9px] ml-1">{tb.duplicadosCount} dup</span>
+                {tb.duplicados.length > 0 && (
+                  <span className="badge bg-danger-100 text-danger-600 text-[9px] ml-1">{tb.duplicados.length} dup</span>
                 )}
               </button>
               {/* X close button — always visible, bigger on active tab */}
@@ -655,7 +655,7 @@ export default function Escaneo() {
                     <p className="text-[9px] text-warm-400 uppercase tracking-wider font-bold leading-tight">{t('scan.totalGuides')}</p>
                   </div>
                   <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
-                    <p className="text-lg font-extrabold text-danger-500 leading-none">{tab.duplicadosCount || 0}</p>
+                    <p className="text-lg font-extrabold text-danger-500 leading-none">{tab.duplicados.length}</p>
                     <p className="text-[9px] text-warm-400 uppercase tracking-wider font-bold leading-tight">{t('scan.duplicates')}</p>
                   </div>
                 </div>

@@ -76,7 +76,6 @@ export default function RecountModal({ isOpen, onClose, tarima, sessionId, onGui
     setIsAdding(code)
     try {
       const data = await ds.scanGuia(sessionId, code, tarima.id)
-      // Update local state
       setTarimaGuias(prev => [...prev, code.toUpperCase()])
       setScans(prev => prev.map(s =>
         s.code === code && s.status === 'missing'
@@ -86,10 +85,17 @@ export default function RecountModal({ isOpen, onClose, tarima, sessionId, onGui
       toast.success(`${t('recount.added')}: ${code}`)
       if (onGuideAdded) onGuideAdded(data)
     } catch (err) {
-      const msg = err.response?.data?.error === 'DUPLICADO'
-        ? err.response?.data?.message
-        : err.response?.data?.error || t('toast.error')
-      toast.error(msg)
+      const errData = err.response?.data
+      if (errData?.error === 'DUPLICADO' && errData?.duplicado_en === 'otra_tarima') {
+        // Show inline warning — guide belongs to another tarima, cannot add
+        setScans(prev => prev.map(s =>
+          s.code === code && s.status === 'missing'
+            ? { ...s, status: 'in_other_tarima', otherTarima: errData.tarima_original }
+            : s
+        ))
+      } else {
+        toast.error(errData?.error === 'DUPLICADO' ? errData.message : errData?.error || t('toast.error'))
+      }
     } finally {
       setIsAdding(null)
     }
@@ -100,6 +106,7 @@ export default function RecountModal({ isOpen, onClose, tarima, sessionId, onGui
   const missingCount = scans.filter(s => s.status === 'missing').length
   const addedCount = scans.filter(s => s.status === 'added').length
   const duplicateCount = scans.filter(s => s.status === 'duplicate').length
+  const inOtherCount = scans.filter(s => s.status === 'in_other_tarima').length
 
   if (!isOpen) return null
 
@@ -152,6 +159,7 @@ export default function RecountModal({ isOpen, onClose, tarima, sessionId, onGui
                 <span className="text-success-600">{existsCount} {t('recount.exists')}</span>
                 <span className="text-danger-600">{missingCount} {t('recount.missing')}</span>
                 {addedCount > 0 && <span className="text-primary-600">+{addedCount}</span>}
+                {inOtherCount > 0 && <span className="text-orange-500">{inOtherCount} otra tarima</span>}
                 {duplicateCount > 0 && <span className="text-warning-600">{duplicateCount} dup</span>}
               </div>
             </div>
@@ -195,6 +203,7 @@ export default function RecountModal({ isOpen, onClose, tarima, sessionId, onGui
                         scan.status === 'exists' ? 'bg-success-50/50 border-success-200'
                         : scan.status === 'missing' ? 'bg-danger-50/50 border-danger-200'
                         : scan.status === 'added' ? 'bg-primary-50/50 border-primary-200'
+                        : scan.status === 'in_other_tarima' ? 'bg-orange-50/50 border-orange-200'
                         : 'bg-warning-50/50 border-warning-200'
                       }`}
                     >
@@ -203,6 +212,7 @@ export default function RecountModal({ isOpen, onClose, tarima, sessionId, onGui
                         scan.status === 'exists' ? 'bg-success-100 text-success-600'
                         : scan.status === 'missing' ? 'bg-danger-100 text-danger-600'
                         : scan.status === 'added' ? 'bg-primary-100 text-primary-600'
+                        : scan.status === 'in_other_tarima' ? 'bg-orange-100 text-orange-600'
                         : 'bg-warning-100 text-warning-600'
                       }`}>
                         {scan.status === 'exists' ? <CheckCircle className="w-4 h-4" />
@@ -218,11 +228,13 @@ export default function RecountModal({ isOpen, onClose, tarima, sessionId, onGui
                           scan.status === 'exists' ? 'text-success-600'
                           : scan.status === 'missing' ? 'text-danger-600'
                           : scan.status === 'added' ? 'text-primary-600'
+                          : scan.status === 'in_other_tarima' ? 'text-orange-600'
                           : 'text-warning-600'
                         }`}>
                           {scan.status === 'exists' ? t('recount.exists')
                             : scan.status === 'missing' ? t('recount.missing')
                             : scan.status === 'added' ? t('recount.added')
+                            : scan.status === 'in_other_tarima' ? `En tarima ${scan.otherTarima}`
                             : t('recount.duplicate')}
                         </p>
                       </div>

@@ -18,10 +18,9 @@ async function generateTarimaCodigo(dbClient) {
   return `${prefix}${String(next).padStart(3, '0')}`
 }
 
-// POST /api/dropscan/sessions/start
+// POST /api/dropscan/sessions/start — any authenticated user can start scanning
 router.post('/sessions/start',
   authenticateToken, loadFullUser,
-  requirePermission('dropscan.escaneo', 'crear'),
   async (req, res) => {
     const client = await getClient()
     try {
@@ -149,13 +148,13 @@ router.get('/sessions/active',
         tarima = tarimaRes.rows[0] || null
       }
 
-      // Get last 10 scanned guides for current tarima
+      // Get all scanned guides for current tarima (max 100 — no artificial limit)
       let ultimas_guias = []
       if (tarima) {
         const guiasRes = await query(
           `SELECT id, codigo_guia, posicion, timestamp_escaneo
            FROM guias WHERE tarima_id = $1
-           ORDER BY posicion DESC LIMIT 10`,
+           ORDER BY posicion DESC`,
           [tarima.id]
         )
         ultimas_guias = guiasRes.rows
@@ -169,10 +168,9 @@ router.get('/sessions/active',
   }
 )
 
-// POST /api/dropscan/sessions/:id/scan
+// POST /api/dropscan/sessions/:id/scan — any authenticated user can scan
 router.post('/sessions/:id/scan',
   authenticateToken, loadFullUser,
-  requirePermission('dropscan.escaneo', 'crear'),
   async (req, res) => {
     const client = await getClient()
     try {
@@ -198,10 +196,10 @@ router.post('/sessions/:id/scan',
       }
       const sesion = sesionRes.rows[0]
 
-      // Get target tarima (use provided tarima_id or fall back to tarima_actual_id)
+      // Get target tarima — FOR UPDATE locks the row to prevent concurrent position conflicts
       const targetTarimaId = tarima_id || sesion.tarima_actual_id
       const tarimaRes = await client.query(
-        'SELECT * FROM tarimas WHERE id = $1 AND estado = $2 AND operador_id = $3',
+        'SELECT * FROM tarimas WHERE id = $1 AND estado = $2 AND operador_id = $3 FOR UPDATE',
         [targetTarimaId, 'EN_PROCESO', userId]
       )
       if (tarimaRes.rows.length === 0) {
@@ -266,8 +264,12 @@ router.post('/sessions/:id/scan',
         })
       }
 
-      // Insert guide
-      const newPos = tarima.cantidad_guias + 1
+      // Calculate position from real DB count (accurate with FOR UPDATE lock)
+      const countRes = await client.query(
+        'SELECT COUNT(*) AS cnt FROM guias WHERE tarima_id = $1',
+        [tarima.id]
+      )
+      const newPos = parseInt(countRes.rows[0].cnt) + 1
       const guiaOperador = sesion.usuario_operador || null
       const guiaNivel = sesion.nivel_usuario || null
       const guiaRes = await client.query(
@@ -277,10 +279,10 @@ router.post('/sessions/:id/scan',
       )
       const guia = guiaRes.rows[0]
 
-      // Update tarima count
+      // Update tarima count atomically — avoids stale-value overwrite
       await client.query(
-        'UPDATE tarimas SET cantidad_guias = $1 WHERE id = $2',
-        [newPos, tarima.id]
+        'UPDATE tarimas SET cantidad_guias = cantidad_guias + 1 WHERE id = $1',
+        [tarima.id]
       )
 
       // Update session total
