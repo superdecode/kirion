@@ -234,7 +234,10 @@ export default function Escaneo() {
       setPickerCanal('')
       toast.success(t('scan.sessionStarted'))
     } catch (err) {
-      toast.error(err.response?.data?.error || t('toast.error'))
+      const msg = err.response?.data?.detail
+        ? `${err.response.data.error}: ${err.response.data.detail}`
+        : err.response?.data?.error || t('toast.error')
+      toast.error(msg)
     } finally {
       setIsStarting(false)
     }

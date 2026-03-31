@@ -15,9 +15,20 @@ router.post('/sessions/start',
       await client.query('BEGIN')
       const { empresa_id, canal_id, usuario_operador, usuario_interno_id, nivel_usuario } = req.body
       const userId = req.user.id
+      const empId = parseInt(empresa_id)
+      const canId = parseInt(canal_id)
 
-      if (!empresa_id || !canal_id) {
+      if (!empId || !canId) {
+        await client.query('ROLLBACK')
         return res.status(400).json({ error: 'empresa_id y canal_id son requeridos' })
+      }
+
+      // Verify empresa and canal exist in configuraciones
+      const empCheck = await client.query('SELECT id FROM configuraciones WHERE id = $1', [empId])
+      const canCheck = await client.query('SELECT id FROM configuraciones WHERE id = $1', [canId])
+      if (empCheck.rows.length === 0 || canCheck.rows.length === 0) {
+        await client.query('ROLLBACK')
+        return res.status(400).json({ error: 'Empresa o canal no encontrado' })
       }
 
       // Auto-close stale sessions older than 24h to prevent orphans
@@ -27,9 +38,9 @@ router.post('/sessions/start',
         [userId]
       )
 
-      // Check for existing active sessions (max 3 allowed) — lock rows to prevent races
+      // Check for existing active sessions (max 3 allowed)
       const existing = await client.query(
-        'SELECT id FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true FOR UPDATE',
+        'SELECT id FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true',
         [userId]
       )
       if (existing.rows.length >= 3) {
@@ -51,29 +62,42 @@ router.post('/sessions/start',
         `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
          RETURNING *`,
-        [tarimaCodigo, empresa_id, canal_id, userId]
+        [tarimaCodigo, empId, canId, userId]
       )
       const tarima = tarimaRes.rows[0]
 
-      // Create session with tarimas array support (stored as tarima_actual_id for backwards compat)
+      // Create session
       const sesionRes = await client.query(
-        `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id, usuario_operador, usuario_interno_id, nivel_usuario)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id)
+         VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [userId, empresa_id, canal_id, tarima.id, usuario_operador || req.fullUser?.nombre_completo || null, usuario_interno_id || null, nivel_usuario || null]
+        [userId, empId, canId, tarima.id]
       )
+      const sesion = sesionRes.rows[0]
 
       await client.query('COMMIT')
 
+      // Try to set operator context columns OUTSIDE transaction (non-fatal if columns don't exist)
+      const operadorNombre = usuario_operador || req.fullUser?.nombre_completo || null
+      try {
+        await query(
+          `UPDATE sesiones_escaneo SET usuario_operador = $1, nivel_usuario = $2, usuario_interno_id = $3
+           WHERE id = $4`,
+          [operadorNombre, nivel_usuario || null, usuario_interno_id || null, sesion.id]
+        )
+      } catch {
+        // Operator columns don't exist yet — non-fatal
+      }
+
       res.status(201).json({
-        sesion: sesionRes.rows[0],
+        sesion,
         tarima_actual: tarima,
-        tarimas_activas: [tarima] // Array for multi-tarima support
+        tarimas_activas: [tarima]
       })
     } catch (error) {
-      await client.query('ROLLBACK')
-      console.error('Start session error:', error)
-      res.status(500).json({ error: 'Error iniciando sesión' })
+      try { await client.query('ROLLBACK') } catch {}
+      console.error('Start session error:', error.message, error.detail || '')
+      res.status(500).json({ error: 'Error iniciando sesión', detail: error.message })
     } finally {
       client.release()
     }
@@ -148,10 +172,6 @@ router.post('/sessions/:id/scan',
       }
 
       const code = codigo_guia.trim().toUpperCase()
-
-      // Resolve operator name from the session
-      let guiaOperador = null
-      let guiaNivel = null
 
       // Get active session
       const sesionRes = await client.query(
@@ -232,14 +252,10 @@ router.post('/sessions/:id/scan',
         })
       }
 
-      // Resolve operator name from the session
-      if (!guiaOperador) {
-        guiaOperador = sesion.usuario_operador || null
-        guiaNivel = sesion.nivel_usuario || null
-      }
-
       // Insert guide
       const newPos = tarima.cantidad_guias + 1
+      const guiaOperador = sesion.usuario_operador || null
+      const guiaNivel = sesion.nivel_usuario || null
       const guiaRes = await client.query(
         `INSERT INTO guias (codigo_guia, tarima_id, posicion, operador_id, usuario_operador, nivel_usuario)
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
