@@ -10,11 +10,16 @@ export async function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Token no proporcionado' })
   }
 
+  let decoded
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET)
+    decoded = jwt.verify(token, env.JWT_SECRET)
+  } catch (err) {
+    return res.status(401).json({ error: 'Token inválido o expirado' })
+  }
 
-    // Check token blacklist (if token has a jti)
-    if (decoded.jti) {
+  // Check token blacklist (non-fatal — DB errors don't block auth)
+  if (decoded.jti) {
+    try {
       const blacklisted = await query(
         'SELECT 1 FROM token_blacklist WHERE token_jti = $1 LIMIT 1',
         [decoded.jti]
@@ -22,14 +27,14 @@ export async function authenticateToken(req, res, next) {
       if (blacklisted.rows.length > 0) {
         return res.status(401).json({ error: 'Token revocado' })
       }
+    } catch (err) {
+      console.error('Token blacklist check failed (non-fatal):', err.message)
     }
-
-    req.user = decoded
-    req.token = token
-    next()
-  } catch (err) {
-    return res.status(401).json({ error: 'Token inválido o expirado' })
   }
+
+  req.user = decoded
+  req.token = token
+  next()
 }
 
 /**
