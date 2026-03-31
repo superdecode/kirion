@@ -439,7 +439,13 @@ export default function Escaneo() {
               <span>{t('scan.panel')}</span>
             </button>
             {tab && (
-              <button onClick={() => { setCancelTargetTabId(activeTabId); setCancelReason(''); setShowCancelModal(true) }}
+              <button onClick={() => {
+                if ((tab.tarima?.cantidad_guias || 0) === 0) {
+                  handleCloseTab(activeTabId)
+                } else {
+                  setCancelTargetTabId(activeTabId); setCancelReason(''); setShowCancelModal(true)
+                }
+              }}
                 disabled={!tab.tarima}
                 className="px-3 py-2 rounded-xl text-warning-600 bg-warning-50 hover:bg-warning-100 transition-all inline-flex items-center gap-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
                 <Ban className="w-4 h-4" />
@@ -481,11 +487,11 @@ export default function Escaneo() {
                   <span className="badge bg-danger-100 text-danger-600 text-[9px] ml-1">{tb.duplicadosCount} dup</span>
                 )}
               </button>
-              {/* X close button */}
+              {/* X close button — always visible */}
               <button
                 onClick={(e) => { e.stopPropagation(); handleCloseTab(tb.tabId) }}
-                className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 ${
-                  isActive ? 'bg-warm-200 text-warm-600 hover:bg-danger-100 hover:text-danger-600' : 'bg-warm-200 text-warm-500 hover:bg-danger-100 hover:text-danger-600'
+                className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                  isActive ? 'opacity-60 hover:opacity-100 bg-warm-200 text-warm-600 hover:bg-danger-100 hover:text-danger-600' : 'opacity-40 hover:opacity-100 bg-warm-200 text-warm-500 hover:bg-danger-100 hover:text-danger-600'
                 }`}
                 title={(tb.tarima?.cantidad_guias || 0) === 0 ? 'Cerrar tab vacío' : t('scan.cancelPallet')}
               >

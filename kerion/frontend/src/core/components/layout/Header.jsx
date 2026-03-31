@@ -5,6 +5,7 @@ import SearchBar from '../common/SearchBar'
 import Modal from '../common/Modal'
 import { useAuthStore } from '../../stores/authStore'
 import { useI18nStore } from '../../stores/i18nStore'
+import api from '../../services/api'
 import {
   Search, X, User, LogOut, Key, Settings, Globe, ChevronDown,
   Shield, Clock, Activity
@@ -14,6 +15,11 @@ export default function Header({ title, subtitle, actions, showSearch = false })
   const [searchOpen, setSearchOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [changePassOpen, setChangePassOpen] = useState(false)
+  const [changePassData, setChangePassData] = useState({ current: '', nuevo: '', confirmar: '' })
+  const [changePassError, setChangePassError] = useState('')
+  const [changePassLoading, setChangePassLoading] = useState(false)
+  const [changePassSuccess, setChangePassSuccess] = useState(false)
   const { user, logout } = useAuthStore()
   const { locale, setLocale, t } = useI18nStore()
   const navigate = useNavigate()
@@ -40,6 +46,30 @@ export default function Header({ title, subtitle, actions, showSearch = false })
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  const resetChangePass = () => {
+    setChangePassData({ current: '', nuevo: '', confirmar: '' })
+    setChangePassError('')
+    setChangePassSuccess(false)
+  }
+
+  const handleChangePassword = async () => {
+    const { current, nuevo, confirmar } = changePassData
+    if (!current || !nuevo || !confirmar) { setChangePassError('Todos los campos son requeridos'); return }
+    if (nuevo.length < 6) { setChangePassError('La nueva contraseña debe tener al menos 6 caracteres'); return }
+    if (nuevo !== confirmar) { setChangePassError('Las contraseñas no coinciden'); return }
+    setChangePassLoading(true)
+    setChangePassError('')
+    try {
+      await api.post('/auth/change-password', { current_password: current, new_password: nuevo })
+      setChangePassSuccess(true)
+      setTimeout(() => { setChangePassOpen(false); resetChangePass() }, 1500)
+    } catch (err) {
+      setChangePassError(err.response?.data?.error || 'Error al cambiar contraseña')
+    } finally {
+      setChangePassLoading(false)
+    }
   }
 
   return (
@@ -143,6 +173,7 @@ export default function Header({ title, subtitle, actions, showSearch = false })
                   {t('auth.profile')}
                 </button>
                 <button
+                  onClick={() => { setChangePassOpen(true); setUserMenuOpen(false); resetChangePass() }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-warm-600
                              hover:bg-warm-50 hover:text-warm-800 transition-all"
                 >
@@ -176,6 +207,80 @@ export default function Header({ title, subtitle, actions, showSearch = false })
           </AnimatePresence>
         </div>
       </header>
+
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={changePassOpen}
+        onClose={() => { setChangePassOpen(false); resetChangePass() }}
+        title={t('auth.changePassword')}
+        size="sm"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => { setChangePassOpen(false); resetChangePass() }} className="btn-ghost">
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={handleChangePassword}
+              disabled={changePassLoading || changePassSuccess}
+              className="btn-primary inline-flex items-center gap-2 px-4 py-2.5 text-sm disabled:opacity-50"
+            >
+              {changePassLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Key className="w-4 h-4" />
+              )}
+              {changePassSuccess ? '¡Contraseña actualizada!' : t('auth.changePassword')}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {changePassSuccess && (
+            <div className="bg-success-50 border border-success-200 text-success-700 text-sm px-4 py-3 rounded-xl font-medium">
+              ✓ Contraseña actualizada correctamente
+            </div>
+          )}
+          {changePassError && (
+            <div className="bg-danger-50 border border-danger-200 text-danger-700 text-sm px-4 py-3 rounded-xl">
+              {changePassError}
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-semibold text-warm-600 mb-1.5">Contraseña actual</label>
+            <input
+              type="password"
+              value={changePassData.current}
+              onChange={e => setChangePassData(p => ({ ...p, current: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-warm-200 text-sm outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-warm-600 mb-1.5">Nueva contraseña</label>
+            <input
+              type="password"
+              value={changePassData.nuevo}
+              onChange={e => setChangePassData(p => ({ ...p, nuevo: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-warm-200 text-sm outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+              placeholder="Mínimo 6 caracteres"
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-warm-600 mb-1.5">Confirmar nueva contraseña</label>
+            <input
+              type="password"
+              value={changePassData.confirmar}
+              onChange={e => setChangePassData(p => ({ ...p, confirmar: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && handleChangePassword()}
+              className="w-full px-3 py-2.5 rounded-xl border border-warm-200 text-sm outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* Profile Modal */}
       <Modal

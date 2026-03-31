@@ -119,6 +119,37 @@ router.get('/me', authenticateToken, async (req, res) => {
   }
 })
 
+// POST /api/auth/change-password
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' })
+    }
+    if (new_password.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' })
+    }
+
+    const userRes = await query('SELECT password_hash FROM usuarios WHERE id = $1', [req.user.id])
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    const valid = await bcrypt.compare(current_password, userRes.rows[0].password_hash)
+    if (!valid) {
+      return res.status(401).json({ error: 'Contraseña actual incorrecta' })
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10)
+    await query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [newHash, req.user.id])
+    auditLog(req, 'CHANGE_PASSWORD', 'usuario', req.user.id, null)
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Change password error:', error)
+    res.status(500).json({ error: 'Error al cambiar contraseña' })
+  }
+})
+
 // POST /api/auth/logout
 router.post('/logout', authenticateToken, async (req, res) => {
   try {

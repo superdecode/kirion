@@ -20,14 +20,14 @@ router.post('/sessions/start',
         return res.status(400).json({ error: 'empresa_id y canal_id son requeridos' })
       }
 
-      // Check for existing active session
+      // Check for existing active sessions (max 3 allowed)
       const existing = await client.query(
         'SELECT id FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true',
         [userId]
       )
-      if (existing.rows.length > 0) {
+      if (existing.rows.length >= 3) {
         await client.query('ROLLBACK')
-        return res.status(409).json({ error: 'Ya tienes una sesión activa', sesion_id: existing.rows[0].id })
+        return res.status(409).json({ error: 'Máximo 3 sesiones activas permitidas', sesion_id: existing.rows[0].id })
       }
 
       // Generate tarima code
