@@ -112,7 +112,8 @@ export default function Escaneo() {
     queryFn: () => ds.getTarimas({ fecha_inicio: todayStr, fecha_fin: todayStr }),
     enabled: tabs.length === 0,
   })
-  const todayTarimas = todayHistoryData?.items || todayHistoryData?.tarimas || []
+  const todayTarimasDup = todayHistoryData?.items || todayHistoryData?.tarimas || []
+  const todayTarimas = todayTarimasDup.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
 
   // Today's tarimas for side panel (always fetched when session active)
   const { data: panelTodayData } = useQuery({
@@ -404,7 +405,9 @@ export default function Escaneo() {
     : progressPercent >= 90 ? 'from-warning-400 to-warning-600'
     : 'from-primary-400 to-accent-500'
 
-  const panelTarimas = panelTodayData?.items || panelTodayData?.tarimas || []
+  // Deduplicate by id — LATERAL-join fix is on backend, this is a safety net
+  const panelTarimaDups = panelTodayData?.items || panelTodayData?.tarimas || []
+  const panelTarimas = panelTarimaDups.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
   const allPanelTarimas = tab
     ? panelTarimas.map(p => ({ ...p, isCurrent: p.id === tab.tarima?.id }))
     : []

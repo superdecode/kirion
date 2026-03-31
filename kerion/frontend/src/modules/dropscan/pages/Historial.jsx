@@ -62,7 +62,8 @@ export default function Historial() {
     queryFn: () => ds.getTarimas({ ...filters, page, limit: 15 }),
   })
 
-  const rawTarimas = data?.tarimas || []
+  const rawTarimasDup = data?.tarimas || []
+  const rawTarimas = rawTarimasDup.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
   const pagination = data?.pagination || { page: 1, pages: 1, total: 0 }
 
   // Client-side sort

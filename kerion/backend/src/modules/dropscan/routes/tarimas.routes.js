@@ -76,7 +76,13 @@ router.get('/',
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
          JOIN usuarios u ON t.operador_id = u.id
-         LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
+         LEFT JOIN LATERAL (
+           SELECT usuario_operador FROM sesiones_escaneo
+           WHERE tarima_actual_id = t.id
+              OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND DATE(fecha_inicio) = DATE(t.fecha_inicio))
+           ORDER BY (tarima_actual_id = t.id) DESC, fecha_inicio DESC
+           LIMIT 1
+         ) s ON true
          ${whereClause}
          ORDER BY t.fecha_inicio DESC
          LIMIT $${paramCount - 1} OFFSET $${paramCount}`,
@@ -115,7 +121,13 @@ router.get('/:id',
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
          JOIN usuarios u ON t.operador_id = u.id
-         LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
+         LEFT JOIN LATERAL (
+           SELECT usuario_operador FROM sesiones_escaneo
+           WHERE tarima_actual_id = t.id
+              OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND DATE(fecha_inicio) = DATE(t.fecha_inicio))
+           ORDER BY (tarima_actual_id = t.id) DESC, fecha_inicio DESC
+           LIMIT 1
+         ) s ON true
          WHERE t.id = $1`,
         [id]
       )
