@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import Header from '../../../core/components/layout/Header'
 import Modal from '../../../core/components/common/Modal'
 import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
+import MultiSelect from '../../../core/components/common/MultiSelect'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { useToastStore } from '../../../core/stores/toastStore'
 import { useI18nStore } from '../../../core/stores/i18nStore'
@@ -13,26 +14,39 @@ import * as ds from '../services/dropscanService'
 import {
   ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
-  RotateCcw, AlertTriangle, Copy, Pencil, FileSpreadsheet
+  RotateCcw, AlertTriangle, Copy, Pencil, ScanBarcode, Building2, Radio, Lock
 } from 'lucide-react'
+
+const calcDuration = (tarima) => {
+  if (!tarima) return '--'
+  if (tarima.tiempo_armado_segundos) return `${Math.round(tarima.tiempo_armado_segundos / 60)} min`
+  if (tarima.fecha_inicio) {
+    const end = tarima.fecha_cierre ? new Date(tarima.fecha_cierre) : new Date()
+    const secs = Math.round((new Date(end) - new Date(tarima.fecha_inicio)) / 1000)
+    return secs > 0 ? `${Math.round(secs / 60)} min` : '--'
+  }
+  return '--'
+}
 
 export default function Historial() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [pageLimit, setPageLimit] = useState(100)
-  // Default date range: last 30 days
   const defaultEnd = new Date().toISOString().slice(0, 10)
   const defaultStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
 
   const [filters, setFilters] = useState({
-    estado: searchParams.get('estado') || '',
+    estados: searchParams.get('estado') ? [searchParams.get('estado')] : [],
+    empresa_ids: [],
+    canal_ids: [],
+    escaneador: '',
     fecha_inicio: searchParams.get('fecha_inicio') || defaultStart,
     fecha_fin: searchParams.get('fecha_fin') || defaultEnd,
-    search: searchParams.get('search') || ''
   })
   const [selectedTarima, setSelectedTarima] = useState(null)
-  const [deletingTarima, setDeletingTarima] = useState(null) // tarima row to delete
-  const [editMode, setEditMode] = useState(false) // edit mode in detail modal
+  const [deletingTarima, setDeletingTarima] = useState(null)
+  const [editMode, setEditMode] = useState(false)
   const [sortCol, setSortCol] = useState('fecha_inicio')
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
@@ -40,6 +54,14 @@ export default function Historial() {
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const qc = useQueryClient()
+
+  // Fetch empresas/canales for filters
+  const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
+  const { data: canalesData } = useQuery({ queryKey: ['dropscan-canales'], queryFn: ds.getCanales })
+  const empresasOpts = (Array.isArray(empresasData) ? empresasData : empresasData?.empresas || [])
+    .filter(e => e.activo !== false).map(e => ({ value: e.id, label: e.nombre, color: e.color }))
+  const canalesOpts = (Array.isArray(canalesData) ? canalesData : canalesData?.canales || [])
+    .filter(c => c.activo !== false).map(c => ({ value: c.id, label: c.nombre }))
 
   const highlightGuia = searchParams.get('highlight_guia') || ''
   const highlightRowRef = useRef(null)
@@ -62,7 +84,15 @@ export default function Historial() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['dropscan-tarimas', page, filters, pageLimit],
-    queryFn: () => ds.getTarimas({ ...filters, page, limit: pageLimit }),
+    queryFn: () => ds.getTarimas({
+      estado: filters.estados,
+      empresa_id: filters.empresa_ids,
+      canal_id: filters.canal_ids,
+      escaneador: filters.escaneador || undefined,
+      fecha_inicio: filters.fecha_inicio || undefined,
+      fecha_fin: filters.fecha_fin || undefined,
+      page, limit: pageLimit,
+    }),
   })
 
   const rawTarimasDup = data?.tarimas || []
@@ -122,6 +152,16 @@ export default function Historial() {
     onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
   })
 
+  const finalizeMutation = useMutation({
+    mutationFn: (id) => ds.finalizeTarima(id),
+    onSuccess: () => {
+      toast.success('Tarima cerrada forzosamente')
+      qc.invalidateQueries({ queryKey: ['dropscan-tarimas'] })
+      qc.invalidateQueries({ queryKey: ['dropscan-tarima-detail', selectedTarima] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
+  })
+
   const estadoColors = {
     'EN_PROCESO': 'bg-warning-100 text-warning-700',
     'FINALIZADA': 'bg-success-100 text-success-700',
@@ -147,8 +187,11 @@ export default function Historial() {
     return sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-primary-500" /> : <ArrowDown className="w-3 h-3 text-primary-500" />
   }
 
-  const clearFilters = () => { setFilters({ estado: '', fecha_inicio: '', fecha_fin: '', search: '' }); setPage(1) }
-  const hasActiveFilters = filters.estado || filters.fecha_inicio || filters.search
+  const clearFilters = () => {
+    setFilters({ estados: [], empresa_ids: [], canal_ids: [], escaneador: '', fecha_inicio: defaultStart, fecha_fin: defaultEnd })
+    setPage(1)
+  }
+  const hasActiveFilters = filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneador
 
   const handleExport = () => {
     try {
@@ -208,61 +251,72 @@ export default function Historial() {
 
       <div className="flex-1 overflow-y-auto">
         {/* Filter bar */}
-        <div className="sticky top-0 z-[5] bg-white/60 backdrop-blur-2xl border-b border-warm-100/40 px-6 py-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Global search */}
-            <div className="relative flex-1 min-w-[200px] max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
-              <input value={filters.search} onChange={e => { setFilters(f => ({ ...f, search: e.target.value })); setPage(1) }}
-                placeholder={t('scan.searchPallet')}
-                className="w-full pl-10 pr-10 py-2 text-sm rounded-xl border border-warm-200 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white" />
-              {filters.search && (
-                <button onClick={() => setFilters(f => ({ ...f, search: '' }))} className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <X className="w-3.5 h-3.5 text-warm-400 hover:text-warm-600" />
+        <div className="sticky top-0 z-[5] bg-white/80 backdrop-blur-2xl border-b border-warm-100/60 px-5 py-2.5 space-y-2">
+          {/* Row 1: Date range + quick presets */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-warm-50 border border-warm-200 rounded-xl px-3 py-1.5">
+              <Clock className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+              <input type="date" value={filters.fecha_inicio}
+                onChange={e => { setFilters(f => ({ ...f, fecha_inicio: e.target.value })); setPage(1) }}
+                className="text-xs outline-none bg-transparent text-warm-700 w-[110px]" />
+              <span className="text-warm-300 text-xs">→</span>
+              <input type="date" value={filters.fecha_fin}
+                onChange={e => { setFilters(f => ({ ...f, fecha_fin: e.target.value })); setPage(1) }}
+                className="text-xs outline-none bg-transparent text-warm-700 w-[110px]" />
+            </div>
+            {[
+              { label: 'Hoy', d: 0 },
+              { label: '7d', d: 7 },
+              { label: '30d', d: 30 },
+            ].map(({ label, d }) => (
+              <button key={label} onClick={() => {
+                const s = new Date(Date.now() - d * 86400000).toISOString().slice(0, 10)
+                setFilters(f => ({ ...f, fecha_inicio: s, fecha_fin: defaultEnd })); setPage(1)
+              }} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors">{label}</button>
+            ))}
+            <div className="ml-auto flex items-center gap-2">
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="text-xs text-primary-600 hover:text-primary-700 font-semibold transition-colors flex items-center gap-1">
+                  <X className="w-3 h-3" />{t('common.clear')}
                 </button>
               )}
+              <span className="badge bg-warm-100 text-warm-500 text-[10px]">{pagination.total} {t('dashboard.pallets')}</span>
             </div>
-
-            {/* Quick status filter */}
-            {['', 'EN_PROCESO', 'FINALIZADA', 'CANCELADA'].map(s => (
-              <button key={s} onClick={() => { setFilters(f => ({ ...f, estado: s })); setPage(1) }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-                  ${filters.estado === s ? 'bg-primary-600 text-white shadow-glow' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'}`}>
-                {s === '' ? t('common.all') : estadoLabels[s]}
-              </button>
-            ))}
-
-            {/* Quick date filters */}
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => { setFilters(f => ({ ...f, fecha_inicio: defaultEnd, fecha_fin: defaultEnd })); setPage(1) }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors"
-              >Hoy</button>
-              <button
-                onClick={() => { setFilters(f => ({ ...f, fecha_inicio: new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10), fecha_fin: defaultEnd })); setPage(1) }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors"
-              >7 días</button>
-              <button
-                onClick={() => { setFilters(f => ({ ...f, fecha_inicio: defaultStart, fecha_fin: defaultEnd })); setPage(1) }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors"
-              >Último mes</button>
+          </div>
+          {/* Row 2: Multi-select filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <MultiSelect
+              icon={CheckCircle}
+              placeholder="Estado"
+              options={[
+                { value: 'EN_PROCESO', label: estadoLabels['EN_PROCESO'] },
+                { value: 'FINALIZADA', label: estadoLabels['FINALIZADA'] },
+                { value: 'CANCELADA', label: estadoLabels['CANCELADA'] },
+              ]}
+              selected={filters.estados}
+              onChange={v => { setFilters(f => ({ ...f, estados: v })); setPage(1) }}
+            />
+            <MultiSelect
+              icon={Building2}
+              placeholder={t('history.company')}
+              options={empresasOpts}
+              selected={filters.empresa_ids}
+              onChange={v => { setFilters(f => ({ ...f, empresa_ids: v })); setPage(1) }}
+            />
+            <MultiSelect
+              icon={Radio}
+              placeholder={t('history.channel')}
+              options={canalesOpts}
+              selected={filters.canal_ids}
+              onChange={v => { setFilters(f => ({ ...f, canal_ids: v })); setPage(1) }}
+            />
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-warm-400" />
+              <input value={filters.escaneador}
+                onChange={e => { setFilters(f => ({ ...f, escaneador: e.target.value })); setPage(1) }}
+                placeholder="Escaneador..."
+                className="pl-8 pr-3 py-2 text-xs rounded-lg border border-warm-200 outline-none focus:border-primary-400 bg-white w-40" />
             </div>
-
-            <div className="flex items-center gap-2 ml-auto">
-              <input type="date" value={filters.fecha_inicio} onChange={e => { setFilters(f => ({ ...f, fecha_inicio: e.target.value })); setPage(1) }}
-                className="px-2.5 py-1.5 rounded-lg border border-warm-200 text-xs outline-none focus:border-primary-400" />
-              <span className="text-xs text-warm-400">--</span>
-              <input type="date" value={filters.fecha_fin} onChange={e => { setFilters(f => ({ ...f, fecha_fin: e.target.value })); setPage(1) }}
-                className="px-2.5 py-1.5 rounded-lg border border-warm-200 text-xs outline-none focus:border-primary-400" />
-            </div>
-
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="text-xs text-primary-600 hover:text-primary-700 font-semibold transition-colors">{t('common.clear')}</button>
-            )}
-            <button onClick={handleExport} className="p-2 rounded-xl text-warm-400 hover:text-primary-600 hover:bg-primary-50 transition-all" title="Exportar CSV">
-              <Download className="w-4 h-4" />
-            </button>
-            <span className="badge bg-warm-100 text-warm-500">{pagination.total} {t('dashboard.pallets')}</span>
           </div>
         </div>
 
@@ -322,9 +376,16 @@ export default function Historial() {
                             <span className="text-warm-400">/100</span>
                           </td>
                           <td className="table-cell text-center">
-                            <span className={`badge text-[10px] ${estadoColors[row.estado] || 'bg-warm-100 text-warm-600'}`}>
-                              {estadoLabels[row.estado] || row.estado}
-                            </span>
+                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                              <span className={`badge text-[10px] ${estadoColors[row.estado] || 'bg-warm-100 text-warm-600'}`}>
+                                {estadoLabels[row.estado] || row.estado}
+                              </span>
+                              {row.forzado_cierre && (
+                                <span className="badge text-[9px] bg-warning-100 text-warning-600 flex items-center gap-0.5">
+                                  <Lock className="w-2.5 h-2.5" /> Forzado
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="table-cell text-warm-500 text-xs">
                             {new Date(row.fecha_inicio).toLocaleDateString('es-MX')}
@@ -360,27 +421,34 @@ export default function Historial() {
               {/* Pagination */}
               <div className="flex items-center justify-between px-5 py-3 border-t border-warm-100 bg-warm-50/30">
                 <div className="flex items-center gap-3">
-                  <p className="text-xs text-warm-400 font-medium">{pagination.pages > 0 ? `${t('common.page')} ${pagination.page} / ${pagination.pages} · ` : ''}{pagination.total} {t('common.records')}</p>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-warm-400 font-medium">Ver:</span>
-                    {[100, 200, 500].map(l => (
-                      <button key={l} onClick={() => { setPageLimit(l); setPage(1) }}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                          pageLimit === l ? 'bg-primary-100 text-primary-700' : 'text-warm-400 hover:bg-warm-100 hover:text-warm-600'
-                        }`}>{l}</button>
-                    ))}
+                  <p className="text-xs text-warm-400 font-medium">
+                    {pagination.pages > 1 ? `${t('common.page')} ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} registros
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-warm-400">Ver</span>
+                    <select value={pageLimit} onChange={e => { setPageLimit(parseInt(e.target.value)); setPage(1) }}
+                      className="px-2 py-1 rounded-lg border border-warm-200 text-xs text-warm-700 outline-none focus:border-primary-400 bg-white cursor-pointer">
+                      <option value={100}>100</option>
+                      <option value={200}>200</option>
+                      <option value={500}>500</option>
+                    </select>
                   </div>
                 </div>
                 {pagination.pages > 1 && (
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setPage(1)} disabled={page === 1}
+                      className="px-2 py-1.5 rounded-lg text-xs text-warm-500 hover:bg-warm-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">«</button>
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                      className="p-2 rounded-xl hover:bg-warm-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                      className="p-1.5 rounded-lg hover:bg-warm-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                       <ChevronLeft className="w-4 h-4" />
                     </button>
+                    <span className="px-2 text-xs text-warm-600 font-semibold">{page}</span>
                     <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages}
-                      className="p-2 rounded-xl hover:bg-warm-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                      className="p-1.5 rounded-lg hover:bg-warm-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                       <ChevronRight className="w-4 h-4" />
                     </button>
+                    <button onClick={() => setPage(pagination.pages)} disabled={page === pagination.pages}
+                      className="px-2 py-1.5 rounded-lg text-xs text-warm-500 hover:bg-warm-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">»</button>
                   </div>
                 )}
               </div>
@@ -391,13 +459,31 @@ export default function Historial() {
 
       {/* Detail Modal */}
       <Modal isOpen={!!selectedTarima} onClose={() => { setSelectedTarima(null); setEditMode(false) }} icon={Package}
-        title={detail ? `${t('history.palletDetail')} ${detail.codigo}` : t('common.loading')} size="xl"
+        title={detail ? `${detail.codigo}` : t('common.loading')} size="xl"
+        headerAction={detail && (
+          <button onClick={handleExportTarimaExcel}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-success-50 text-success-700 rounded-lg hover:bg-success-100 font-semibold transition-all border border-success-200">
+            <Download className="w-3.5 h-3.5" /> Exportar
+          </button>
+        )}
         footer={detail && (
           <>
-            <button onClick={handleExportTarimaExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-success-50 text-success-700 rounded-xl hover:bg-success-100 font-semibold transition-all">
-              <FileSpreadsheet className="w-4 h-4" /> Excel
-            </button>
+            {canDelete('dropscan.historial') && (detail.estado === 'EN_PROCESO' || detail.cantidad_guias < 100) && (
+              <button onClick={() => {
+                setSelectedTarima(null); setEditMode(false)
+                navigate('/dropscan/escaneo', { state: { resumeScan: { empresa_id: detail.empresa_id, canal_id: detail.canal_id, empresa_nombre: detail.empresa_nombre, canal_nombre: detail.canal_nombre } } })
+              }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 text-white rounded-xl hover:bg-primary-600 font-semibold transition-all">
+                <ScanBarcode className="w-4 h-4" /> Continuar escaneando
+              </button>
+            )}
+            {canDelete('dropscan.historial') && detail.estado === 'EN_PROCESO' && (
+              <button onClick={() => finalizeMutation.mutate(detail.id)}
+                disabled={finalizeMutation.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-warning-50 text-warning-700 rounded-xl hover:bg-warning-100 font-semibold transition-all border border-warning-200 disabled:opacity-50">
+                <Lock className="w-4 h-4" /> Forzar cierre
+              </button>
+            )}
             {canDelete('dropscan.historial') && (
               <button onClick={() => setEditMode(e => !e)}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
@@ -409,7 +495,7 @@ export default function Historial() {
             {detail.estado === 'FINALIZADA' && canReopen && (
               <button onClick={() => reopenMutation.mutate(detail.id)}
                 disabled={reopenMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-50 text-primary-700 rounded-xl hover:bg-primary-100 font-semibold transition-all disabled:opacity-50">
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-warm-50 text-warm-700 rounded-xl hover:bg-warm-100 font-semibold transition-all disabled:opacity-50">
                 <RotateCcw className="w-4 h-4" /> {t('history.reopen')}
               </button>
             )}
@@ -430,7 +516,7 @@ export default function Historial() {
                 { icon: CheckCircle, l: t('common.status'), v: estadoLabels[detail.estado] || detail.estado },
                 { icon: Clock, l: t('history.startTime'), v: new Date(detail.fecha_inicio).toLocaleString('es-MX') },
                 { icon: Clock, l: t('history.endTime'), v: detail.fecha_cierre ? new Date(detail.fecha_cierre).toLocaleString('es-MX') : '--' },
-                { icon: Clock, l: t('history.duration'), v: detail.tiempo_armado_segundos ? `${Math.round(detail.tiempo_armado_segundos / 60)} min` : '--' },
+                { icon: Clock, l: t('history.duration'), v: calcDuration(detail) },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-warm-50 border border-warm-100/50">
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold mb-0.5">{f.l}</p>
@@ -438,6 +524,14 @@ export default function Historial() {
                 </div>
               ))}
             </div>
+
+            {/* Force-close banner */}
+            {detail.forzado_cierre && (
+              <div className="bg-warning-50 border border-warning-200 rounded-xl p-3 flex items-center gap-2.5">
+                <Lock className="w-4 h-4 text-warning-500 shrink-0" />
+                <p className="text-xs font-semibold text-warning-700">Cierre forzado — tarima cerrada manualmente antes de completar 100 guías</p>
+              </div>
+            )}
 
             {/* Cancellation reason */}
             {detail.estado === 'CANCELADA' && detail.cancelada_razon && (

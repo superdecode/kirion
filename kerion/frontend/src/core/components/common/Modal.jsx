@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 
-export default function Modal({ isOpen, onClose, title, icon: Icon, children, size = 'md', footer, preventBackdropClose = false }) {
+export default function Modal({ isOpen, onClose, title, icon: Icon, children, size = 'md', footer, preventBackdropClose = false, headerAction }) {
   const overlayRef = useRef(null)
 
   useEffect(() => {
@@ -68,14 +68,17 @@ export default function Modal({ isOpen, onClose, title, icon: Icon, children, si
                 )}
                 <h2 className="text-lg font-bold text-warm-800">{title}</h2>
               </div>
-              <motion.button
-                onClick={onClose}
-                className="p-2 rounded-xl hover:bg-primary-100/60 text-warm-400 hover:text-primary-600 transition-all duration-200"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <X className="w-4 h-4" />
-              </motion.button>
+              <div className="flex items-center gap-2">
+                {headerAction}
+                <motion.button
+                  onClick={onClose}
+                  className="p-2 rounded-xl hover:bg-primary-100/60 text-warm-400 hover:text-primary-600 transition-all duration-200"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <X className="w-4 h-4" />
+                </motion.button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin">
               {children}

@@ -55,9 +55,9 @@ router.post('/sessions/start',
         'SELECT id FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true',
         [userId]
       )
-      if (existing.rows.length >= 3) {
+      if (existing.rows.length >= 4) {
         await client.query('ROLLBACK')
-        return res.status(409).json({ error: 'Máximo 3 sesiones activas permitidas', sesion_id: existing.rows[0].id })
+        return res.status(409).json({ error: 'Máximo 4 sesiones activas permitidas', sesion_id: existing.rows[0].id })
       }
 
       // Generate tarima code and create tarima (retry on unique collision)
@@ -298,7 +298,9 @@ router.post('/sessions/:id/scan',
       if (newPos >= 100) {
         tarima_completada = true
         await client.query(
-          `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP WHERE id = $1`,
+          `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
+             tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER
+           WHERE id = $1`,
           [tarima.id]
         )
         await client.query(

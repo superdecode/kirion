@@ -11,9 +11,9 @@ router.get('/',
   requirePermission('dropscan.historial', 'ver'),
   async (req, res) => {
     try {
-      const { fecha_inicio, fecha_fin, empresa_id, canal_id, estado, operador_id, page = 1, limit = 20 } = req.query
+      const { fecha_inicio, fecha_fin, empresa_id, canal_id, estado, operador_id, escaneador, page = 1, limit = 20 } = req.query
       const safePage = Math.max(1, parseInt(page) || 1)
-      const safeLimit = Math.min(100, Math.max(1, parseInt(limit) || 20))
+      const safeLimit = Math.min(500, Math.max(1, parseInt(limit) || 20))
       const offset = (safePage - 1) * safeLimit
 
       let where = []
@@ -31,24 +31,30 @@ router.get('/',
         params.push(fecha_fin)
       }
       if (empresa_id) {
-        paramCount++
-        where.push(`t.empresa_id = $${paramCount}`)
-        params.push(empresa_id)
+        const ids = String(empresa_id).split(',').map(Number).filter(Boolean)
+        if (ids.length) { paramCount++; where.push(`t.empresa_id = ANY($${paramCount})`); params.push(ids) }
       }
       if (canal_id) {
-        paramCount++
-        where.push(`t.canal_id = $${paramCount}`)
-        params.push(canal_id)
+        const ids = String(canal_id).split(',').map(Number).filter(Boolean)
+        if (ids.length) { paramCount++; where.push(`t.canal_id = ANY($${paramCount})`); params.push(ids) }
       }
       if (estado) {
-        paramCount++
-        where.push(`t.estado = $${paramCount}`)
-        params.push(estado)
+        const estados = String(estado).split(',').filter(Boolean)
+        if (estados.length === 1) {
+          paramCount++; where.push(`t.estado = $${paramCount}`); params.push(estados[0])
+        } else if (estados.length > 1) {
+          paramCount++; where.push(`t.estado = ANY($${paramCount})`); params.push(estados)
+        }
       }
       if (operador_id) {
         paramCount++
         where.push(`t.operador_id = $${paramCount}`)
         params.push(operador_id)
+      }
+      if (escaneador) {
+        paramCount++
+        where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo ILIKE $${paramCount})`)
+        params.push(`%${escaneador}%`)
       }
 
       const whereClause = where.length > 0 ? 'WHERE ' + where.join(' AND ') : ''
@@ -172,7 +178,8 @@ router.post('/:id/finalize',
       const { id } = req.params
       const result = await query(
         `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
-           tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER
+           tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER,
+           forzado_cierre = true
          WHERE id = $1 AND estado = 'EN_PROCESO' RETURNING *`,
         [id]
       )

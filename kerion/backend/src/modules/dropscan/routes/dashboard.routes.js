@@ -118,7 +118,7 @@ router.get('/metrics',
   requirePermission('dropscan.reportes', 'ver'),
   async (req, res) => {
     try {
-      const { fecha_inicio, fecha_fin, empresa_id, canal_id } = req.query
+      const { fecha_inicio, fecha_fin, empresa_id, canal_id, escaneador } = req.query
 
       if (!fecha_inicio || !fecha_fin) {
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' })
@@ -136,9 +136,15 @@ router.get('/metrics',
         const ids = canal_id.split(',').map(Number).filter(Boolean)
         if (ids.length) { pCount++; where.push(`t.canal_id = ANY($${pCount})`); params.push(ids) }
       }
+      if (escaneador) {
+        pCount++
+        where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo ILIKE $${pCount})`)
+        params.push(`%${escaneador}%`)
+      }
       const whereClause = where.join(' AND ')
 
-      const [dailyRes, totalRes, empresasRes, canalesRes] = await Promise.all([
+      const operadorWhereClause = whereClause
+      const [dailyRes, totalRes, empresasRes, canalesRes, escaneadoresRes] = await Promise.all([
         query(
           `SELECT DATE(t.fecha_inicio) as fecha,
                   COUNT(DISTINCT t.id) as tarimas,
@@ -166,6 +172,20 @@ router.get('/metrics',
            FROM tarimas t JOIN configuraciones c ON t.canal_id = c.id
            WHERE ${whereClause}
            GROUP BY c.id, c.nombre ORDER BY guias DESC`, params),
+        query(
+          `SELECT COALESCE(s.usuario_operador, u.nombre_completo) as escaneador,
+                  COUNT(DISTINCT t.id) as tarimas,
+                  COALESCE(SUM(t.cantidad_guias), 0) as guias
+           FROM tarimas t
+           JOIN usuarios u ON t.operador_id = u.id
+           LEFT JOIN LATERAL (
+             SELECT usuario_operador FROM sesiones_escaneo
+             WHERE tarima_actual_id = t.id
+             ORDER BY fecha_inicio DESC LIMIT 1
+           ) s ON true
+           WHERE ${operadorWhereClause}
+           GROUP BY COALESCE(s.usuario_operador, u.nombre_completo)
+           ORDER BY guias DESC LIMIT 15`, params),
       ])
 
       res.json({
@@ -184,6 +204,7 @@ router.get('/metrics',
         })),
         por_empresa: empresasRes.rows.map(r => ({ empresa: r.empresa, color: r.color, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
         por_canal: canalesRes.rows.map(r => ({ canal: r.canal, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
+        por_escaneador: escaneadoresRes.rows.map(r => ({ escaneador: r.escaneador, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
       })
     } catch (error) {
       console.error('Metrics error:', error)

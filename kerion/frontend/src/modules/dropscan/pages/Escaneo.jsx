@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import Header from '../../../core/components/layout/Header'
@@ -16,7 +17,7 @@ import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
   PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw,
-  FileSpreadsheet, Pencil
+  Download, Pencil
 } from 'lucide-react'
 
 /* ─── helpers ─────────────────────────────────────────── */
@@ -36,6 +37,17 @@ const playSound = (type) => {
 function getTodayDateStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const calcDuration = (tarima) => {
+  if (!tarima) return '--'
+  if (tarima.tiempo_armado_segundos) return `${Math.round(tarima.tiempo_armado_segundos / 60)} min`
+  if (tarima.fecha_inicio) {
+    const end = tarima.fecha_cierre ? new Date(tarima.fecha_cierre) : new Date()
+    const secs = Math.round((new Date(end) - new Date(tarima.fecha_inicio)) / 1000)
+    return secs > 0 ? `${Math.round(secs / 60)} min` : '--'
+  }
+  return '--'
 }
 
 const estadoBadgeClass = (estado) => {
@@ -93,6 +105,7 @@ export default function Escaneo() {
   const [isStarting, setIsStarting] = useState(false)
 
   const inputRef = useRef(null)
+  const location = useLocation()
   const qc = useQueryClient()
   const { canDelete, user } = useAuthStore()
   const toast = useToastStore.getState()
@@ -190,6 +203,18 @@ export default function Escaneo() {
         setActiveTabId(tabId)
       }
     }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /* resume scan from Historial navigation */
+  useEffect(() => {
+    const resume = location.state?.resumeScan
+    if (resume) {
+      setPickerEmpresa(String(resume.empresa_id))
+      setPickerCanal(String(resume.canal_id))
+      if (tabs.length === 0) setShowStartModal(true)
+      else setShowAddTabModal(true)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -627,7 +652,7 @@ export default function Escaneo() {
         })}
 
         {/* Add new tab button */}
-        {tabs.length < 3 && (
+        {tabs.length < 4 && (
           <button
             onClick={handleRequestAddTab}
             className="flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-sm font-semibold text-success-600 bg-success-50 hover:bg-success-100 border-2 border-transparent transition-all shrink-0"
@@ -867,13 +892,15 @@ export default function Escaneo() {
 
       {/* Panel detail modal */}
       <Modal isOpen={!!panelDetailId} onClose={() => { updateTab(activeTabId, { panelDetailId: null }); setPanelEditMode(false) }}
-        title={panelDetailData?.tarima ? `${t('history.palletDetail')} ${panelDetailData.tarima.codigo}` : t('common.loading')} icon={Package} size="xl"
+        title={panelDetailData?.tarima ? panelDetailData.tarima.codigo : t('common.loading')} icon={Package} size="xl"
+        headerAction={panelDetailData?.tarima && (
+          <button onClick={handleExportPanelDetailExcel}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-success-50 text-success-700 rounded-lg hover:bg-success-100 font-semibold transition-all border border-success-200">
+            <Download className="w-3.5 h-3.5" /> Exportar
+          </button>
+        )}
         footer={panelDetailData?.tarima && (
           <>
-            <button onClick={handleExportPanelDetailExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-success-50 text-success-700 rounded-xl hover:bg-success-100 font-semibold transition-all">
-              <FileSpreadsheet className="w-4 h-4" /> Excel
-            </button>
             {canDelete('dropscan.historial') && (
               <button onClick={() => setPanelEditMode(e => !e)}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
@@ -892,7 +919,7 @@ export default function Escaneo() {
                 { l: t('history.guides'), v: `${panelDetailData.tarima.cantidad_guias}/100` },
                 { l: t('common.status'), v: formatEstado(panelDetailData.tarima.estado) },
                 { l: t('history.startTime'), v: panelDetailData.tarima.fecha_inicio ? new Date(panelDetailData.tarima.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '--' },
-                { l: t('history.duration'), v: panelDetailData.tarima.tiempo_armado_segundos ? `${Math.round(panelDetailData.tarima.tiempo_armado_segundos / 60)} min` : '--' },
+                { l: t('history.duration'), v: calcDuration(panelDetailData.tarima) },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-warm-50 border border-warm-100">
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{f.l}</p>
