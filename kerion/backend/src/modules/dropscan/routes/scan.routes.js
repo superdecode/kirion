@@ -5,6 +5,19 @@ import { requirePermission } from '../../../shared/middleware/permissions.js'
 
 const router = Router()
 
+// Helper: generate a unique tarima code using MAX sequence number (not COUNT)
+async function generateTarimaCodigo(dbClient) {
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const prefix = `TAR-${today}-`
+  const maxRes = await dbClient.query(
+    `SELECT MAX(CAST(SPLIT_PART(codigo, '-', 3) AS INTEGER)) AS max_seq
+     FROM tarimas WHERE codigo LIKE $1`,
+    [`${prefix}%`]
+  )
+  const next = (maxRes.rows[0].max_seq || 0) + 1
+  return `${prefix}${String(next).padStart(3, '0')}`
+}
+
 // POST /api/dropscan/sessions/start
 router.post('/sessions/start',
   authenticateToken, loadFullUser,
@@ -48,23 +61,24 @@ router.post('/sessions/start',
         return res.status(409).json({ error: 'Máximo 3 sesiones activas permitidas', sesion_id: existing.rows[0].id })
       }
 
-      // Generate tarima code
-      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-      const countRes = await client.query(
-        `SELECT COUNT(*) FROM tarimas WHERE codigo LIKE $1`,
-        [`TAR-${today}-%`]
-      )
-      const num = parseInt(countRes.rows[0].count) + 1
-      const tarimaCodigo = `TAR-${today}-${String(num).padStart(3, '0')}`
-
-      // Create tarima
-      const tarimaRes = await client.query(
-        `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
-         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-         RETURNING *`,
-        [tarimaCodigo, empId, canId, userId]
-      )
-      const tarima = tarimaRes.rows[0]
+      // Generate tarima code and create tarima (retry on unique collision)
+      let tarima
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const tarimaCodigo = await generateTarimaCodigo(client)
+        try {
+          const tarimaRes = await client.query(
+            `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+             RETURNING *`,
+            [tarimaCodigo, empId, canId, userId]
+          )
+          tarima = tarimaRes.rows[0]
+          break
+        } catch (e) {
+          if (e.code === '23505' && e.constraint === 'tarimas_codigo_key' && attempt < 4) continue
+          throw e
+        }
+      }
 
       // Create session
       const sesionRes = await client.query(
@@ -290,21 +304,22 @@ router.post('/sessions/:id/scan',
           [sessionId]
         )
 
-        // Auto-create new tarima
-        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-        const countRes = await client.query(
-          `SELECT COUNT(*) FROM tarimas WHERE codigo LIKE $1`,
-          [`TAR-${today}-%`]
-        )
-        const num = parseInt(countRes.rows[0].count) + 1
-        const newCodigo = `TAR-${today}-${String(num).padStart(3, '0')}`
-
-        const newTarimaRes = await client.query(
-          `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
-           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING *`,
-          [newCodigo, sesion.empresa_id, sesion.canal_id, userId]
-        )
-        nueva_tarima = newTarimaRes.rows[0]
+        // Auto-create new tarima (retry on unique collision)
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const newCodigo = await generateTarimaCodigo(client)
+          try {
+            const newTarimaRes = await client.query(
+              `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
+               VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING *`,
+              [newCodigo, sesion.empresa_id, sesion.canal_id, userId]
+            )
+            nueva_tarima = newTarimaRes.rows[0]
+            break
+          } catch (e) {
+            if (e.code === '23505' && e.constraint === 'tarimas_codigo_key' && attempt < 4) continue
+            throw e
+          }
+        }
 
         await client.query(
           'UPDATE sesiones_escaneo SET tarima_actual_id = $1 WHERE id = $2',
@@ -378,22 +393,24 @@ router.post('/sessions/:id/add-tarima',
         })
       }
 
-      // Generate tarima code
-      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-      const numRes = await client.query(
-        `SELECT COUNT(*) FROM tarimas WHERE codigo LIKE $1`,
-        [`TAR-${today}-%`]
-      )
-      const num = parseInt(numRes.rows[0].count) + 1
-      const tarimaCodigo = `TAR-${today}-${String(num).padStart(3, '0')}`
-
-      // Create new tarima
-      const tarimaRes = await client.query(
-        `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
-         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-         RETURNING *`,
-        [tarimaCodigo, sesion.empresa_id, sesion.canal_id, userId]
-      )
+      // Generate tarima code and create (retry on unique collision)
+      let tarimaRes
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const tarimaCodigo = await generateTarimaCodigo(client)
+        try {
+          tarimaRes = await client.query(
+            `INSERT INTO tarimas (codigo, empresa_id, canal_id, operador_id, fecha_inicio)
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+             RETURNING *`,
+            [tarimaCodigo, sesion.empresa_id, sesion.canal_id, userId]
+          )
+          break
+        } catch (e) {
+          if (e.code === '23505' && e.constraint === 'tarimas_codigo_key' && attempt < 4) continue
+          throw e
+        }
+      }
+      if (!tarimaRes) throw new Error('Failed to generate unique tarima code')
       const newTarima = tarimaRes.rows[0]
 
       // Update session to point to new tarima as current
