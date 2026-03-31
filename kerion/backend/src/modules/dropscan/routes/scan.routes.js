@@ -20,9 +20,16 @@ router.post('/sessions/start',
         return res.status(400).json({ error: 'empresa_id y canal_id son requeridos' })
       }
 
-      // Check for existing active sessions (max 3 allowed)
+      // Auto-close stale sessions older than 24h to prevent orphans
+      await client.query(
+        `UPDATE sesiones_escaneo SET activa = false, fecha_fin = CURRENT_TIMESTAMP
+         WHERE operador_id = $1 AND activa = true AND fecha_inicio < NOW() - INTERVAL '24 hours'`,
+        [userId]
+      )
+
+      // Check for existing active sessions (max 3 allowed) — lock rows to prevent races
       const existing = await client.query(
-        'SELECT id FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true',
+        'SELECT id FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true FOR UPDATE',
         [userId]
       )
       if (existing.rows.length >= 3) {
@@ -81,10 +88,10 @@ router.get('/sessions/active',
       const sesionRes = await query(
         `SELECT s.*, e.nombre as empresa_nombre, c.nombre as canal_nombre
          FROM sesiones_escaneo s
-         JOIN configuraciones e ON s.empresa_id = e.id
-         JOIN configuraciones c ON s.canal_id = c.id
+         LEFT JOIN configuraciones e ON s.empresa_id = e.id
+         LEFT JOIN configuraciones c ON s.canal_id = c.id
          WHERE s.operador_id = $1 AND s.activa = true
-         LIMIT 1`,
+         ORDER BY s.fecha_inicio DESC`,
         [req.user.id]
       )
 
@@ -94,22 +101,14 @@ router.get('/sessions/active',
 
       const sesion = sesionRes.rows[0]
 
-      // Get all active tarimas for this session (EN_PROCESO state, same operator, same session timeframe)
-      const tarimasRes = await query(
-        `SELECT * FROM tarimas 
-         WHERE operador_id = $1 AND estado = 'EN_PROCESO' 
-         AND fecha_inicio >= $2
-         ORDER BY fecha_inicio ASC`,
-        [req.user.id, sesion.fecha_inicio]
-      )
-      const tarimas_activas = tarimasRes.rows
-
-      // Get current tarima (the one marked as tarima_actual_id)
+      // Get current tarima for this session
       let tarima = null
       if (sesion.tarima_actual_id) {
-        tarima = tarimas_activas.find(t => t.id === sesion.tarima_actual_id) || tarimas_activas[0] || null
-      } else if (tarimas_activas.length > 0) {
-        tarima = tarimas_activas[0]
+        const tarimaRes = await query(
+          `SELECT * FROM tarimas WHERE id = $1`,
+          [sesion.tarima_actual_id]
+        )
+        tarima = tarimaRes.rows[0] || null
       }
 
       // Get last 10 scanned guides for current tarima
@@ -124,7 +123,7 @@ router.get('/sessions/active',
         ultimas_guias = guiasRes.rows
       }
 
-      res.json({ sesion, tarima_actual: tarima, tarimas_activas, ultimas_guias })
+      res.json({ sesion, tarima_actual: tarima, tarimas_activas: [tarima].filter(Boolean), ultimas_guias })
     } catch (error) {
       console.error('Get active session error:', error)
       res.status(500).json({ error: 'Error obteniendo sesión activa' })

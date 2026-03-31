@@ -178,10 +178,13 @@ export default function Escaneo() {
   }, [activeTabId])
 
   /* ── operator auth flow ────────────────────────────── */
+  const [authTarget, setAuthTarget] = useState('start') // 'start' or 'addTab'
+
   const handleRequestNewSession = () => {
     if (operadorAuthed) {
-      setShowStartModal(true)
+      setPickerEmpresa(''); setPickerCanal(''); setShowStartModal(true)
     } else {
+      setAuthTarget('start')
       setShowOperadorAuth(true)
     }
   }
@@ -190,14 +193,19 @@ export default function Escaneo() {
     if (operadorAuthed) {
       setPickerEmpresa(''); setPickerCanal(''); setShowAddTabModal(true)
     } else {
+      setAuthTarget('addTab')
       setShowOperadorAuth(true)
     }
   }
 
   const handleOperadorAuthenticated = () => {
     setShowOperadorAuth(false)
-    // After auth, show the empresa/canal picker
-    setShowStartModal(true)
+    setPickerEmpresa(''); setPickerCanal('')
+    if (authTarget === 'addTab') {
+      setShowAddTabModal(true)
+    } else {
+      setShowStartModal(true)
+    }
   }
 
   /* ── start session (first tab or add-tab) ─────────── */
@@ -321,17 +329,14 @@ export default function Escaneo() {
   }
 
   /* ── close tab (X button) ─────────────────────────── */
-  const handleCloseTab = (tabId) => {
+  const handleCloseTab = async (tabId) => {
     const tab = tabs.find(t => t.tabId === tabId)
     if (!tab) return
     if (!tab.session) { removeTab(tabId); return }
     const hasData = (tab.tarima?.cantidad_guias || 0) > 0
     if (!hasData) {
-      // empty tarima → delete it entirely (not cancel) so it doesn't appear in history
-      if (tab.tarima?.id) {
-        ds.deleteTarima(tab.tarima.id).catch(() => {})
-      }
-      ds.endSession(tab.session.id).catch(() => {})
+      // empty tarima → endSession auto-deletes empty tarimas on the backend
+      try { await ds.endSession(tab.session.id) } catch {}
       removeTab(tabId)
       toast.info(t('scan.sessionEnded'))
       qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
@@ -538,14 +543,14 @@ export default function Escaneo() {
               {/* X close button — always visible, bigger on active tab */}
               <button
                 onClick={(e) => { e.stopPropagation(); handleCloseTab(tb.tabId) }}
-                className={`absolute top-1.5 right-1 rounded-full flex items-center justify-center transition-all ${
+                className={`absolute top-1 right-0.5 z-20 rounded-full flex items-center justify-center transition-all shadow-sm ${
                   isActive
-                    ? 'w-5 h-5 opacity-70 hover:opacity-100 bg-warm-200 text-warm-600 hover:bg-danger-100 hover:text-danger-600'
-                    : 'w-4 h-4 opacity-40 hover:opacity-100 bg-warm-200 text-warm-500 hover:bg-danger-100 hover:text-danger-600'
+                    ? 'w-6 h-6 opacity-80 hover:opacity-100 bg-warm-200 text-warm-700 hover:bg-danger-100 hover:text-danger-600'
+                    : 'w-5 h-5 opacity-50 hover:opacity-100 bg-warm-200 text-warm-500 hover:bg-danger-100 hover:text-danger-600'
                 }`}
                 title={t('scan.closeTab')}
               >
-                <X className={isActive ? 'w-3 h-3' : 'w-2.5 h-2.5'} />
+                <X className={isActive ? 'w-3.5 h-3.5' : 'w-3 h-3'} />
               </button>
             </div>
           )
