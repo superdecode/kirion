@@ -384,15 +384,19 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
         </div>
 
         <div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.activo}
-              onChange={e => setFormData({ ...formData, activo: e.target.checked })}
-              className="w-4 h-4 rounded border-warm-300 text-primary-600 focus:ring-primary-500"
-            />
-            <span className="text-sm font-medium text-warm-700">Empresa activa</span>
-          </label>
+          <label className="text-sm font-medium text-warm-700 block mb-2">Estado</label>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, activo: !formData.activo })}
+            className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+              formData.activo
+                ? 'bg-success-100 text-success-700 ring-1 ring-success-300 hover:bg-success-200'
+                : 'bg-warm-100 text-warm-500 ring-1 ring-warm-200 hover:bg-warm-200'
+            }`}
+          >
+            {formData.activo ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+            {formData.activo ? 'Activa' : 'Inactiva'}
+          </button>
         </div>
 
         <div className="flex gap-3 pt-4">

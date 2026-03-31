@@ -37,10 +37,9 @@ function toCanal(row, empresasMap = {}) {
 
 // ==================== EMPRESAS ====================
 
-// GET /api/dropscan/config/empresas
+// GET /api/dropscan/config/empresas — accessible to all authenticated users
 router.get('/empresas',
-  authenticateToken, loadFullUser,
-  requirePermission('dropscan.configuracion', 'ver'),
+  authenticateToken,
   async (_req, res) => {
     try {
       const result = await query(
@@ -167,10 +166,9 @@ router.delete('/empresas/:id',
 
 // ==================== CANALES ====================
 
-// GET /api/dropscan/config/canales
+// GET /api/dropscan/config/canales — accessible to all authenticated users
 router.get('/canales',
-  authenticateToken, loadFullUser,
-  requirePermission('dropscan.configuracion', 'ver'),
+  authenticateToken,
   async (_req, res) => {
     try {
       const [canalesRes, empresasRes] = await Promise.all([
@@ -324,10 +322,9 @@ router.delete('/canales/:id',
 
 // ==================== PARAMETROS ====================
 
-// GET /api/dropscan/config/parametros
+// GET /api/dropscan/config/parametros — accessible to all authenticated users
 router.get('/parametros',
-  authenticateToken, loadFullUser,
-  requirePermission('dropscan.configuracion', 'ver'),
+  authenticateToken,
   async (_req, res) => {
     try {
       const result = await query(
