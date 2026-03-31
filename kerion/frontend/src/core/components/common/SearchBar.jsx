@@ -71,7 +71,7 @@ export default function SearchBar() {
   }
 
   return (
-    <div ref={wrapperRef} className="relative w-full max-w-md">
+    <div ref={wrapperRef} className="relative w-full max-w-[538px]">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
         <input
@@ -127,20 +127,20 @@ export default function SearchBar() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.02 }}
-                      onClick={() => handleResultClick(g)}
+                      onMouseDown={(e) => { e.preventDefault(); handleResultClick(g) }}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-primary-50/50 cursor-pointer border-b border-warm-50 last:border-b-0 transition-colors group"
                     >
                       <div className="w-8 h-8 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
                         <Package className="w-4 h-4" />
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
                         <p className="text-sm font-mono font-bold text-warm-800 truncate">{g.codigo_guia}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[10px] text-warm-500">{g.tarima_codigo}</span>
-                          <span className="text-warm-300 text-[10px]">·</span>
-                          <span className="text-[10px] text-warm-500">{g.empresa_nombre}</span>
-                          <span className="text-warm-300 text-[10px]">·</span>
-                          <span className="text-[10px] font-semibold text-primary-600">Pos #{g.posicion}</span>
+                        <div className="flex items-center gap-1 mt-0.5 overflow-hidden whitespace-nowrap">
+                          <span className="text-[10px] text-warm-500 truncate max-w-[80px]">{g.tarima_codigo}</span>
+                          <span className="text-warm-300 text-[10px] shrink-0">·</span>
+                          <span className="text-[10px] text-warm-500 truncate">{g.empresa_nombre}</span>
+                          <span className="text-warm-300 text-[10px] shrink-0">·</span>
+                          <span className="text-[10px] font-semibold text-primary-600 shrink-0">Pos #{g.posicion}</span>
                         </div>
                       </div>
                       <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${

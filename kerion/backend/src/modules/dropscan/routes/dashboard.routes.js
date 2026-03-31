@@ -272,7 +272,7 @@ router.get('/guias/search',
 
       const result = await query(
         `SELECT g.id, g.codigo_guia, g.posicion, g.timestamp_escaneo,
-                t.codigo as tarima_codigo, t.estado as tarima_estado,
+                t.id as tarima_id, t.codigo as tarima_codigo, t.estado as tarima_estado,
                 e.nombre as empresa_nombre, c.nombre as canal_nombre,
                 u.nombre_completo as operador_nombre
          FROM guias g

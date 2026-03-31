@@ -67,8 +67,9 @@ export const searchGuias = (q) =>
   api.get('/dropscan/dashboard/guias/search', { params: { q } }).then(r => r.data)
 
 // Config (used by Escaneo for session start dropdowns)
+// Use the full dropscan config endpoint which returns empresas[] on each canal
 export const getEmpresas = () =>
-  api.get('/config/dropscan/empresa').then(r => r.data)
+  api.get('/dropscan/config/empresas').then(r => r.data)
 
 export const getCanales = () =>
-  api.get('/config/dropscan/canal').then(r => r.data)
+  api.get('/dropscan/config/canales').then(r => r.data)

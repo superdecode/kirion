@@ -224,125 +224,68 @@ export default function Reportes() {
                 ))}
               </div>
 
-              {/* Charts */}
+              {/* Charts — all in one compact grid */}
               {porDia.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className={`grid gap-4 ${(porEmpresa.length > 0 || porCanal.length > 0) ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2'}`}>
                   {/* Daily guides */}
-                  <div className="card p-5">
-                    <h3 className="text-sm font-semibold text-warm-700 mb-4">{t('reports.dailyTrend')}</h3>
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={porDia}>
+                  <div className="card p-4">
+                    <h3 className="text-xs font-semibold text-warm-600 mb-2">{t('reports.dailyTrend')}</h3>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={porDia} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis
-                          dataKey="fecha"
-                          tick={{ fontSize: 10 }}
-                          tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
-                        />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                          labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')}
-                        />
-                        <Bar dataKey="guias" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Guías" />
+                        <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} />
+                        <YAxis tick={{ fontSize: 9 }} />
+                        <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')} />
+                        <Bar dataKey="guias" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Guías" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
 
                   {/* Avg time trend */}
-                  <div className="card p-5">
-                    <h3 className="text-sm font-semibold text-warm-700 mb-4">{t('reports.avgTime')}</h3>
-                    <ResponsiveContainer width="100%" height={320}>
-                      <LineChart data={porDia}>
+                  <div className="card p-4">
+                    <h3 className="text-xs font-semibold text-warm-600 mb-2">{t('reports.avgTime')}</h3>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={porDia} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis
-                          dataKey="fecha"
-                          tick={{ fontSize: 10 }}
-                          tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
-                        />
-                        <YAxis tick={{ fontSize: 10 }} unit=" min" />
-                        <Tooltip
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                          labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="tiempo_promedio_min"
-                          stroke="#8b5cf6"
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                          name="Tiempo (min)"
-                        />
+                        <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} />
+                        <YAxis tick={{ fontSize: 9 }} unit="m" />
+                        <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')} />
+                        <Line type="monotone" dataKey="tiempo_promedio_min" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name="Tiempo (min)" />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
-              )}
 
-              {/* Donut charts: empresa & canal distribution */}
-              {(porEmpresa.length > 0 || porCanal.length > 0) && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Empresa donut */}
                   {porEmpresa.length > 0 && (
-                    <div className="card p-5">
-                      <h3 className="text-sm font-semibold text-warm-700 mb-1">Distribución por Empresa</h3>
-                      <p className="text-xs text-warm-400 mb-4">Guías escaneadas por empresa</p>
-                      <ResponsiveContainer width="100%" height={280}>
+                    <div className="card p-4">
+                      <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Empresa</h3>
+                      <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
-                          <Pie
-                            data={porEmpresa}
-                            dataKey="guias"
-                            nameKey="empresa"
-                            cx="50%" cy="50%"
-                            innerRadius={65}
-                            outerRadius={105}
-                            paddingAngle={3}
-                            strokeWidth={0}
-                          >
+                          <Pie data={porEmpresa} dataKey="guias" nameKey="empresa" cx="50%" cy="45%" innerRadius={48} outerRadius={75} paddingAngle={3} strokeWidth={0}>
                             {porEmpresa.map((e, i) => (
                               <Cell key={e.empresa} fill={e.color || PIE_COLORS[i % PIE_COLORS.length]} />
                             ))}
                           </Pie>
-                          <Tooltip
-                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                            formatter={(v, n) => [`${v} guías`, n]}
-                          />
-                          <Legend
-                            iconType="circle"
-                            iconSize={8}
-                            formatter={(v) => <span style={{ fontSize: 11, color: '#64748b' }}>{v}</span>}
-                          />
+                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} formatter={(v, n) => [`${v} guías`, n]} />
+                          <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 10 }} formatter={(v) => <span style={{ fontSize: 10, color: '#64748b' }}>{v}</span>} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
                   )}
+
+                  {/* Canal donut */}
                   {porCanal.length > 0 && (
-                    <div className="card p-5">
-                      <h3 className="text-sm font-semibold text-warm-700 mb-1">Distribución por Canal</h3>
-                      <p className="text-xs text-warm-400 mb-4">Guías escaneadas por canal</p>
-                      <ResponsiveContainer width="100%" height={280}>
+                    <div className="card p-4">
+                      <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Canal</h3>
+                      <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
-                          <Pie
-                            data={porCanal}
-                            dataKey="guias"
-                            nameKey="canal"
-                            cx="50%" cy="50%"
-                            innerRadius={65}
-                            outerRadius={105}
-                            paddingAngle={3}
-                            strokeWidth={0}
-                          >
+                          <Pie data={porCanal} dataKey="guias" nameKey="canal" cx="50%" cy="45%" innerRadius={48} outerRadius={75} paddingAngle={3} strokeWidth={0}>
                             {porCanal.map((c, i) => (
                               <Cell key={c.canal} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                             ))}
                           </Pie>
-                          <Tooltip
-                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                            formatter={(v, n) => [`${v} guías`, n]}
-                          />
-                          <Legend
-                            iconType="circle"
-                            iconSize={8}
-                            formatter={(v) => <span style={{ fontSize: 11, color: '#64748b' }}>{v}</span>}
-                          />
+                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} formatter={(v, n) => [`${v} guías`, n]} />
+                          <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 10 }} formatter={(v) => <span style={{ fontSize: 10, color: '#64748b' }}>{v}</span>} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
