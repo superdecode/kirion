@@ -67,7 +67,7 @@ router.post('/', async (_req, res) => {
     await query(
       `INSERT INTO usuarios (codigo, nombre_completo, email, password_hash, rol_id, estado)
        VALUES ($1, $2, $3, $4, $5, 'ACTIVO')`,
-      ['ADM001', 'Administrador', 'admin@kerion.com', passwordHash, roleIds['Administrador']]
+      ['ADM001', 'Administrador', 'admin@kirion.com', passwordHash, roleIds['Administrador']]
     )
 
     // Default DropScan configs
@@ -94,7 +94,7 @@ router.post('/', async (_req, res) => {
       success: true,
       message: 'Sistema inicializado correctamente.',
       credentials: {
-        email: 'admin@kerion.com',
+        email: 'admin@kirion.com',
         password: adminPassword,
         nota: 'Cambia esta contraseña inmediatamente después de iniciar sesión.'
       }
