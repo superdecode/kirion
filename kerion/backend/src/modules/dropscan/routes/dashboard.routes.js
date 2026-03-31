@@ -116,33 +116,55 @@ router.get('/metrics',
   requirePermission('dropscan.reportes', 'ver'),
   async (req, res) => {
     try {
-      const { fecha_inicio, fecha_fin } = req.query
+      const { fecha_inicio, fecha_fin, empresa_id, canal_id } = req.query
 
       if (!fecha_inicio || !fecha_fin) {
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' })
       }
 
-      const dailyRes = await query(
-        `SELECT DATE(t.fecha_inicio) as fecha,
-                COUNT(DISTINCT t.id) as tarimas,
-                SUM(t.cantidad_guias) as guias,
-                COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas,
-                COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio
-         FROM tarimas t
-         WHERE DATE(t.fecha_inicio) BETWEEN $1 AND $2
-         GROUP BY DATE(t.fecha_inicio)
-         ORDER BY fecha`,
-        [fecha_inicio, fecha_fin]
-      )
+      const where = [`DATE(t.fecha_inicio) BETWEEN $1 AND $2`]
+      const params = [fecha_inicio, fecha_fin]
+      let pCount = 2
 
-      const totalRes = await query(
-        `SELECT COUNT(DISTINCT t.id) as tarimas,
-                SUM(t.cantidad_guias) as guias,
-                COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas
-         FROM tarimas t
-         WHERE DATE(t.fecha_inicio) BETWEEN $1 AND $2`,
-        [fecha_inicio, fecha_fin]
-      )
+      if (empresa_id) {
+        const ids = empresa_id.split(',').map(Number).filter(Boolean)
+        if (ids.length) { pCount++; where.push(`t.empresa_id = ANY($${pCount})`); params.push(ids) }
+      }
+      if (canal_id) {
+        const ids = canal_id.split(',').map(Number).filter(Boolean)
+        if (ids.length) { pCount++; where.push(`t.canal_id = ANY($${pCount})`); params.push(ids) }
+      }
+      const whereClause = where.join(' AND ')
+
+      const [dailyRes, totalRes, empresasRes, canalesRes] = await Promise.all([
+        query(
+          `SELECT DATE(t.fecha_inicio) as fecha,
+                  COUNT(DISTINCT t.id) as tarimas,
+                  COALESCE(SUM(t.cantidad_guias), 0) as guias,
+                  COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas,
+                  COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio
+           FROM tarimas t WHERE ${whereClause}
+           GROUP BY DATE(t.fecha_inicio) ORDER BY fecha`, params),
+        query(
+          `SELECT COUNT(DISTINCT t.id) as tarimas,
+                  COALESCE(SUM(t.cantidad_guias), 0) as guias,
+                  COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas
+           FROM tarimas t WHERE ${whereClause}`, params),
+        query(
+          `SELECT e.nombre as empresa, e.config_json->>'color' as color,
+                  COUNT(DISTINCT t.id) as tarimas,
+                  COALESCE(SUM(t.cantidad_guias), 0) as guias
+           FROM tarimas t JOIN configuraciones e ON t.empresa_id = e.id
+           WHERE ${whereClause}
+           GROUP BY e.id, e.nombre, e.config_json->>'color' ORDER BY guias DESC`, params),
+        query(
+          `SELECT c.nombre as canal,
+                  COUNT(DISTINCT t.id) as tarimas,
+                  COALESCE(SUM(t.cantidad_guias), 0) as guias
+           FROM tarimas t JOIN configuraciones c ON t.canal_id = c.id
+           WHERE ${whereClause}
+           GROUP BY c.id, c.nombre ORDER BY guias DESC`, params),
+      ])
 
       res.json({
         periodo: { fecha_inicio, fecha_fin },
@@ -157,7 +179,9 @@ router.get('/metrics',
           guias: parseInt(r.guias),
           completadas: parseInt(r.completadas),
           tiempo_promedio_min: Math.round((parseFloat(r.tiempo_promedio) || 0) / 60 * 10) / 10,
-        }))
+        })),
+        por_empresa: empresasRes.rows.map(r => ({ empresa: r.empresa, color: r.color, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
+        por_canal: canalesRes.rows.map(r => ({ canal: r.canal, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
       })
     } catch (error) {
       console.error('Metrics error:', error)

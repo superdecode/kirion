@@ -95,7 +95,7 @@ export default function Escaneo() {
   const empresas = (Array.isArray(empresasData) ? empresasData : empresasData?.items || empresasData?.empresas || []).filter(e => e.activo !== false)
   const allCanales = Array.isArray(canalesData) ? canalesData : canalesData?.items || canalesData?.canales || []
   const pickerCanales = pickerEmpresa
-    ? allCanales.filter(c => c.activo !== false && (c.empresas?.some(e => e.id === parseInt(pickerEmpresa)) || !c.empresas?.length))
+    ? allCanales.filter(c => c.activo !== false && c.empresas?.some(e => e.id === parseInt(pickerEmpresa)))
     : allCanales.filter(c => c.activo !== false)
 
   // Today's history (shown when no tabs)
@@ -106,6 +106,14 @@ export default function Escaneo() {
     enabled: tabs.length === 0,
   })
   const todayTarimas = todayHistoryData?.items || todayHistoryData?.tarimas || []
+
+  // Today's tarimas for side panel (always fetched when session active)
+  const { data: panelTodayData } = useQuery({
+    queryKey: ['dropscan-panel-today', todayStr],
+    queryFn: () => ds.getTarimas({ fecha_inicio: todayStr, fecha_fin: todayStr, limit: 100 }),
+    enabled: tabs.length > 0,
+    refetchInterval: 15000,
+  })
 
   /* panel detail query for active tab */
   const activeTab = tabs.find(t => t.tabId === activeTabId) || null
@@ -328,8 +336,9 @@ export default function Escaneo() {
     : progressPercent >= 90 ? 'from-warning-400 to-warning-600'
     : 'from-primary-400 to-accent-500'
 
+  const panelTarimas = panelTodayData?.items || panelTodayData?.tarimas || []
   const allPanelTarimas = tab
-    ? [{ ...tab.tarima, isCurrent: true }, ...(tab.completedTarimas || [])]
+    ? panelTarimas.map(p => ({ ...p, isCurrent: p.id === tab.tarima?.id }))
     : []
   const filteredPanel = tab?.panelSearch
     ? allPanelTarimas.filter(p => p?.codigo?.toLowerCase().includes(tab.panelSearch.toLowerCase()))
@@ -507,7 +516,7 @@ export default function Escaneo() {
             <div className="max-w-3xl mx-auto">
 
               {/* Tarima status card */}
-              <motion.div className="card p-6 mb-6 shadow-lg overflow-hidden relative"
+              <motion.div className="card p-3 mb-3 shadow-sm overflow-hidden relative"
                 key={`card-${tab.tabId}-${tab.tarima?.id}`}
                 style={{
                   borderWidth: '2px',
@@ -517,57 +526,44 @@ export default function Escaneo() {
                 initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
 
-                {/* Empresa/Canal bar */}
-                <div className="flex items-center gap-3 mb-4 pb-4 border-b" style={{ borderColor: empresaColor + '25' }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                {/* Empresa/Canal + tarima code + count — single row */}
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
                     style={{ backgroundColor: empresaColor + '18' }}>
-                    <Building2 className="w-5 h-5" style={{ color: empresaColor }} />
+                    <Building2 className="w-3.5 h-3.5" style={{ color: empresaColor }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-warm-800 truncate">{tab.empresa?.nombre || '—'}</p>
-                    <p className="text-xs text-warm-500 truncate flex items-center gap-1">
-                      <Radio className="w-3 h-3" />{tab.canal?.nombre || '—'}
+                    <p className="text-xs font-bold text-warm-800 truncate leading-tight">{tab.empresa?.nombre || '—'}</p>
+                    <p className="text-[10px] text-warm-500 truncate flex items-center gap-1 leading-tight">
+                      <Radio className="w-2.5 h-2.5" />{tab.canal?.nombre || '—'}
                     </p>
                   </div>
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: empresaColor }} />
-                </div>
-
-                {/* Tarima code + count */}
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <p className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-1">{t('scan.activePallet')}</p>
-                    <h3 className="text-xl font-extrabold text-warm-800 tracking-tight">{tab.tarima?.codigo || '—'}</h3>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-5xl font-black text-warm-800 tracking-tighter leading-none">{currentGuias}</p>
-                    <p className="text-xs text-warm-400 font-semibold mt-1">{t('scan.of100Guides')}</p>
+                  <div className="text-right shrink-0">
+                    <p className="text-[10px] font-bold text-warm-400 uppercase tracking-wider leading-none">{tab.tarima?.codigo || '—'}</p>
+                    <p className="text-3xl font-black text-warm-800 tracking-tighter leading-none">{currentGuias}<span className="text-xs font-medium text-warm-400">/100</span></p>
                   </div>
                 </div>
 
                 {/* Progress bar */}
-                <div className="w-full h-4 bg-gradient-to-r from-warm-100 to-warm-50 rounded-full overflow-hidden shadow-inner-soft border border-warm-200/50">
-                  <div className={`h-full bg-gradient-to-r ${progressGradient} rounded-full transition-all duration-500 ease-out shadow-sm ${progressPercent > 0 ? 'min-w-[8px]' : ''}`}
+                <div className="w-full h-2.5 bg-warm-100 rounded-full overflow-hidden border border-warm-200/50">
+                  <div className={`h-full bg-gradient-to-r ${progressGradient} rounded-full transition-all duration-500 ease-out ${progressPercent > 0 ? 'min-w-[6px]' : ''}`}
                     style={{ width: `${progressPercent}%` }} />
                 </div>
-                <div className="flex justify-between mt-2">
-                  <span className="text-[10px] text-warm-400 font-bold">0%</span>
-                  {progressPercent >= 90 && (
-                    <span className="text-[10px] text-danger-500 font-bold animate-pulse">
-                      {progressPercent >= 95 ? t('scan.almostFull') : t('scan.reachingCapacity')}
-                    </span>
-                  )}
-                  <span className="text-[10px] text-warm-400 font-bold">100%</span>
-                </div>
+                {progressPercent >= 90 && (
+                  <p className="text-[10px] text-danger-500 font-bold animate-pulse mt-0.5 text-right">
+                    {progressPercent >= 95 ? t('scan.almostFull') : t('scan.reachingCapacity')}
+                  </p>
+                )}
 
                 {/* Per-tab counters */}
-                <div className="grid grid-cols-2 gap-4 mt-5 pt-5 border-t" style={{ borderColor: empresaColor + '25' }}>
-                  <div className="text-center p-2 rounded-xl bg-white/60">
-                    <p className="text-2xl font-extrabold text-warm-800">{tab.guiasCount || 0}</p>
-                    <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{t('scan.totalGuides')}</p>
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t" style={{ borderColor: empresaColor + '25' }}>
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
+                    <p className="text-lg font-extrabold text-warm-800 leading-none">{tab.guiasCount || 0}</p>
+                    <p className="text-[9px] text-warm-400 uppercase tracking-wider font-bold leading-tight">{t('scan.totalGuides')}</p>
                   </div>
-                  <div className="text-center p-2 rounded-xl bg-white/60">
-                    <p className="text-2xl font-extrabold text-danger-500">{tab.duplicadosCount || 0}</p>
-                    <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{t('scan.duplicates')}</p>
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
+                    <p className="text-lg font-extrabold text-danger-500 leading-none">{tab.duplicadosCount || 0}</p>
+                    <p className="text-[9px] text-warm-400 uppercase tracking-wider font-bold leading-tight">{t('scan.duplicates')}</p>
                   </div>
                 </div>
               </motion.div>
@@ -852,12 +848,21 @@ function EmpresaCanalModal({ isOpen, onClose, empresas, canales, empresa, canal,
           <label className="block text-sm font-semibold text-warm-700 mb-1.5 flex items-center gap-2">
             <Radio className="w-4 h-4 text-warm-400" />{t('scan.channel')}
           </label>
-          <select value={canal} onChange={e => onCanalChange(e.target.value)} className="select-field" disabled={!empresa}>
-            <option value="">{t('scan.selectChannel')}</option>
-            {canales.map(c => (
-              <option key={c.id} value={c.id}>{c.nombre}</option>
-            ))}
-          </select>
+          {empresa && canales.length === 0 ? (
+            <div className="p-3 rounded-xl bg-warning-50 border border-warning-200 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-warning-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-warning-700 font-medium">
+                Esta empresa no tiene canales asignados. Ve a <span className="font-bold">Configuración → Canales</span> y asigna al menos un canal.
+              </p>
+            </div>
+          ) : (
+            <select value={canal} onChange={e => onCanalChange(e.target.value)} className="select-field" disabled={!empresa}>
+              <option value="">{t('scan.selectChannel')}</option>
+              {canales.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          )}
         </div>
         {empresa && (
           <div className="p-3 rounded-xl bg-primary-50 border border-primary-100 flex items-center gap-2">

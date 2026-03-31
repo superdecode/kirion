@@ -7,7 +7,7 @@ import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
 import { BarChart3, Download, Calendar, TrendingUp, Package, CheckCircle, Building2, Radio } from 'lucide-react'
 import MultiSelect from '../../../core/components/common/MultiSelect'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts'
 import * as XLSX from 'xlsx'
 
 export default function Reportes() {
@@ -34,6 +34,9 @@ export default function Reportes() {
 
   const totales = data?.totales || {}
   const porDia = data?.por_dia || []
+  const porEmpresa = data?.por_empresa || []
+  const porCanal = data?.por_canal || []
+  const PIE_COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#84cc16']
 
   const [isExporting, setIsExporting] = useState(false)
 
@@ -183,11 +186,12 @@ export default function Reportes() {
             <button
               onClick={handleExport}
               disabled={!porDia.length || isExporting}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-success-600 text-white rounded-lg text-sm font-medium
-                         hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title={t('reports.exportExcel')}
+              className="p-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <Download className="w-4 h-4" />
-              {isExporting ? '...' : t('reports.exportExcel')}
+              {isExporting
+                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <Download className="w-4 h-4" />}
             </button>
           </motion.div>
 
@@ -271,6 +275,78 @@ export default function Reportes() {
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
+                </div>
+              )}
+
+              {/* Donut charts: empresa & canal distribution */}
+              {(porEmpresa.length > 0 || porCanal.length > 0) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {porEmpresa.length > 0 && (
+                    <div className="card p-5">
+                      <h3 className="text-sm font-semibold text-warm-700 mb-1">Distribución por Empresa</h3>
+                      <p className="text-xs text-warm-400 mb-4">Guías escaneadas por empresa</p>
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={porEmpresa}
+                            dataKey="guias"
+                            nameKey="empresa"
+                            cx="50%" cy="50%"
+                            innerRadius={65}
+                            outerRadius={105}
+                            paddingAngle={3}
+                            strokeWidth={0}
+                          >
+                            {porEmpresa.map((e, i) => (
+                              <Cell key={e.empresa} fill={e.color || PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                            formatter={(v, n) => [`${v} guías`, n]}
+                          />
+                          <Legend
+                            iconType="circle"
+                            iconSize={8}
+                            formatter={(v) => <span style={{ fontSize: 11, color: '#64748b' }}>{v}</span>}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                  {porCanal.length > 0 && (
+                    <div className="card p-5">
+                      <h3 className="text-sm font-semibold text-warm-700 mb-1">Distribución por Canal</h3>
+                      <p className="text-xs text-warm-400 mb-4">Guías escaneadas por canal</p>
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={porCanal}
+                            dataKey="guias"
+                            nameKey="canal"
+                            cx="50%" cy="50%"
+                            innerRadius={65}
+                            outerRadius={105}
+                            paddingAngle={3}
+                            strokeWidth={0}
+                          >
+                            {porCanal.map((c, i) => (
+                              <Cell key={c.canal} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                            formatter={(v, n) => [`${v} guías`, n]}
+                          />
+                          <Legend
+                            iconType="circle"
+                            iconSize={8}
+                            formatter={(v) => <span style={{ fontSize: 11, color: '#64748b' }}>{v}</span>}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
               )}
 

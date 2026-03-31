@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -37,6 +37,9 @@ export default function Historial() {
   const { t } = useI18nStore()
   const qc = useQueryClient()
 
+  const highlightGuia = searchParams.get('highlight_guia') || ''
+  const highlightRowRef = useRef(null)
+
   // Auto-open tarima detail if navigated from SearchBar with tarima_id param
   useEffect(() => {
     const tarimaId = searchParams.get('tarima_id')
@@ -45,6 +48,13 @@ export default function Historial() {
       setSelectedTarima(parseInt(tarimaId))
     }
   }, [searchParams])
+
+  // Scroll highlighted guide into view when modal opens
+  useEffect(() => {
+    if (highlightGuia && selectedTarima && highlightRowRef.current) {
+      setTimeout(() => highlightRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400)
+    }
+  }, [selectedTarima, highlightGuia])
 
   const { data, isLoading } = useQuery({
     queryKey: ['dropscan-tarimas', page, filters],
@@ -405,14 +415,22 @@ export default function Historial() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-warm-50">
-                        {detailGuias.map(g => (
-                          <tr key={g.id} className="hover:bg-warm-50 transition-colors">
-                            <td className="px-3 py-2 text-warm-400 font-bold">{g.posicion}</td>
-                            <td className="px-3 py-2 font-mono font-semibold text-warm-700">{g.codigo_guia}</td>
-                            <td className="px-3 py-2 text-warm-500">{g.operador_nombre}</td>
-                            <td className="px-3 py-2 text-warm-400">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
-                          </tr>
-                        ))}
+                        {detailGuias.map(g => {
+                          const isHighlighted = highlightGuia && g.codigo_guia === highlightGuia
+                          return (
+                            <tr key={g.id}
+                              ref={isHighlighted ? highlightRowRef : null}
+                              className={`transition-colors ${isHighlighted ? 'bg-warning-100 border-l-4 border-warning-500' : 'hover:bg-warm-50'}`}>
+                              <td className="px-3 py-2 text-warm-400 font-bold">{g.posicion}</td>
+                              <td className={`px-3 py-2 font-mono font-semibold ${isHighlighted ? 'text-warning-700' : 'text-warm-700'}`}>
+                                {g.codigo_guia}
+                                {isHighlighted && <span className="ml-2 text-[9px] bg-warning-500 text-white px-1.5 py-0.5 rounded font-bold uppercase">encontrada</span>}
+                              </td>
+                              <td className="px-3 py-2 text-warm-500">{g.operador_nombre}</td>
+                              <td className="px-3 py-2 text-warm-400">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
