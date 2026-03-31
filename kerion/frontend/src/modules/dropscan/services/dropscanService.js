@@ -45,6 +45,9 @@ export const reopenTarima = (id) =>
 export const deleteTarima = (id) =>
   api.delete(`/dropscan/tarimas/${id}`).then(r => r.data)
 
+export const deleteGuiaFromTarima = (tarimaId, guiaId) =>
+  api.delete(`/dropscan/tarimas/${tarimaId}/guias/${guiaId}`).then(r => r.data)
+
 // Dashboard & Metrics
 export const getDashboard = () =>
   api.get('/dropscan/dashboard').then(r => r.data)

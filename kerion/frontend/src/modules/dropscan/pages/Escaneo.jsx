@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
+import * as XLSX from 'xlsx'
 import Header from '../../../core/components/layout/Header'
 import Modal from '../../../core/components/common/Modal'
 import { useAuthStore } from '../../../core/stores/authStore'
@@ -14,7 +15,8 @@ import { useOperadorStore } from '../stores/operadorStore'
 import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
-  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw
+  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw,
+  FileSpreadsheet, Pencil
 } from 'lucide-react'
 
 /* ─── helpers ─────────────────────────────────────────── */
@@ -83,6 +85,7 @@ export default function Escaneo() {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [showRecount, setShowRecount] = useState(false)
   const [completionPrompt, setCompletionPrompt] = useState(null) // { tabId, tarima, nuevaTarima }
+  const [panelEditMode, setPanelEditMode] = useState(false)
 
   // empresa/canal pickers for modals
   const [pickerEmpresa, setPickerEmpresa] = useState('')
@@ -96,6 +99,41 @@ export default function Escaneo() {
   const { t } = useI18nStore()
   const { isAuthenticated: operadorAuthed, getSessionPayload, clearOperador } = useOperadorStore()
   const isSupervisor = ['Supervisor', 'Jefe', 'Administrador'].includes(user?.rol_nombre)
+
+  const deleteGuiaFromTarimaMutation = useMutation({
+    mutationFn: ({ tarimaId, guiaId }) => ds.deleteGuiaFromTarima(tarimaId, guiaId),
+    onSuccess: (data, { tarimaId }) => {
+      toast.success('Guía eliminada')
+      qc.invalidateQueries({ queryKey: ['dropscan-tarima-detail', tarimaId] })
+    },
+    onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
+  })
+
+  const handleExportPanelDetailExcel = () => {
+    if (!panelDetailData?.tarima) return
+    const td = panelDetailData.tarima
+    const guias = panelDetailData.guias || []
+    try {
+      const wsData = [
+        ['Tarima', td.codigo],
+        ['Empresa', td.empresa_nombre],
+        ['Canal', td.canal_nombre],
+        ['Operador', td.operador_nombre],
+        ['Guías', `${td.cantidad_guias}/100`],
+        ['Estado', td.estado],
+        ['Inicio', td.fecha_inicio ? new Date(td.fecha_inicio).toLocaleString('es-MX') : '--'],
+        ['Cierre', td.fecha_cierre ? new Date(td.fecha_cierre).toLocaleString('es-MX') : '--'],
+        ['Duración', td.tiempo_armado_segundos ? `${Math.round(td.tiempo_armado_segundos / 60)} min` : '--'],
+        [],
+        ['#', 'Código Guía', 'Operador', 'Hora Escaneo'],
+        ...guias.map(g => [g.posicion, g.codigo_guia, g.operador_nombre, new Date(g.timestamp_escaneo).toLocaleString('es-MX')])
+      ]
+      const ws = XLSX.utils.aoa_to_sheet(wsData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Tarima')
+      XLSX.writeFile(wb, `tarima_${td.codigo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } catch { toast.error(t('toast.error')) }
+  }
 
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
   const { data: canalesData } = useQuery({ queryKey: ['dropscan-canales'], queryFn: ds.getCanales })
@@ -728,7 +766,7 @@ export default function Escaneo() {
                     <motion.div key="guias" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2 }}>
                       {tab.guias.length === 0
                         ? <div className="p-10 text-center text-sm text-warm-400">{t('scan.firstScan')}</div>
-                        : <div className="divide-y divide-warm-50 max-h-80 overflow-y-auto scrollbar-thin">
+                        : <div className="divide-y divide-warm-50 max-h-[50vh] overflow-y-auto scrollbar-thin">
                             {tab.guias.map((g, i) => (
                               <div key={g.id} className={`flex items-center gap-4 px-5 py-3 hover:bg-warm-50/50 transition-colors ${i === 0 ? 'bg-primary-50/30' : ''}`}>
                                 <span className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold shrink-0">{g.posicion}</span>
@@ -751,7 +789,7 @@ export default function Escaneo() {
                     <motion.div key="dups" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.2 }}>
                       {tab.duplicados.length === 0
                         ? <div className="p-10 text-center text-sm text-warm-400">{t('scan.noDuplicates')}</div>
-                        : <div className="divide-y divide-warm-50 max-h-80 overflow-y-auto scrollbar-thin">
+                        : <div className="divide-y divide-warm-50 max-h-[50vh] overflow-y-auto scrollbar-thin">
                             {tab.duplicados.map((d, i) => (
                               <div key={`dup-${i}`} className="flex items-center gap-4 px-5 py-3 hover:bg-danger-50/30 transition-colors">
                                 <span className="w-9 h-9 rounded-xl bg-danger-100 text-danger-600 flex items-center justify-center shrink-0">
@@ -828,16 +866,33 @@ export default function Escaneo() {
       )}
 
       {/* Panel detail modal */}
-      <Modal isOpen={!!panelDetailId} onClose={() => updateTab(activeTabId, { panelDetailId: null })}
-        title={panelDetailData?.tarima ? `${t('history.palletDetail')} ${panelDetailData.tarima.codigo}` : t('common.loading')} icon={Package} size="xl">
+      <Modal isOpen={!!panelDetailId} onClose={() => { updateTab(activeTabId, { panelDetailId: null }); setPanelEditMode(false) }}
+        title={panelDetailData?.tarima ? `${t('history.palletDetail')} ${panelDetailData.tarima.codigo}` : t('common.loading')} icon={Package} size="xl"
+        footer={panelDetailData?.tarima && (
+          <>
+            <button onClick={handleExportPanelDetailExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-success-50 text-success-700 rounded-xl hover:bg-success-100 font-semibold transition-all">
+              <FileSpreadsheet className="w-4 h-4" /> Excel
+            </button>
+            {canDelete('dropscan.historial') && (
+              <button onClick={() => setPanelEditMode(e => !e)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
+                  panelEditMode ? 'bg-warning-100 text-warning-700 hover:bg-warning-200' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
+                }`}>
+                <Pencil className="w-4 h-4" /> {panelEditMode ? 'Finalizar edición' : 'Editar'}
+              </button>
+            )}
+            <button onClick={() => { updateTab(activeTabId, { panelDetailId: null }); setPanelEditMode(false) }} className="btn-ghost">{t('common.close')}</button>
+          </>
+        )}>
         {panelDetailData?.tarima && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               {[
                 { l: t('history.guides'), v: `${panelDetailData.tarima.cantidad_guias}/100` },
                 { l: t('common.status'), v: formatEstado(panelDetailData.tarima.estado) },
-                { l: t('history.operator'), v: panelDetailData.tarima.operador_nombre },
-                { l: t('history.company'), v: panelDetailData.tarima.empresa_nombre },
+                { l: t('history.startTime'), v: panelDetailData.tarima.fecha_inicio ? new Date(panelDetailData.tarima.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '--' },
+                { l: t('history.duration'), v: panelDetailData.tarima.tiempo_armado_segundos ? `${Math.round(panelDetailData.tarima.tiempo_armado_segundos / 60)} min` : '--' },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-warm-50 border border-warm-100">
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold">{f.l}</p>
@@ -845,13 +900,15 @@ export default function Escaneo() {
                 </div>
               ))}
             </div>
-            <div className="max-h-96 overflow-y-auto rounded-xl border border-warm-200 shadow-inner">
+            <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-warm-200 shadow-inner">
               <table className="w-full text-sm">
                 <thead className="bg-warm-50 sticky top-0 z-10 border-b border-warm-200">
                   <tr>
                     <th className="text-left px-4 py-3 font-bold text-warm-600">#</th>
                     <th className="text-left px-4 py-3 font-bold text-warm-600">{t('history.guideCode')}</th>
+                    <th className="text-left px-4 py-3 font-bold text-warm-600">{t('history.operator')}</th>
                     <th className="text-left px-4 py-3 font-bold text-warm-600">{t('history.scanTime')}</th>
+                    {panelEditMode && <th className="w-8"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-warm-100">
@@ -859,7 +916,18 @@ export default function Escaneo() {
                     <tr key={g.id} className="hover:bg-warm-50/50 transition-colors">
                       <td className="px-4 py-2.5 text-warm-500 font-medium">{g.posicion}</td>
                       <td className="px-4 py-2.5 font-mono font-semibold text-warm-700">{g.codigo_guia}</td>
-                      <td className="px-4 py-2.5 text-warm-500">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
+                      <td className="px-4 py-2.5 text-warm-400 text-xs">{g.operador_nombre}</td>
+                      <td className="px-4 py-2.5 text-warm-500 text-xs">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
+                      {panelEditMode && (
+                        <td className="px-2 py-2">
+                          <button
+                            onClick={() => deleteGuiaFromTarimaMutation.mutate({ tarimaId: panelDetailData.tarima.id, guiaId: g.id })}
+                            disabled={deleteGuiaFromTarimaMutation.isPending}
+                            className="p-1.5 rounded-lg hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all disabled:opacity-40">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

@@ -171,7 +171,9 @@ router.post('/:id/finalize',
     try {
       const { id } = req.params
       const result = await query(
-        `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP WHERE id = $1 AND estado = 'EN_PROCESO' RETURNING *`,
+        `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
+           tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER
+         WHERE id = $1 AND estado = 'EN_PROCESO' RETURNING *`,
         [id]
       )
       if (result.rows.length === 0) return res.status(404).json({ error: 'Tarima no encontrada o no está en proceso' })
@@ -247,6 +249,36 @@ router.get('/:id/duplicados',
     } catch (error) {
       console.error('Get duplicados error:', error)
       res.status(500).json({ error: 'Error obteniendo duplicados' })
+    }
+  }
+)
+
+// DELETE /api/dropscan/tarimas/:tarimaId/guias/:guiaId
+router.delete('/:tarimaId/guias/:guiaId',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.historial', 'eliminar'),
+  async (req, res) => {
+    try {
+      const { tarimaId, guiaId } = req.params
+
+      const guiaRes = await query(
+        'SELECT id FROM guias WHERE id = $1 AND tarima_id = $2',
+        [guiaId, tarimaId]
+      )
+      if (guiaRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Guía no encontrada en esta tarima' })
+      }
+
+      await query('DELETE FROM guias WHERE id = $1', [guiaId])
+
+      const countRes = await query('SELECT COUNT(*) as cnt FROM guias WHERE tarima_id = $1', [tarimaId])
+      const newCount = parseInt(countRes.rows[0].cnt)
+      await query('UPDATE tarimas SET cantidad_guias = $1 WHERE id = $2', [newCount, tarimaId])
+
+      res.json({ success: true, cantidad_guias: newCount })
+    } catch (error) {
+      console.error('Delete guia from tarima error:', error)
+      res.status(500).json({ error: 'Error eliminando guía' })
     }
   }
 )

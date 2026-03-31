@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import * as XLSX from 'xlsx'
 import Header from '../../../core/components/layout/Header'
 import Modal from '../../../core/components/common/Modal'
 import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
@@ -12,12 +13,13 @@ import * as ds from '../services/dropscanService'
 import {
   ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
-  RotateCcw, AlertTriangle, Copy
+  RotateCcw, AlertTriangle, Copy, Pencil, FileSpreadsheet
 } from 'lucide-react'
 
 export default function Historial() {
   const [searchParams] = useSearchParams()
   const [page, setPage] = useState(1)
+  const [pageLimit, setPageLimit] = useState(100)
   // Default date range: last 30 days
   const defaultEnd = new Date().toISOString().slice(0, 10)
   const defaultStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
@@ -30,6 +32,7 @@ export default function Historial() {
   })
   const [selectedTarima, setSelectedTarima] = useState(null)
   const [deletingTarima, setDeletingTarima] = useState(null) // tarima row to delete
+  const [editMode, setEditMode] = useState(false) // edit mode in detail modal
   const [sortCol, setSortCol] = useState('fecha_inicio')
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
@@ -58,8 +61,8 @@ export default function Historial() {
   }, [selectedTarima, highlightGuia])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dropscan-tarimas', page, filters],
-    queryFn: () => ds.getTarimas({ ...filters, page, limit: 15 }),
+    queryKey: ['dropscan-tarimas', page, filters, pageLimit],
+    queryFn: () => ds.getTarimas({ ...filters, page, limit: pageLimit }),
   })
 
   const rawTarimasDup = data?.tarimas || []
@@ -96,6 +99,16 @@ export default function Historial() {
   const deleteMutation = useMutation({
     mutationFn: (id) => ds.deleteTarima(id),
     onSuccess: () => { toast.success(t('history.palletDeleted')); qc.invalidateQueries({ queryKey: ['dropscan-tarimas'] }); setSelectedTarima(null) },
+    onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
+  })
+
+  const deleteGuiaMutation = useMutation({
+    mutationFn: ({ tarimaId, guiaId }) => ds.deleteGuiaFromTarima(tarimaId, guiaId),
+    onSuccess: () => {
+      toast.success('Guía eliminada')
+      qc.invalidateQueries({ queryKey: ['dropscan-tarima-detail', selectedTarima] })
+      qc.invalidateQueries({ queryKey: ['dropscan-tarimas'] })
+    },
     onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
   })
 
@@ -150,9 +163,39 @@ export default function Historial() {
     } catch { toast.error(t('toast.error')) }
   }
 
-  const handleOpenDetail = (id) => {
+  const handleOpenDetail = (id, withEdit = false) => {
     setDetailTab('guias')
+    setEditMode(withEdit)
     setSelectedTarima(id)
+  }
+
+  const handleExportTarimaExcel = () => {
+    if (!detail) return
+    try {
+      const wsData = [
+        ['Tarima', detail.codigo],
+        ['Empresa', detail.empresa_nombre],
+        ['Canal', detail.canal_nombre],
+        ['Operador', detail.operador_nombre],
+        ['Estado', estadoLabels[detail.estado] || detail.estado],
+        ['Guías', `${detail.cantidad_guias}/100`],
+        ['Inicio', new Date(detail.fecha_inicio).toLocaleString('es-MX')],
+        ['Cierre', detail.fecha_cierre ? new Date(detail.fecha_cierre).toLocaleString('es-MX') : '--'],
+        ['Duración', detail.tiempo_armado_segundos ? `${Math.round(detail.tiempo_armado_segundos / 60)} min` : '--'],
+        [],
+        ['#', 'Código Guía', 'Operador', 'Hora Escaneo'],
+        ...detailGuias.map(g => [
+          g.posicion,
+          g.codigo_guia,
+          g.operador_nombre,
+          new Date(g.timestamp_escaneo).toLocaleString('es-MX')
+        ])
+      ]
+      const ws = XLSX.utils.aoa_to_sheet(wsData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Tarima')
+      XLSX.writeFile(wb, `tarima_${detail.codigo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } catch { toast.error(t('toast.error')) }
   }
 
   const detail = detailData?.tarima
@@ -294,6 +337,12 @@ export default function Historial() {
                                 <Eye className="w-4 h-4" />
                               </button>
                               {canDelete('dropscan.historial') && (
+                                <button onClick={() => handleOpenDetail(row.id, true)}
+                                  className="p-2 rounded-xl hover:bg-warning-50 text-warm-400 hover:text-warning-500 transition-all" title="Editar">
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canDelete('dropscan.historial') && (
                                 <button onClick={() => setDeletingTarima(row)}
                                   className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title="Eliminar">
                                   <Trash2 className="w-4 h-4" />
@@ -309,9 +358,20 @@ export default function Historial() {
               )}
 
               {/* Pagination */}
-              {pagination.pages > 1 && (
-                <div className="flex items-center justify-between px-5 py-3 border-t border-warm-100 bg-warm-50/30">
-                  <p className="text-xs text-warm-400 font-medium">{t('common.page')} {pagination.page} / {pagination.pages} · {pagination.total} {t('common.records')}</p>
+              <div className="flex items-center justify-between px-5 py-3 border-t border-warm-100 bg-warm-50/30">
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-warm-400 font-medium">{pagination.pages > 0 ? `${t('common.page')} ${pagination.page} / ${pagination.pages} · ` : ''}{pagination.total} {t('common.records')}</p>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-warm-400 font-medium">Ver:</span>
+                    {[100, 200, 500].map(l => (
+                      <button key={l} onClick={() => { setPageLimit(l); setPage(1) }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          pageLimit === l ? 'bg-primary-100 text-primary-700' : 'text-warm-400 hover:bg-warm-100 hover:text-warm-600'
+                        }`}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                {pagination.pages > 1 && (
                   <div className="flex gap-1">
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                       className="p-2 rounded-xl hover:bg-warm-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
@@ -322,26 +382,38 @@ export default function Historial() {
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </motion.div>
           </div>
         </div>
       </div>
 
       {/* Detail Modal */}
-      <Modal isOpen={!!selectedTarima} onClose={() => setSelectedTarima(null)} icon={Package}
+      <Modal isOpen={!!selectedTarima} onClose={() => { setSelectedTarima(null); setEditMode(false) }} icon={Package}
         title={detail ? `${t('history.palletDetail')} ${detail.codigo}` : t('common.loading')} size="xl"
         footer={detail && (
           <>
+            <button onClick={handleExportTarimaExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-success-50 text-success-700 rounded-xl hover:bg-success-100 font-semibold transition-all">
+              <FileSpreadsheet className="w-4 h-4" /> Excel
+            </button>
+            {canDelete('dropscan.historial') && (
+              <button onClick={() => setEditMode(e => !e)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
+                  editMode ? 'bg-warning-100 text-warning-700 hover:bg-warning-200' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
+                }`}>
+                <Pencil className="w-4 h-4" /> {editMode ? 'Finalizar edición' : 'Editar'}
+              </button>
+            )}
             {detail.estado === 'FINALIZADA' && canReopen && (
               <button onClick={() => reopenMutation.mutate(detail.id)}
                 disabled={reopenMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm bg-primary-50 text-primary-700 rounded-xl hover:bg-primary-100 font-semibold transition-all disabled:opacity-50">
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-50 text-primary-700 rounded-xl hover:bg-primary-100 font-semibold transition-all disabled:opacity-50">
                 <RotateCcw className="w-4 h-4" /> {t('history.reopen')}
               </button>
             )}
-            <button onClick={() => setSelectedTarima(null)} className="btn-ghost">{t('common.close')}</button>
+            <button onClick={() => { setSelectedTarima(null); setEditMode(false) }} className="btn-ghost">{t('common.close')}</button>
           </>
         )}>
         {detailLoading ? (
@@ -406,7 +478,7 @@ export default function Historial() {
                 {detailGuias.length === 0 ? (
                   <div className="p-8 text-center text-sm text-warm-400">{t('history.noGuidesRegistered')}</div>
                 ) : (
-                  <div className="max-h-64 overflow-y-auto rounded-xl border border-warm-100 scrollbar-thin">
+                  <div className="max-h-80 overflow-y-auto rounded-xl border border-warm-100 scrollbar-thin">
                     <table className="w-full text-xs">
                       <thead className="bg-warm-50 sticky top-0">
                         <tr>
@@ -414,6 +486,7 @@ export default function Historial() {
                           <th className="text-left px-3 py-2.5 font-bold text-warm-500">{t('history.guideCode')}</th>
                           <th className="text-left px-3 py-2.5 font-bold text-warm-500">{t('history.operator')}</th>
                           <th className="text-left px-3 py-2.5 font-bold text-warm-500">{t('history.scanTime')}</th>
+                          {editMode && <th className="w-8"></th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-warm-50">
@@ -430,6 +503,16 @@ export default function Historial() {
                               </td>
                               <td className="px-3 py-2 text-warm-500">{g.operador_nombre}</td>
                               <td className="px-3 py-2 text-warm-400">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
+                              {editMode && (
+                                <td className="px-2 py-1.5">
+                                  <button
+                                    onClick={() => deleteGuiaMutation.mutate({ tarimaId: detail.id, guiaId: g.id })}
+                                    disabled={deleteGuiaMutation.isPending}
+                                    className="p-1.5 rounded-lg hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all disabled:opacity-40">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           )
                         })}
