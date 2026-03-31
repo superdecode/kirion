@@ -71,11 +71,12 @@ router.get('/',
                 t.fecha_inicio, t.fecha_cierre, t.tiempo_armado_segundos,
                 e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
-                u.nombre_completo as operador_nombre, u.codigo as operador_codigo
+                COALESCE(s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
          FROM tarimas t
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
          JOIN usuarios u ON t.operador_id = u.id
+         LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
          ${whereClause}
          ORDER BY t.fecha_inicio DESC
          LIMIT $${paramCount - 1} OFFSET $${paramCount}`,
@@ -109,11 +110,12 @@ router.get('/:id',
       const tarimaRes = await query(
         `SELECT t.*, e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
-                u.nombre_completo as operador_nombre, u.codigo as operador_codigo
+                COALESCE(s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
          FROM tarimas t
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
          JOIN usuarios u ON t.operador_id = u.id
+         LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
          WHERE t.id = $1`,
         [id]
       )
@@ -124,7 +126,7 @@ router.get('/:id',
 
       const guiasRes = await query(
         `SELECT g.id, g.codigo_guia, g.posicion, g.timestamp_escaneo,
-                u.nombre_completo as operador_nombre
+                COALESCE(g.usuario_operador, u.nombre_completo) as operador_nombre
          FROM guias g
          JOIN usuarios u ON g.operador_id = u.id
          WHERE g.tarima_id = $1
@@ -221,7 +223,7 @@ router.get('/:id/duplicados',
       const result = await query(
         `SELECT ad.id, ad.codigo_guia, ad.timestamp_alerta,
                 g.codigo_guia as guia_original_codigo, g.posicion as guia_original_posicion,
-                u.nombre_completo as operador_nombre
+                COALESCE(g.usuario_operador, u.nombre_completo) as operador_nombre
          FROM alertas_duplicados ad
          LEFT JOIN guias g ON ad.guia_original_id = g.id
          JOIN usuarios u ON ad.operador_id = u.id

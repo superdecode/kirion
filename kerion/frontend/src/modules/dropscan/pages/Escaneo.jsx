@@ -9,11 +9,12 @@ import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
 import api from '../../../core/services/api'
 import OperadorAuthModal from '../components/OperadorAuthModal'
+import RecountModal from '../components/RecountModal'
 import { useOperadorStore } from '../stores/operadorStore'
 import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
-  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio
+  PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw
 } from 'lucide-react'
 
 /* ─── helpers ─────────────────────────────────────────── */
@@ -80,6 +81,7 @@ export default function Escaneo() {
   const [cancelTargetTabId, setCancelTargetTabId] = useState(null)
   const [showPanel, setShowPanel] = useState(true)
   const [soundEnabled, setSoundEnabled] = useState(true)
+  const [showRecount, setShowRecount] = useState(false)
 
   // empresa/canal pickers for modals
   const [pickerEmpresa, setPickerEmpresa] = useState('')
@@ -254,23 +256,25 @@ export default function Escaneo() {
       const data = await ds.scanGuia(tab.session.id, code, tab.tarima?.id)
       if (soundEnabled) playSound('success')
       if (data.tarima_completada) {
+        // tarima completed → accumulate its final count into session total, start fresh
+        const completedCount = (data.tarima?.cantidad_guias || (tab.tarima?.cantidad_guias || 0) + 1)
         updateTab(tabId, {
           tarima: data.nueva_tarima,
           guias: [],
           lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
           flashType: 'success',
-          guiasCount: (tab.guiasCount || 0) + 1,
+          guiasCount: (tab.guiasCount || 0) + completedCount,
           completedTarimas: [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...tab.completedTarimas],
         })
         if (soundEnabled) playSound('complete')
         toast.success(t('scan.palletCompleted'))
       } else {
+        // normal scan → tarima object from backend is the source of truth
         updateTab(tabId, {
           tarima: data.tarima,
           guias: [data.guia, ...tab.guias].slice(0, 20),
           lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
           flashType: 'success',
-          guiasCount: (tab.guiasCount || 0) + 1,
         })
       }
       if (data.alerta) { if (soundEnabled) playSound('warning'); toast.warning(data.alerta.message) }
@@ -310,8 +314,7 @@ export default function Escaneo() {
       await ds.deleteGuia(tab.session.id, guiaId)
       updateTab(tabId, {
         guias: tab.guias.filter(g => g.id !== guiaId),
-        tarima: tab.tarima ? { ...tab.tarima, cantidad_guias: tab.tarima.cantidad_guias - 1 } : null,
-        guiasCount: Math.max(0, (tab.guiasCount || 1) - 1),
+        tarima: tab.tarima ? { ...tab.tarima, cantidad_guias: Math.max(0, tab.tarima.cantidad_guias - 1) } : null,
       })
       toast.success(t('scan.guideDeleted'))
     } catch { toast.error(t('toast.error')) }
@@ -324,12 +327,15 @@ export default function Escaneo() {
     if (!tab.session) { removeTab(tabId); return }
     const hasData = (tab.tarima?.cantidad_guias || 0) > 0
     if (!hasData) {
-      // end session silently
-      api.post(`/dropscan/tarimas/${tab.tarima?.id}/cancel`, { razon: 'Cerrada sin escaneos' })
-        .catch(() => {})
+      // empty tarima → delete it entirely (not cancel) so it doesn't appear in history
+      if (tab.tarima?.id) {
+        ds.deleteTarima(tab.tarima.id).catch(() => {})
+      }
       ds.endSession(tab.session.id).catch(() => {})
       removeTab(tabId)
       toast.info(t('scan.sessionEnded'))
+      qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
+      qc.invalidateQueries({ queryKey: ['dropscan-panel-today'] })
     } else {
       // switch to this tab and show cancel modal
       setActiveTabId(tabId)
@@ -473,6 +479,13 @@ export default function Escaneo() {
               {showPanel ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
               <span>{t('scan.panel')}</span>
             </button>
+            {tab && tab.tarima && (tab.tarima.cantidad_guias || 0) > 0 && (
+              <button onClick={() => setShowRecount(true)}
+                className="px-3 py-2 rounded-xl text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all inline-flex items-center gap-2 text-sm font-semibold">
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">{t('recount.btnTitle')}</span>
+              </button>
+            )}
             {tab && (
               <button onClick={() => {
                 if ((tab.tarima?.cantidad_guias || 0) === 0) {
@@ -522,15 +535,17 @@ export default function Escaneo() {
                   <span className="badge bg-danger-100 text-danger-600 text-[9px] ml-1">{tb.duplicadosCount} dup</span>
                 )}
               </button>
-              {/* X close button — always visible */}
+              {/* X close button — always visible, bigger on active tab */}
               <button
                 onClick={(e) => { e.stopPropagation(); handleCloseTab(tb.tabId) }}
-                className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center transition-all ${
-                  isActive ? 'opacity-60 hover:opacity-100 bg-warm-200 text-warm-600 hover:bg-danger-100 hover:text-danger-600' : 'opacity-40 hover:opacity-100 bg-warm-200 text-warm-500 hover:bg-danger-100 hover:text-danger-600'
+                className={`absolute top-1.5 right-1 rounded-full flex items-center justify-center transition-all ${
+                  isActive
+                    ? 'w-5 h-5 opacity-70 hover:opacity-100 bg-warm-200 text-warm-600 hover:bg-danger-100 hover:text-danger-600'
+                    : 'w-4 h-4 opacity-40 hover:opacity-100 bg-warm-200 text-warm-500 hover:bg-danger-100 hover:text-danger-600'
                 }`}
-                title={(tb.tarima?.cantidad_guias || 0) === 0 ? 'Cerrar tab vacío' : t('scan.cancelPallet')}
+                title={t('scan.closeTab')}
               >
-                <X className="w-2.5 h-2.5" />
+                <X className={isActive ? 'w-3 h-3' : 'w-2.5 h-2.5'} />
               </button>
             </div>
           )
@@ -599,7 +614,7 @@ export default function Escaneo() {
                 {/* Per-tab counters */}
                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t" style={{ borderColor: empresaColor + '25' }}>
                   <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
-                    <p className="text-lg font-extrabold text-warm-800 leading-none">{tab.guiasCount || 0}</p>
+                    <p className="text-lg font-extrabold text-warm-800 leading-none">{currentGuias}</p>
                     <p className="text-[9px] text-warm-400 uppercase tracking-wider font-bold leading-tight">{t('scan.totalGuides')}</p>
                   </div>
                   <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
@@ -660,7 +675,7 @@ export default function Escaneo() {
                     }`}>
                     <CheckCircle className="w-4 h-4" />
                     {t('scan.correctGuides')}
-                    <span className={`badge text-xs ${tab.historyTab === 'guias' ? 'bg-primary-100 text-primary-700' : 'bg-warm-100 text-warm-500'}`}>{tab.guias.length}</span>
+                    <span className={`badge text-xs ${tab.historyTab === 'guias' ? 'bg-primary-100 text-primary-700' : 'bg-warm-100 text-warm-500'}`}>{currentGuias}</span>
                   </button>
                   <button onClick={() => updateTab(activeTabId, { historyTab: 'duplicados' })}
                     className={`flex-1 px-4 py-3 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
@@ -847,6 +862,28 @@ export default function Escaneo() {
           </div>
         </div>
       </Modal>
+
+      {/* Recount mode modal */}
+      <RecountModal
+        isOpen={showRecount}
+        onClose={() => setShowRecount(false)}
+        tarima={tab?.tarima}
+        sessionId={tab?.session?.id}
+        onGuideAdded={() => {
+          if (tab?.session?.id) {
+            ds.getActiveSession().then(sessions => {
+              const s = sessions.find(ses => ses.id === tab.session.id)
+              if (s) {
+                updateTab(activeTabId, {
+                  tarima: s.tarima_actual,
+                  guias: s.tarima_actual?.guias || tab.guias,
+                  guiasCount: s.tarima_actual?.cantidad_guias || tab.guiasCount
+                })
+              }
+            }).catch(() => {})
+          }
+        }}
+      />
 
       {/* Add-tab modal (new session) */}
       <EmpresaCanalModal

@@ -35,7 +35,8 @@ router.get('/',
 
       // Active sessions
       const activeSessions = await query(
-        `SELECT s.id, u.nombre_completo as operador, e.nombre as empresa,
+        `SELECT s.id, COALESCE(s.usuario_operador, u.nombre_completo) as operador,
+                e.nombre as empresa,
                 c.nombre as canal, s.total_guias, s.tarimas_completadas,
                 s.fecha_inicio
          FROM sesiones_escaneo s
@@ -58,15 +59,16 @@ router.get('/',
         [today]
       )
 
-      // Top operators today
+      // Top operators today (prefer internal scanner name from session)
       const operatorsRes = await query(
-        `SELECT u.nombre_completo as operador, u.codigo,
+        `SELECT COALESCE(s.usuario_operador, u.nombre_completo) as operador, u.codigo,
                 COUNT(DISTINCT t.id) as tarimas,
                 SUM(t.cantidad_guias) as guias
          FROM tarimas t
          JOIN usuarios u ON t.operador_id = u.id
+         LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
          WHERE DATE(t.fecha_inicio) = $1
-         GROUP BY u.id, u.nombre_completo, u.codigo
+         GROUP BY COALESCE(s.usuario_operador, u.nombre_completo), u.codigo
          ORDER BY guias DESC
          LIMIT 10`,
         [today]
@@ -230,7 +232,7 @@ router.get('/export',
           t.codigo as tarima_codigo,
           e.nombre as empresa,
           c.nombre as canal,
-          u.nombre_completo as operador,
+          COALESCE(s.usuario_operador, u.nombre_completo) as operador,
           t.estado,
           t.cantidad_guias,
           t.fecha_inicio,
@@ -240,11 +242,12 @@ router.get('/export',
           g.codigo_guia,
           g.posicion,
           g.timestamp_escaneo,
-          gu.nombre_completo as operador_guia
+          COALESCE(g.usuario_operador, gu.nombre_completo) as operador_guia
         FROM tarimas t
         JOIN configuraciones e ON t.empresa_id = e.id
         JOIN configuraciones c ON t.canal_id = c.id
         JOIN usuarios u ON t.operador_id = u.id
+        LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
         LEFT JOIN guias g ON g.tarima_id = t.id
         LEFT JOIN usuarios gu ON g.operador_id = gu.id
         WHERE ${whereClause}

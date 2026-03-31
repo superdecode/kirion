@@ -30,6 +30,25 @@ const queryClient = new QueryClient({
   },
 })
 
+// Smart redirect: if user can't view global dashboard, redirect to first allowed module
+const MODULE_ROUTES = [
+  { module: 'global.inicio', path: '/' },
+  { module: 'dropscan.dashboard', path: '/dropscan' },
+  { module: 'dropscan.escaneo', path: '/dropscan/escaneo' },
+  { module: 'dropscan.historial', path: '/dropscan/historial' },
+  { module: 'dropscan.reportes', path: '/dropscan/reportes' },
+  { module: 'dropscan.configuracion', path: '/dropscan/configuracion' },
+  { module: 'global.administracion', path: '/admin' },
+]
+
+function SmartRedirect() {
+  const { canView } = useAuthStore()
+  if (canView('global.inicio')) return <GlobalDashboard />
+  const first = MODULE_ROUTES.find(r => r.path !== '/' && canView(r.module))
+  if (first) return <Navigate to={first.path} replace />
+  return <GlobalDashboard />
+}
+
 function AppRoutes() {
   const { isAuthenticated } = useAuthStore()
 
@@ -49,10 +68,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        {/* Global */}
-        <Route path="/" element={
-          <PermissionRoute module="global.inicio"><GlobalDashboard /></PermissionRoute>
-        } />
+        {/* Global — smart redirect if no dashboard access */}
+        <Route path="/" element={<SmartRedirect />} />
 
         {/* DropScan Module */}
         <Route path="/dropscan" element={

@@ -489,15 +489,13 @@ router.post('/sessions/:id/end',
         return res.status(404).json({ error: 'Sesión no encontrada' })
       }
 
-      // Close any open tarima
+      // Auto-delete empty tarimas (0 guides) when ending session
       const sesion = result.rows[0]
-      if (sesion.tarima_actual_id) {
-        const openTarima = await query(
-          `SELECT id FROM tarimas WHERE id = $1 AND estado = 'EN_PROCESO'`,
-          [sesion.tarima_actual_id]
-        )
-        // Leave it as EN_PROCESO - it can be resumed or completed later
-      }
+      await query(
+        `DELETE FROM tarimas WHERE operador_id = $1 AND estado = 'EN_PROCESO' AND cantidad_guias = 0
+         AND fecha_inicio >= $2`,
+        [userId, sesion.fecha_inicio]
+      )
 
       res.json({ success: true, sesion: result.rows[0] })
     } catch (error) {

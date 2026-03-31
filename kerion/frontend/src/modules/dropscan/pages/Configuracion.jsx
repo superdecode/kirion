@@ -68,6 +68,7 @@ export default function Configuracion() {
 // ==================== EMPRESAS TAB ====================
 
 function EmpresasTab({ canEdit, canRemove }) {
+  const { t } = useI18nStore()
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingEmpresa, setEditingEmpresa] = useState(null)
@@ -84,11 +85,11 @@ function EmpresasTab({ canEdit, canRemove }) {
     mutationFn: configService.createEmpresa,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-empresas'] })
-      toast.success('Empresa creada correctamente')
+      toast.success(t('config.companyCreated'))
       setShowModal(false)
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error creando empresa')
+      toast.error(error.response?.data?.error || t('config.companyCreateError'))
     }
   })
 
@@ -96,12 +97,12 @@ function EmpresasTab({ canEdit, canRemove }) {
     mutationFn: ({ id, data }) => configService.updateEmpresa(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-empresas'] })
-      toast.success('Empresa actualizada correctamente')
+      toast.success(t('config.companyUpdated'))
       setShowModal(false)
       setEditingEmpresa(null)
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error actualizando empresa')
+      toast.error(error.response?.data?.error || t('config.companyUpdateError'))
     }
   })
 
@@ -109,10 +110,10 @@ function EmpresasTab({ canEdit, canRemove }) {
     mutationFn: configService.deleteEmpresa,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-empresas'] })
-      toast.success('Empresa eliminada correctamente')
+      toast.success(t('config.companyDeleted'))
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error eliminando empresa')
+      toast.error(error.response?.data?.error || t('config.companyDeleteError'))
     }
   })
 
@@ -120,10 +121,10 @@ function EmpresasTab({ canEdit, canRemove }) {
     mutationFn: (id) => api.patch(`/dropscan/config/empresas/${id}/toggle`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-empresas'] })
-      toast.success('Estado de empresa actualizado')
+      toast.success(t('config.companyToggled'))
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error cambiando estado')
+      toast.error(error.response?.data?.error || t('config.companyToggleError'))
     }
   })
 
@@ -133,7 +134,7 @@ function EmpresasTab({ canEdit, canRemove }) {
   }
 
   const handleDelete = (empresa) => {
-    if (confirm(`Eliminar la empresa "${empresa.nombre}"?`)) {
+    if (confirm(t('config.confirmDeleteCompany'))) {
       deleteMutation.mutate(empresa.id)
     }
   }
@@ -143,7 +144,7 @@ function EmpresasTab({ canEdit, canRemove }) {
     e.codigo.toLowerCase().includes(search.toLowerCase())
   )
 
-  if (isLoading) return <LoadingSpinner text="Cargando empresas..." />
+  if (isLoading) return <LoadingSpinner text={t('config.loadingCompanies')} />
 
   return (
     <>
@@ -160,7 +161,7 @@ function EmpresasTab({ canEdit, canRemove }) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar empresas..."
+              placeholder={t('config.searchCompanies')}
               className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-warm-200 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white"
             />
             {search && (
@@ -176,7 +177,7 @@ function EmpresasTab({ canEdit, canRemove }) {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Plus className="w-4 h-4" /> Nueva Empresa
+              <Plus className="w-4 h-4" /> {t('config.newCompany')}
             </motion.button>
           )}
         </motion.div>
@@ -223,7 +224,7 @@ function EmpresasTab({ canEdit, canRemove }) {
               {/* Toggle active/inactive */}
               <div className="flex items-center justify-between mb-3">
                 <span className={`text-xs font-semibold ${empresa.activo ? 'text-success-600' : 'text-warm-400'}`}>
-                  {empresa.activo ? 'Activa' : 'Inactiva'}
+                  {empresa.activo ? t('common.active') : t('common.inactive')}
                 </span>
                 {canEdit && (
                   <button
@@ -233,7 +234,7 @@ function EmpresasTab({ canEdit, canRemove }) {
                         ? 'text-success-500 hover:bg-success-50'
                         : 'text-warm-400 hover:bg-warm-100'
                     }`}
-                    title={empresa.activo ? 'Desactivar' : 'Activar'}
+                    title={empresa.activo ? t('config.deactivate') : t('config.activate')}
                     disabled={toggleMutation.isPending}
                   >
                     {empresa.activo ? (
@@ -252,7 +253,7 @@ function EmpresasTab({ canEdit, canRemove }) {
                       onClick={() => handleOpenModal(empresa)}
                       className="flex-1 p-2 rounded-xl hover:bg-primary-50 text-warm-500 hover:text-primary-600 transition-all text-sm font-medium"
                     >
-                      <Edit3 className="w-4 h-4 inline mr-1" /> Editar
+                      <Edit3 className="w-4 h-4 inline mr-1" /> {t('common.edit')}
                     </button>
                   )}
                   {canRemove && (
@@ -260,7 +261,7 @@ function EmpresasTab({ canEdit, canRemove }) {
                       onClick={() => handleDelete(empresa)}
                       className="flex-1 p-2 rounded-xl hover:bg-danger-50 text-warm-500 hover:text-danger-500 transition-all text-sm font-medium"
                     >
-                      <Trash2 className="w-4 h-4 inline mr-1" /> Eliminar
+                      <Trash2 className="w-4 h-4 inline mr-1" /> {t('common.delete')}
                     </button>
                   )}
                 </div>
@@ -272,7 +273,7 @@ function EmpresasTab({ canEdit, canRemove }) {
             <div className="col-span-full card p-16 text-center">
               <Package className="w-12 h-12 text-warm-300 mx-auto mb-3" />
               <p className="text-sm text-warm-400">
-                {search ? 'No se encontraron empresas' : 'No hay empresas configuradas'}
+                {search ? t('config.noCompaniesFound') : t('config.noCompanies')}
               </p>
             </div>
           )}
@@ -302,6 +303,7 @@ function EmpresasTab({ canEdit, canRemove }) {
 }
 
 function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
+  const { t } = useI18nStore()
   const [formData, setFormData] = useState({
     nombre: empresa?.nombre || '',
     codigo: empresa?.codigo || '',
@@ -318,7 +320,7 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title={empresa ? 'Editar Empresa' : 'Nueva Empresa'}
+      title={empresa ? t('config.editCompany') : t('config.newCompany')}
       icon={Package}
       size="md"
       preventBackdropClose
@@ -326,7 +328,7 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-warm-700 mb-1">
-            Nombre <span className="text-danger-500">*</span>
+            {t('common.name')} <span className="text-danger-500">*</span>
           </label>
           <input
             type="text"
@@ -341,7 +343,7 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
 
         <div>
           <label className="block text-sm font-medium text-warm-700 mb-1">
-            Codigo <span className="text-danger-500">*</span>
+            {t('common.code')} <span className="text-danger-500">*</span>
           </label>
           <input
             type="text"
@@ -351,12 +353,12 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
             placeholder="Ej: FEDEX"
             required
           />
-          <p className="text-xs text-warm-500 mt-1">Codigo unico para identificar la empresa</p>
+          <p className="text-xs text-warm-500 mt-1">{t('config.uniqueCode')}</p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-warm-700 mb-1">
-            Color <span className="text-danger-500">*</span>
+            {t('config.color')} <span className="text-danger-500">*</span>
           </label>
           <div className="flex items-center gap-3">
             <input
@@ -380,11 +382,11 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
               title="Vista previa del color"
             />
           </div>
-          <p className="text-xs text-warm-500 mt-1">Color hexadecimal para representar la empresa en la UI</p>
+          <p className="text-xs text-warm-500 mt-1">{t('config.colorHex')}</p>
         </div>
 
         <div>
-          <label className="text-sm font-medium text-warm-700 block mb-2">Estado</label>
+          <label className="text-sm font-medium text-warm-700 block mb-2">{t('common.status')}</label>
           <button
             type="button"
             onClick={() => setFormData({ ...formData, activo: !formData.activo })}
@@ -395,7 +397,7 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
             }`}
           >
             {formData.activo ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-            {formData.activo ? 'Activa' : 'Inactiva'}
+            {formData.activo ? t('common.active') : t('common.inactive')}
           </button>
         </div>
 
@@ -406,14 +408,14 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
             className="flex-1 px-4 py-2.5 rounded-xl border border-warm-200 text-warm-700 font-medium hover:bg-warm-50 transition-colors"
             disabled={isLoading}
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
             className="flex-1 btn-primary"
             disabled={isLoading}
           >
-            {isLoading ? 'Guardando...' : empresa ? 'Actualizar' : 'Crear Empresa'}
+            {isLoading ? t('config.saving') : empresa ? t('config.update') : t('config.createCompany')}
           </button>
         </div>
       </form>
@@ -424,6 +426,7 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
 // ==================== CANALES TAB ====================
 
 function CanalesTab({ canEdit, canRemove }) {
+  const { t } = useI18nStore()
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingCanal, setEditingCanal] = useState(null)
@@ -440,11 +443,11 @@ function CanalesTab({ canEdit, canRemove }) {
     mutationFn: configService.createCanal,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-canales'] })
-      toast.success('Canal creado correctamente')
+      toast.success(t('config.channelCreated'))
       setShowModal(false)
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error creando canal')
+      toast.error(error.response?.data?.error || t('config.channelCreateError'))
     }
   })
 
@@ -452,12 +455,12 @@ function CanalesTab({ canEdit, canRemove }) {
     mutationFn: ({ id, data }) => configService.updateCanal(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-canales'] })
-      toast.success('Canal actualizado correctamente')
+      toast.success(t('config.channelUpdated'))
       setShowModal(false)
       setEditingCanal(null)
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error actualizando canal')
+      toast.error(error.response?.data?.error || t('config.channelUpdateError'))
     }
   })
 
@@ -465,10 +468,10 @@ function CanalesTab({ canEdit, canRemove }) {
     mutationFn: configService.deleteCanal,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-canales'] })
-      toast.success('Canal eliminado correctamente')
+      toast.success(t('config.channelDeleted'))
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error eliminando canal')
+      toast.error(error.response?.data?.error || t('config.channelDeleteError'))
     }
   })
 
@@ -476,10 +479,10 @@ function CanalesTab({ canEdit, canRemove }) {
     mutationFn: (id) => api.patch(`/dropscan/config/canales/${id}/toggle`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dropscan-canales'] })
-      toast.success('Estado de canal actualizado')
+      toast.success(t('config.channelToggled'))
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Error cambiando estado')
+      toast.error(error.response?.data?.error || t('config.channelToggleError'))
     }
   })
 
@@ -489,7 +492,7 @@ function CanalesTab({ canEdit, canRemove }) {
   }
 
   const handleDelete = (canal) => {
-    if (confirm(`Eliminar el canal "${canal.nombre}"?`)) {
+    if (confirm(t('config.confirmDeleteChannel'))) {
       deleteMutation.mutate(canal.id)
     }
   }
@@ -499,7 +502,7 @@ function CanalesTab({ canEdit, canRemove }) {
     (c.descripcion && c.descripcion.toLowerCase().includes(search.toLowerCase()))
   )
 
-  if (isLoading) return <LoadingSpinner text="Cargando canales..." />
+  if (isLoading) return <LoadingSpinner text={t('config.loadingChannels')} />
 
   return (
     <>
@@ -516,7 +519,7 @@ function CanalesTab({ canEdit, canRemove }) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar canales..."
+              placeholder={t('config.searchChannels')}
               className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-warm-200 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white"
             />
             {search && (
@@ -532,7 +535,7 @@ function CanalesTab({ canEdit, canRemove }) {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Plus className="w-4 h-4" /> Nuevo Canal
+              <Plus className="w-4 h-4" /> {t('config.newChannel')}
             </motion.button>
           )}
         </motion.div>
@@ -558,7 +561,7 @@ function CanalesTab({ canEdit, canRemove }) {
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-base font-bold text-warm-800">{canal.nombre}</h3>
                     {canal.es_default && (
-                      <span className="badge bg-primary-100 text-primary-700 text-xs">Predeterminado</span>
+                      <span className="badge bg-primary-100 text-primary-700 text-xs">{t('config.default')}</span>
                     )}
                   </div>
                   {canal.descripcion && (
@@ -588,9 +591,9 @@ function CanalesTab({ canEdit, canRemove }) {
                   )}
 
                   <div className="flex items-center gap-4 text-xs text-warm-400">
-                    <span>Creado: {new Date(canal.created_at).toLocaleDateString('es-MX')}</span>
+                    <span>{t('config.created')}: {new Date(canal.created_at).toLocaleDateString('es-MX')}</span>
                     {canal.updated_at !== canal.created_at && (
-                      <span>Actualizado: {new Date(canal.updated_at).toLocaleDateString('es-MX')}</span>
+                      <span>{t('config.updated')}: {new Date(canal.updated_at).toLocaleDateString('es-MX')}</span>
                     )}
                   </div>
                 </div>
@@ -599,7 +602,7 @@ function CanalesTab({ canEdit, canRemove }) {
                   {/* Toggle active/inactive */}
                   <div className="flex flex-col items-center gap-1">
                     <span className={`text-[10px] font-semibold ${canal.activo ? 'text-success-600' : 'text-warm-400'}`}>
-                      {canal.activo ? 'Activo' : 'Inactivo'}
+                      {canal.activo ? t('common.active') : t('common.inactive')}
                     </span>
                     {canEdit && (
                       <button
@@ -609,7 +612,7 @@ function CanalesTab({ canEdit, canRemove }) {
                             ? 'text-success-500 hover:bg-success-50'
                             : 'text-warm-400 hover:bg-warm-100'
                         }`}
-                        title={canal.activo ? 'Desactivar' : 'Activar'}
+                        title={canal.activo ? t('config.deactivate') : t('config.activate')}
                         disabled={toggleMutation.isPending}
                       >
                         {canal.activo ? (
@@ -627,7 +630,7 @@ function CanalesTab({ canEdit, canRemove }) {
                         <button
                           onClick={() => handleOpenModal(canal)}
                           className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all"
-                          title="Editar"
+                          title={t('common.edit')}
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
@@ -636,7 +639,7 @@ function CanalesTab({ canEdit, canRemove }) {
                         <button
                           onClick={() => handleDelete(canal)}
                           className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all"
-                          title="Eliminar"
+                          title={t('common.delete')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -652,7 +655,7 @@ function CanalesTab({ canEdit, canRemove }) {
             <div className="card p-16 text-center">
               <Radio className="w-12 h-12 text-warm-300 mx-auto mb-3" />
               <p className="text-sm text-warm-400">
-                {search ? 'No se encontraron canales' : 'No hay canales configurados'}
+                {search ? t('config.noChannelsFound') : t('config.noChannels')}
               </p>
             </div>
           )}
@@ -682,6 +685,7 @@ function CanalesTab({ canEdit, canRemove }) {
 }
 
 function CanalModal({ canal, onClose, onSubmit, isLoading }) {
+  const { t } = useI18nStore()
   const [formData, setFormData] = useState({
     nombre: canal?.nombre || '',
     descripcion: canal?.descripcion || '',
@@ -716,7 +720,7 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title={canal ? 'Editar Canal' : 'Nuevo Canal'}
+      title={canal ? t('config.editChannel') : t('config.newChannel')}
       icon={Radio}
       size="md"
       preventBackdropClose
@@ -724,34 +728,34 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-warm-700 mb-1">
-            Nombre <span className="text-danger-500">*</span>
+            {t('common.name')} <span className="text-danger-500">*</span>
           </label>
           <input
             type="text"
             value={formData.nombre}
             onChange={e => setFormData({ ...formData, nombre: e.target.value })}
             className="input-field"
-            placeholder="Ej: Canal Principal"
+            placeholder={t('config.enterName')}
             required
             autoFocus
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-warm-700 mb-1">Descripcion</label>
+          <label className="block text-sm font-medium text-warm-700 mb-1">{t('common.description')}</label>
           <textarea
             value={formData.descripcion}
             onChange={e => setFormData({ ...formData, descripcion: e.target.value })}
             className="input-field resize-none"
             rows={3}
-            placeholder="Descripcion del canal..."
+            placeholder={t('config.enterDescription')}
           />
         </div>
 
         {/* Empresa multi-select checkboxes */}
         <div>
           <label className="block text-sm font-medium text-warm-700 mb-2">
-            Empresas vinculadas
+            {t('config.linkedCompanies')}
           </label>
           {activeEmpresas.length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto p-3 rounded-xl border border-warm-200 bg-warm-50/50">
@@ -777,12 +781,12 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
             </div>
           ) : (
             <p className="text-xs text-warm-400 italic p-3 rounded-xl border border-warm-200 bg-warm-50/50">
-              No hay empresas activas disponibles
+              {t('config.noActiveCompanies')}
             </p>
           )}
           {formData.empresa_ids.length > 0 && (
             <p className="text-xs text-warm-500 mt-1">
-              {formData.empresa_ids.length} empresa{formData.empresa_ids.length !== 1 ? 's' : ''} seleccionada{formData.empresa_ids.length !== 1 ? 's' : ''}
+              {t('config.companiesSelected').replace('{n}', formData.empresa_ids.length)}
             </p>
           )}
         </div>
@@ -795,7 +799,7 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
               onChange={e => setFormData({ ...formData, activo: e.target.checked })}
               className="w-4 h-4 rounded border-warm-300 text-primary-600 focus:ring-primary-500"
             />
-            <span className="text-sm font-medium text-warm-700">Canal activo</span>
+            <span className="text-sm font-medium text-warm-700">{t('config.channelActive')}</span>
           </label>
 
           <label className="flex items-center gap-2 cursor-pointer">
@@ -805,7 +809,7 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
               onChange={e => setFormData({ ...formData, es_default: e.target.checked })}
               className="w-4 h-4 rounded border-warm-300 text-primary-600 focus:ring-primary-500"
             />
-            <span className="text-sm font-medium text-warm-700">Canal predeterminado</span>
+            <span className="text-sm font-medium text-warm-700">{t('config.channelDefault')}</span>
           </label>
         </div>
 
@@ -816,14 +820,14 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
             className="flex-1 px-4 py-2.5 rounded-xl border border-warm-200 text-warm-700 font-medium hover:bg-warm-50 transition-colors"
             disabled={isLoading}
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
             className="flex-1 btn-primary"
             disabled={isLoading}
           >
-            {isLoading ? 'Guardando...' : canal ? 'Actualizar' : 'Crear Canal'}
+            {isLoading ? t('config.saving') : canal ? t('config.update') : t('config.createChannel')}
           </button>
         </div>
       </form>
@@ -834,6 +838,7 @@ function CanalModal({ canal, onClose, onSubmit, isLoading }) {
 // ==================== PARAMETROS GENERALES TAB ====================
 
 function ParametrosTab({ canEdit }) {
+  const { t } = useI18nStore()
   const [guiasPorTarima, setGuiasPorTarima] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const toast = useToastStore.getState()
@@ -861,15 +866,15 @@ function ParametrosTab({ canEdit }) {
       await api.put('/dropscan/config/parametros', {
         guias_por_tarima: Number(guiasPorTarima)
       })
-      toast.success('Parametros guardados correctamente')
+      toast.success(t('config.parametersSaved'))
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Error guardando parametros')
+      toast.error(error.response?.data?.error || t('config.parametersSaveError'))
     } finally {
       setIsSaving(false)
     }
   }
 
-  if (isLoading) return <LoadingSpinner text="Cargando parametros..." />
+  if (isLoading) return <LoadingSpinner text={t('config.loadingParams')} />
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -884,8 +889,8 @@ function ParametrosTab({ canEdit }) {
               <Sliders className="w-5 h-5 text-primary-600" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-warm-800">Parametros Generales</h3>
-              <p className="text-xs text-warm-500">Configuracion global del modulo DropScan</p>
+              <h3 className="text-base font-bold text-warm-800">{t('config.parameters')}</h3>
+              <p className="text-xs text-warm-500">{t('config.subtitle')}</p>
             </div>
           </div>
 
@@ -895,11 +900,11 @@ function ParametrosTab({ canEdit }) {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <label className="block text-sm font-semibold text-warm-700 mb-1">
-                    Guias por tarima
+                    {t('config.guidesPerPallet')}
                   </label>
                   <p className="text-xs text-warm-500 mb-3">
-                    Cantidad maxima de guias que se pueden asignar a una tarima antes de cerrarla automaticamente.
-                    Valor actual en uso: <span className="font-bold text-warm-700">{currentValue}</span>
+                    {t('config.guidesPerPalletDesc')}
+                    {' '}{t('config.currentValue')}: <span className="font-bold text-warm-700">{currentValue}</span>
                   </p>
 
                   {canEdit ? (
@@ -921,7 +926,7 @@ function ParametrosTab({ canEdit }) {
                         whileTap={Number(guiasPorTarima) !== currentValue ? { scale: 0.98 } : {}}
                       >
                         <Save className="w-4 h-4" />
-                        {isSaving ? 'Guardando...' : 'Guardar'}
+                        {isSaving ? t('config.saving') : t('config.saveParams')}
                       </motion.button>
                     </div>
                   ) : (
@@ -930,7 +935,7 @@ function ParametrosTab({ canEdit }) {
                         {currentValue}
                       </div>
                       <span className="text-xs text-warm-400 italic">
-                        Solo Supervisores y Administradores pueden modificar este valor
+                        {t('config.noChanges')}
                       </span>
                     </div>
                   )}
@@ -942,7 +947,7 @@ function ParametrosTab({ canEdit }) {
               <div className="flex items-center gap-2 p-3 rounded-xl bg-warning-50 border border-warning-200">
                 <Settings className="w-4 h-4 text-warning-600 shrink-0" />
                 <p className="text-xs text-warning-700">
-                  No tienes permisos para modificar estos parametros. Contacta a un Supervisor o Administrador.
+                  {t('config.noChanges')}
                 </p>
               </div>
             )}
@@ -1044,7 +1049,7 @@ function OperadoresTab({ canEdit, canRemove }) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar operadores..."
+              placeholder="Buscar escaneadores..."
               className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-warm-200 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white"
             />
             {search && (
@@ -1142,7 +1147,7 @@ function OperadoresTab({ canEdit, canRemove }) {
             <div className="col-span-full card p-16 text-center">
               <Users className="w-12 h-12 text-warm-300 mx-auto mb-3" />
               <p className="text-sm text-warm-400">
-                {search ? 'No se encontraron operadores' : t('config.noOperators')}
+                {search ? 'No se encontraron escaneadores' : t('config.noOperators')}
               </p>
             </div>
           )}
