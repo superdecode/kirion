@@ -61,7 +61,9 @@ export const getMetrics = (fecha_inicio, fecha_fin, empresa_id, canal_id, escane
   const params = { fecha_inicio, fecha_fin }
   if (empresa_id) params.empresa_id = Array.isArray(empresa_id) ? empresa_id.join(',') : empresa_id
   if (canal_id) params.canal_id = Array.isArray(canal_id) ? canal_id.join(',') : canal_id
-  if (escaneador) params.escaneador = escaneador
+  if (escaneador && (Array.isArray(escaneador) ? escaneador.length : escaneador)) {
+    params.escaneador = Array.isArray(escaneador) ? escaneador.join(',') : escaneador
+  }
   return api.get('/dropscan/dashboard/metrics', { params }).then(r => r.data)
 }
 

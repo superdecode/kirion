@@ -1,17 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import Header from '../../../core/components/layout/Header'
 import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
-import { BarChart3, Download, TrendingUp, Package, CheckCircle, Building2, Radio, Clock, User, ChevronDown, X, Search } from 'lucide-react'
+import { BarChart3, Download, TrendingUp, Package, CheckCircle, Building2, Radio, Clock, User, ChevronDown, X } from 'lucide-react'
 import MultiSelect from '../../../core/components/common/MultiSelect'
+import { useAuthStore } from '../../../core/stores/authStore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts'
 import * as XLSX from 'xlsx'
 
 export default function Reportes() {
   const { t } = useI18nStore()
+  const { canWrite } = useAuthStore()
   const today = new Date().toISOString().slice(0, 10)
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
 
@@ -19,7 +21,7 @@ export default function Reportes() {
   const [fechaFin, setFechaFin] = useState(today)
   const [empresaFilter, setEmpresaFilter] = useState([])
   const [canalFilter, setCanalFilter] = useState([])
-  const [escaneadorFilter, setEscaneadorFilter] = useState('')
+  const [escaneadorFilter, setEscaneadorFilter] = useState([])
 
   // Fetch empresas and canales for filters
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
@@ -29,9 +31,16 @@ export default function Reportes() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['dropscan-metrics', fechaInicio, fechaFin, empresaFilter, canalFilter, escaneadorFilter],
-    queryFn: () => ds.getMetrics(fechaInicio, fechaFin, empresaFilter.length ? empresaFilter : undefined, canalFilter.length ? canalFilter : undefined, escaneadorFilter || undefined),
+    queryFn: () => ds.getMetrics(fechaInicio, fechaFin, empresaFilter.length ? empresaFilter : undefined, canalFilter.length ? canalFilter : undefined, escaneadorFilter.length ? escaneadorFilter : undefined),
     enabled: !!fechaInicio && !!fechaFin,
   })
+
+  const { data: escaneadoresData } = useQuery({
+    queryKey: ['dropscan-escaneadores-opts', fechaInicio, fechaFin, empresaFilter, canalFilter],
+    queryFn: () => ds.getMetrics(fechaInicio, fechaFin, empresaFilter.length ? empresaFilter : undefined, canalFilter.length ? canalFilter : undefined),
+    enabled: !!fechaInicio && !!fechaFin,
+  })
+  const escaneadoresOpts = (escaneadoresData?.por_escaneador || []).map(e => ({ value: e.escaneador, label: e.escaneador }))
 
   const totales = data?.totales || {}
   const porDia = data?.por_dia || []
@@ -50,10 +59,18 @@ export default function Reportes() {
     { key: 'byCanal', label: 'Por canal' },
     { key: 'byEscaneador', label: 'Por escaneador' },
   ]
-  const [visibleCharts, setVisibleCharts] = useState({
-    dailyGuides: true, avgTime: true, byEmpresa: true, byCanal: true, byEscaneador: true,
+  const CHART_DEFAULTS = { dailyGuides: true, avgTime: true, byEmpresa: true, byCanal: true, byEscaneador: true }
+  const [visibleCharts, setVisibleCharts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dropscan-visible-charts')
+      return saved ? { ...CHART_DEFAULTS, ...JSON.parse(saved) } : CHART_DEFAULTS
+    } catch { return CHART_DEFAULTS }
   })
-  const toggleChart = (key) => setVisibleCharts(v => ({ ...v, [key]: !v[key] }))
+  const toggleChart = (key) => setVisibleCharts(v => {
+    const next = { ...v, [key]: !v[key] }
+    try { localStorage.setItem('dropscan-visible-charts', JSON.stringify(next)) } catch {}
+    return next
+  })
   const activeCharts = CHART_OPTIONS.filter(c => visibleCharts[c.key])
 
   const handleExport = async () => {
@@ -159,12 +176,9 @@ export default function Reportes() {
               <MultiSelect icon={Radio} placeholder={t('history.channel')}
                 options={canales.map(c => ({ value: c.id, label: c.nombre }))}
                 selected={canalFilter} onChange={setCanalFilter} />
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-warm-400" />
-                <input value={escaneadorFilter} onChange={e => setEscaneadorFilter(e.target.value)}
-                  placeholder="Escaneador..."
-                  className="pl-8 pr-3 py-2 text-xs rounded-xl border border-warm-200 outline-none focus:border-primary-400 bg-white w-36" />
-              </div>
+              <MultiSelect icon={User} placeholder="Escaneador"
+                options={escaneadoresOpts}
+                selected={escaneadorFilter} onChange={setEscaneadorFilter} />
               <div className="ml-auto flex items-center gap-2">
                 {/* Chart selector */}
                 <div className="relative group">
@@ -187,11 +201,13 @@ export default function Reportes() {
                     ))}
                   </div>
                 </div>
-                <button onClick={handleExport} disabled={!porDia.length || isExporting}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-xl transition-colors border border-success-200 disabled:opacity-50">
-                  {isExporting ? <div className="w-3.5 h-3.5 border-2 border-success-600 border-t-transparent rounded-full animate-spin" />
-                    : <Download className="w-3.5 h-3.5" />} Exportar
-                </button>
+                {canWrite('dropscan.reportes') && (
+                  <button onClick={handleExport} disabled={!porDia.length || isExporting}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-xl transition-colors border border-success-200 disabled:opacity-50">
+                    {isExporting ? <div className="w-3.5 h-3.5 border-2 border-success-600 border-t-transparent rounded-full animate-spin" />
+                      : <Download className="w-3.5 h-3.5" />} Exportar
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

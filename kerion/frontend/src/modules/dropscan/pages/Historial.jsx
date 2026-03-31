@@ -14,7 +14,7 @@ import * as ds from '../services/dropscanService'
 import {
   ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
-  RotateCcw, AlertTriangle, Copy, Pencil, ScanBarcode, Building2, Radio, Lock
+  RotateCcw, AlertTriangle, Copy, Pencil, Building2, Radio, Lock
 } from 'lucide-react'
 
 const calcDuration = (tarima) => {
@@ -50,7 +50,7 @@ export default function Historial() {
   const [sortCol, setSortCol] = useState('fecha_inicio')
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
-  const { canDelete, user } = useAuthStore()
+  const { canDelete, canWrite, user } = useAuthStore()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const qc = useQueryClient()
@@ -460,7 +460,7 @@ export default function Historial() {
       {/* Detail Modal */}
       <Modal isOpen={!!selectedTarima} onClose={() => { setSelectedTarima(null); setEditMode(false) }} icon={Package}
         title={detail ? `${detail.codigo}` : t('common.loading')} size="xl"
-        headerAction={detail && (
+        headerAction={detail && canWrite('dropscan.historial') && (
           <button onClick={handleExportTarimaExcel}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-success-50 text-success-700 rounded-lg hover:bg-success-100 font-semibold transition-all border border-success-200">
             <Download className="w-3.5 h-3.5" /> Exportar
@@ -468,20 +468,11 @@ export default function Historial() {
         )}
         footer={detail && (
           <>
-            {canDelete('dropscan.historial') && (detail.estado === 'EN_PROCESO' || detail.cantidad_guias < 100) && (
-              <button onClick={() => {
-                setSelectedTarima(null); setEditMode(false)
-                navigate('/dropscan/escaneo', { state: { resumeScan: { empresa_id: detail.empresa_id, canal_id: detail.canal_id, empresa_nombre: detail.empresa_nombre, canal_nombre: detail.canal_nombre } } })
-              }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 text-white rounded-xl hover:bg-primary-600 font-semibold transition-all">
-                <ScanBarcode className="w-4 h-4" /> Continuar escaneando
-              </button>
-            )}
             {canDelete('dropscan.historial') && detail.estado === 'EN_PROCESO' && (
               <button onClick={() => finalizeMutation.mutate(detail.id)}
                 disabled={finalizeMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-warning-50 text-warning-700 rounded-xl hover:bg-warning-100 font-semibold transition-all border border-warning-200 disabled:opacity-50">
-                <Lock className="w-4 h-4" /> Forzar cierre
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200 disabled:opacity-50">
+                <Lock className="w-4 h-4" /> Finalizar
               </button>
             )}
             {canDelete('dropscan.historial') && (
@@ -499,7 +490,6 @@ export default function Historial() {
                 <RotateCcw className="w-4 h-4" /> {t('history.reopen')}
               </button>
             )}
-            <button onClick={() => { setSelectedTarima(null); setEditMode(false) }} className="btn-ghost">{t('common.close')}</button>
           </>
         )}>
         {detailLoading ? (

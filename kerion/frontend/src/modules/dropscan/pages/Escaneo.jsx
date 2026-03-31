@@ -17,7 +17,7 @@ import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
   PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw,
-  Download, Pencil
+  Download, Pencil, Lock
 } from 'lucide-react'
 
 /* ─── helpers ─────────────────────────────────────────── */
@@ -120,6 +120,18 @@ export default function Escaneo() {
       qc.invalidateQueries({ queryKey: ['dropscan-tarima-detail', tarimaId] })
     },
     onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
+  })
+
+  const finalizePanelTarimaMutation = useMutation({
+    mutationFn: (id) => ds.finalizeTarima(id),
+    onSuccess: () => {
+      toast.success('Tarima finalizada')
+      qc.invalidateQueries({ queryKey: ['dropscan-tarima-detail', panelDetailId] })
+      qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
+      updateTab(activeTabId, { panelDetailId: null })
+      setPanelEditMode(false)
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error al finalizar tarima')
   })
 
   const handleExportPanelDetailExcel = () => {
@@ -901,6 +913,25 @@ export default function Escaneo() {
         )}
         footer={panelDetailData?.tarima && (
           <>
+            {canDelete('dropscan.historial') && panelDetailData.tarima.estado === 'EN_PROCESO' && (() => {
+              const matchTab = tabs.find(tb => tb.empresa?.id === panelDetailData.tarima.empresa_id && tb.canal?.id === panelDetailData.tarima.canal_id)
+              return (
+                <button onClick={() => {
+                  updateTab(activeTabId, { panelDetailId: null }); setPanelEditMode(false)
+                  if (matchTab) setActiveTabId(matchTab.tabId)
+                }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 text-white rounded-xl hover:bg-primary-600 font-semibold transition-all">
+                  <ScanBarcode className="w-4 h-4" /> Continuar escaneando
+                </button>
+              )
+            })()}
+            {canDelete('dropscan.historial') && panelDetailData.tarima.estado === 'EN_PROCESO' && (
+              <button onClick={() => finalizePanelTarimaMutation.mutate(panelDetailData.tarima.id)}
+                disabled={finalizePanelTarimaMutation?.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200 disabled:opacity-50">
+                <Lock className="w-4 h-4" /> Finalizar
+              </button>
+            )}
             {canDelete('dropscan.historial') && (
               <button onClick={() => setPanelEditMode(e => !e)}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
@@ -909,7 +940,6 @@ export default function Escaneo() {
                 <Pencil className="w-4 h-4" /> {panelEditMode ? 'Finalizar edición' : 'Editar'}
               </button>
             )}
-            <button onClick={() => { updateTab(activeTabId, { panelDetailId: null }); setPanelEditMode(false) }} className="btn-ghost">{t('common.close')}</button>
           </>
         )}>
         {panelDetailData?.tarima && (

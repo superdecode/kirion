@@ -66,7 +66,11 @@ router.get('/',
                 SUM(t.cantidad_guias) as guias
          FROM tarimas t
          JOIN usuarios u ON t.operador_id = u.id
-         LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
+         LEFT JOIN LATERAL (
+           SELECT usuario_operador FROM sesiones_escaneo
+           WHERE tarima_actual_id = t.id
+           ORDER BY fecha_inicio DESC LIMIT 1
+         ) s ON true
          WHERE DATE(t.fecha_inicio) = $1
          GROUP BY COALESCE(s.usuario_operador, u.nombre_completo), u.codigo
          ORDER BY guias DESC
@@ -137,9 +141,16 @@ router.get('/metrics',
         if (ids.length) { pCount++; where.push(`t.canal_id = ANY($${pCount})`); params.push(ids) }
       }
       if (escaneador) {
-        pCount++
-        where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo ILIKE $${pCount})`)
-        params.push(`%${escaneador}%`)
+        const names = escaneador.split(',').map(n => n.trim()).filter(Boolean)
+        if (names.length === 1) {
+          pCount++
+          where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo ILIKE $${pCount})`)
+          params.push(`%${names[0]}%`)
+        } else if (names.length > 1) {
+          pCount++
+          where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo = ANY($${pCount}))`)
+          params.push(names)
+        }
       }
       const whereClause = where.join(' AND ')
 
