@@ -3,6 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import env from './config/env.js'
+import { query } from './config/database.js'
 
 // Core routes
 import authRoutes from './core/routes/auth.routes.js'
@@ -64,6 +65,56 @@ app.use('/api/dropscan/tarimas', tarimasRoutes)
 app.use('/api/dropscan/dashboard', dashboardRoutes)
 app.use('/api/dropscan/config', dropscanConfigRoutes)
 app.use('/api/dropscan/operadores', operadoresRoutes)
+
+// Auto-apply pending migrations (idempotent — all use IF NOT EXISTS)
+async function runMigrations() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS usuarios_internos (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(50) NOT NULL,
+        pin_hash VARCHAR(255) NOT NULL,
+        activo BOOLEAN DEFAULT true,
+        eliminado BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER REFERENCES usuarios(id),
+        updated_by INTEGER REFERENCES usuarios(id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_internos_nombre
+        ON usuarios_internos(nombre) WHERE eliminado = false;
+      CREATE INDEX IF NOT EXISTS idx_usuarios_internos_activo
+        ON usuarios_internos(activo) WHERE eliminado = false;
+
+      CREATE TABLE IF NOT EXISTS logs_usuarios_internos (
+        id SERIAL PRIMARY KEY,
+        evento VARCHAR(50) NOT NULL,
+        usuario_interno_id INTEGER REFERENCES usuarios_internos(id) ON DELETE SET NULL,
+        usuario_interno_nombre VARCHAR(50),
+        usuario_sistema_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+        usuario_sistema_email VARCHAR(100),
+        detalles JSONB,
+        ip_address VARCHAR(45),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_logs_ui_evento ON logs_usuarios_internos(evento);
+      CREATE INDEX IF NOT EXISTS idx_logs_ui_usuario ON logs_usuarios_internos(usuario_interno_id);
+      CREATE INDEX IF NOT EXISTS idx_logs_ui_created ON logs_usuarios_internos(created_at);
+
+      ALTER TABLE sesiones_escaneo
+        ADD COLUMN IF NOT EXISTS usuario_operador VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS usuario_interno_id INTEGER REFERENCES usuarios_internos(id),
+        ADD COLUMN IF NOT EXISTS nivel_usuario VARCHAR(30);
+
+      ALTER TABLE guias
+        ADD COLUMN IF NOT EXISTS usuario_operador VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS nivel_usuario VARCHAR(30);
+    `)
+  } catch (err) {
+    console.error('Migration warning (non-fatal):', err.message)
+  }
+}
+runMigrations()
 
 // 404 handler
 app.use((req, res) => {
