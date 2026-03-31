@@ -12,8 +12,9 @@ import * as configService from '../services/configService'
 import {
   Settings, Plus, Edit3, Trash2,
   Radio, Package, Search, X, ToggleLeft, ToggleRight,
-  Sliders, Save
+  Sliders, Save, Users, Lock, KeyRound
 } from 'lucide-react'
+import * as operadoresService from '../services/operadoresService'
 
 export default function Configuracion() {
   const { t } = useI18nStore()
@@ -35,6 +36,7 @@ export default function Configuracion() {
             {[
               { key: 'empresas', label: t('config.companies'), icon: Package },
               { key: 'canales', label: t('config.channels'), icon: Radio },
+              { key: 'operadores', label: t('config.internalUsers'), icon: Users },
               { key: 'parametros', label: t('config.parameters'), icon: Sliders },
             ].map(item => (
               <button key={item.key} onClick={() => setTab(item.key)}
@@ -55,6 +57,7 @@ export default function Configuracion() {
         <div className="p-6">
           {tab === 'empresas' && <EmpresasTab canEdit={canEdit} canRemove={canRemove} />}
           {tab === 'canales' && <CanalesTab canEdit={canEdit} canRemove={canRemove} />}
+          {tab === 'operadores' && <OperadoresTab canEdit={canEdit} canRemove={canRemove} />}
           {tab === 'parametros' && <ParametrosTab canEdit={isSupervisorOrAdmin} />}
         </div>
       </div>
@@ -943,5 +946,414 @@ function ParametrosTab({ canEdit }) {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+// ==================== OPERADORES INTERNOS TAB ====================
+
+function OperadoresTab({ canEdit, canRemove }) {
+  const [search, setSearch] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingOp, setEditingOp] = useState(null)
+  const [showPinModal, setShowPinModal] = useState(null)
+  const queryClient = useQueryClient()
+  const toast = useToastStore.getState()
+  const { t } = useI18nStore()
+
+  const { data: operadoresRaw, isLoading } = useQuery({
+    queryKey: ['dropscan-operadores'],
+    queryFn: () => operadoresService.getOperadores()
+  })
+  const operadores = Array.isArray(operadoresRaw) ? operadoresRaw : []
+
+  const createMutation = useMutation({
+    mutationFn: operadoresService.createOperador,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dropscan-operadores'] })
+      toast.success(t('config.operatorCreated'))
+      setShowModal(false)
+    },
+    onError: (error) => toast.error(error.response?.data?.error || 'Error')
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => operadoresService.updateOperador(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dropscan-operadores'] })
+      toast.success(t('config.operatorUpdated'))
+      setShowModal(false)
+      setEditingOp(null)
+    },
+    onError: (error) => toast.error(error.response?.data?.error || 'Error')
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: operadoresService.deleteOperador,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dropscan-operadores'] })
+      toast.success(t('config.operatorDeleted'))
+    },
+    onError: (error) => toast.error(error.response?.data?.error || 'Error')
+  })
+
+  const pinMutation = useMutation({
+    mutationFn: ({ id, pin }) => operadoresService.changePin(id, pin),
+    onSuccess: () => {
+      toast.success(t('config.pinChanged'))
+      setShowPinModal(null)
+    },
+    onError: (error) => toast.error(error.response?.data?.error || 'Error')
+  })
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, activo }) => operadoresService.updateOperador(id, { activo }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dropscan-operadores'] })
+      toast.success(t('config.operatorUpdated'))
+    },
+    onError: (error) => toast.error(error.response?.data?.error || 'Error')
+  })
+
+  const handleDelete = (op) => {
+    if (confirm(t('config.confirmDeleteOperator').replace('{name}', op.nombre))) {
+      deleteMutation.mutate(op.id)
+    }
+  }
+
+  const filtered = operadores.filter(o =>
+    o.nombre.toLowerCase().includes(search.toLowerCase())
+  )
+
+  if (isLoading) return <LoadingSpinner text="Cargando operadores..." />
+
+  return (
+    <>
+      <div className="max-w-6xl mx-auto">
+        <motion.div
+          className="flex items-center gap-3 mb-6"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar operadores..."
+              className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-warm-200 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <X className="w-4 h-4 text-warm-400 hover:text-warm-600" />
+              </button>
+            )}
+          </div>
+          {canEdit && (
+            <motion.button
+              onClick={() => { setEditingOp(null); setShowModal(true) }}
+              className="btn-primary inline-flex items-center gap-2 px-4 py-2.5 text-sm"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Plus className="w-4 h-4" /> {t('config.newOperator')}
+            </motion.button>
+          )}
+        </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((op, i) => (
+            <motion.div
+              key={op.id}
+              className="card-interactive p-5"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05, duration: 0.3 }}
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                  op.activo ? 'bg-gradient-to-br from-primary-100 to-accent-100' : 'bg-warm-100'
+                }`}>
+                  <Users className={`w-6 h-6 ${op.activo ? 'text-primary-600' : 'text-warm-400'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-bold text-warm-800 truncate">{op.nombre}</h3>
+                  <span className="text-xs text-warm-400">ID: {op.id}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mb-3">
+                <span className={`text-xs font-semibold ${op.activo ? 'text-success-600' : 'text-warm-400'}`}>
+                  {op.activo ? 'Activo' : 'Inactivo'}
+                </span>
+                {canEdit && (
+                  <button
+                    onClick={() => toggleMutation.mutate({ id: op.id, activo: !op.activo })}
+                    className={`p-1 rounded-lg transition-all ${
+                      op.activo ? 'text-success-500 hover:bg-success-50' : 'text-warm-400 hover:bg-warm-100'
+                    }`}
+                    disabled={toggleMutation.isPending}
+                  >
+                    {op.activo ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                  </button>
+                )}
+              </div>
+
+              <div className="text-xs text-warm-400 mb-3">
+                Creado: {new Date(op.created_at).toLocaleDateString('es-MX')}
+              </div>
+
+              {(canEdit || canRemove) && (
+                <div className="flex items-center gap-1 pt-3 border-t border-warm-100">
+                  {canEdit && (
+                    <button
+                      onClick={() => { setEditingOp(op); setShowModal(true) }}
+                      className="flex-1 p-2 rounded-xl hover:bg-primary-50 text-warm-500 hover:text-primary-600 transition-all text-sm font-medium"
+                    >
+                      <Edit3 className="w-4 h-4 inline mr-1" /> Editar
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => setShowPinModal(op)}
+                      className="flex-1 p-2 rounded-xl hover:bg-accent-50 text-warm-500 hover:text-accent-600 transition-all text-sm font-medium"
+                    >
+                      <KeyRound className="w-4 h-4 inline mr-1" /> PIN
+                    </button>
+                  )}
+                  {canRemove && (
+                    <button
+                      onClick={() => handleDelete(op)}
+                      className="flex-1 p-2 rounded-xl hover:bg-danger-50 text-warm-500 hover:text-danger-500 transition-all text-sm font-medium"
+                    >
+                      <Trash2 className="w-4 h-4 inline mr-1" /> Eliminar
+                    </button>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          ))}
+
+          {filtered.length === 0 && (
+            <div className="col-span-full card p-16 text-center">
+              <Users className="w-12 h-12 text-warm-300 mx-auto mb-3" />
+              <p className="text-sm text-warm-400">
+                {search ? 'No se encontraron operadores' : t('config.noOperators')}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <OperadorModal
+          operador={editingOp}
+          onClose={() => { setShowModal(false); setEditingOp(null) }}
+          onSubmit={(data) => {
+            if (editingOp) {
+              updateMutation.mutate({ id: editingOp.id, data: { nombre: data.nombre, activo: data.activo } })
+            } else {
+              createMutation.mutate(data)
+            }
+          }}
+          isLoading={createMutation.isPending || updateMutation.isPending}
+          t={t}
+        />
+      )}
+
+      {/* Change PIN Modal */}
+      {showPinModal && (
+        <PinChangeModal
+          operador={showPinModal}
+          onClose={() => setShowPinModal(null)}
+          onSubmit={(pin) => pinMutation.mutate({ id: showPinModal.id, pin })}
+          isLoading={pinMutation.isPending}
+          t={t}
+        />
+      )}
+    </>
+  )
+}
+
+function OperadorModal({ operador, onClose, onSubmit, isLoading, t }) {
+  const [formData, setFormData] = useState({
+    nombre: operador?.nombre || '',
+    pin: '',
+    activo: operador?.activo !== false
+  })
+
+  const isEditing = !!operador
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (formData.nombre.trim().length < 3 || formData.nombre.trim().length > 50) {
+      return
+    }
+    if (!isEditing && (!/^\d{4}$/.test(formData.pin))) {
+      return
+    }
+    onSubmit(formData)
+  }
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={isEditing ? t('config.editOperator') : t('config.newOperator')}
+      icon={Users}
+      size="md"
+      preventBackdropClose
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-warm-700 mb-1">
+            {t('config.operatorName')} <span className="text-danger-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.nombre}
+            onChange={e => setFormData({ ...formData, nombre: e.target.value })}
+            className="input-field"
+            placeholder="Ej: Juan Pérez"
+            required
+            autoFocus
+            minLength={3}
+            maxLength={50}
+          />
+          <p className="text-xs text-warm-500 mt-1">{t('config.nameLength')}</p>
+        </div>
+
+        {!isEditing && (
+          <div>
+            <label className="block text-sm font-medium text-warm-700 mb-1">
+              {t('config.operatorPin')} <span className="text-danger-500">*</span>
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              value={formData.pin}
+              onChange={e => setFormData({ ...formData, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+              className="input-field font-mono text-center tracking-widest text-lg"
+              placeholder="••••"
+              maxLength={4}
+              required
+              autoComplete="off"
+            />
+            <p className="text-xs text-warm-500 mt-1">{t('config.pinFormat')}</p>
+          </div>
+        )}
+
+        <div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.activo}
+              onChange={e => setFormData({ ...formData, activo: e.target.checked })}
+              className="w-4 h-4 rounded border-warm-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="text-sm font-medium text-warm-700">{t('config.operatorActive')}</span>
+          </label>
+        </div>
+
+        <div className="flex gap-3 pt-4">
+          <button type="button" onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-warm-200 text-warm-700 font-medium hover:bg-warm-50 transition-colors"
+            disabled={isLoading}
+          >
+            {t('common.cancel')}
+          </button>
+          <button type="submit" className="flex-1 btn-primary" disabled={isLoading}>
+            {isLoading ? t('config.saving') : isEditing ? t('common.save') : t('config.newOperator')}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function PinChangeModal({ operador, onClose, onSubmit, isLoading, t }) {
+  const [pin, setPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
+  const [error, setError] = useState('')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setError('')
+    if (!/^\d{4}$/.test(pin)) {
+      setError(t('config.pinFormat'))
+      return
+    }
+    if (pin !== confirmPin) {
+      setError(t('config.pinMismatch'))
+      return
+    }
+    onSubmit(pin)
+  }
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={t('config.changePinFor').replace('{name}', operador.nombre)}
+      icon={Lock}
+      size="sm"
+      preventBackdropClose
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-warm-700 mb-1">
+            {t('config.newPin')} <span className="text-danger-500">*</span>
+          </label>
+          <input
+            type="password"
+            inputMode="numeric"
+            value={pin}
+            onChange={e => { setPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setError('') }}
+            className="input-field font-mono text-center tracking-widest text-lg"
+            placeholder="••••"
+            maxLength={4}
+            required
+            autoFocus
+            autoComplete="off"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-warm-700 mb-1">
+            {t('config.confirmPin')} <span className="text-danger-500">*</span>
+          </label>
+          <input
+            type="password"
+            inputMode="numeric"
+            value={confirmPin}
+            onChange={e => { setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setError('') }}
+            className="input-field font-mono text-center tracking-widest text-lg"
+            placeholder="••••"
+            maxLength={4}
+            required
+            autoComplete="off"
+          />
+        </div>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-danger-50 border border-danger-200 text-sm text-danger-700">
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-4">
+          <button type="button" onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-warm-200 text-warm-700 font-medium hover:bg-warm-50 transition-colors"
+            disabled={isLoading}
+          >
+            {t('common.cancel')}
+          </button>
+          <button type="submit" className="flex-1 btn-primary" disabled={isLoading}>
+            {isLoading ? t('config.saving') : t('config.changePin')}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }

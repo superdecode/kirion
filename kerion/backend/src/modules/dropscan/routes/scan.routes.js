@@ -13,7 +13,7 @@ router.post('/sessions/start',
     const client = await getClient()
     try {
       await client.query('BEGIN')
-      const { empresa_id, canal_id } = req.body
+      const { empresa_id, canal_id, usuario_operador, usuario_interno_id, nivel_usuario } = req.body
       const userId = req.user.id
 
       if (!empresa_id || !canal_id) {
@@ -50,10 +50,10 @@ router.post('/sessions/start',
 
       // Create session with tarimas array support (stored as tarima_actual_id for backwards compat)
       const sesionRes = await client.query(
-        `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id, usuario_operador, usuario_interno_id, nivel_usuario)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [userId, empresa_id, canal_id, tarima.id]
+        [userId, empresa_id, canal_id, tarima.id, usuario_operador || req.fullUser?.nombre_completo || null, usuario_interno_id || null, nivel_usuario || null]
       )
 
       await client.query('COMMIT')
@@ -150,6 +150,10 @@ router.post('/sessions/:id/scan',
 
       const code = codigo_guia.trim().toUpperCase()
 
+      // Resolve operator name from the session
+      let guiaOperador = null
+      let guiaNivel = null
+
       // Get active session
       const sesionRes = await client.query(
         'SELECT * FROM sesiones_escaneo WHERE id = $1 AND operador_id = $2 AND activa = true',
@@ -229,12 +233,18 @@ router.post('/sessions/:id/scan',
         })
       }
 
+      // Resolve operator name from the session
+      if (!guiaOperador) {
+        guiaOperador = sesion.usuario_operador || null
+        guiaNivel = sesion.nivel_usuario || null
+      }
+
       // Insert guide
       const newPos = tarima.cantidad_guias + 1
       const guiaRes = await client.query(
-        `INSERT INTO guias (codigo_guia, tarima_id, posicion, operador_id)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [code, tarima.id, newPos, userId]
+        `INSERT INTO guias (codigo_guia, tarima_id, posicion, operador_id, usuario_operador, nivel_usuario)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [code, tarima.id, newPos, userId, guiaOperador, guiaNivel]
       )
       const guia = guiaRes.rows[0]
 

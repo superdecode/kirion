@@ -1,8 +1,8 @@
 import api from '../../../core/services/api'
 
 // Sessions
-export const startSession = (empresa_id, canal_id) =>
-  api.post('/dropscan/sessions/start', { empresa_id, canal_id }).then(r => r.data)
+export const startSession = (empresa_id, canal_id, operadorPayload = {}) =>
+  api.post('/dropscan/sessions/start', { empresa_id, canal_id, ...operadorPayload }).then(r => r.data)
 
 export const getActiveSession = () =>
   api.get('/dropscan/sessions/active').then(r => r.data)

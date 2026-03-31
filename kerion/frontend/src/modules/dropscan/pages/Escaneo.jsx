@@ -8,6 +8,8 @@ import { useToastStore } from '../../../core/stores/toastStore'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
 import api from '../../../core/services/api'
+import OperadorAuthModal from '../components/OperadorAuthModal'
+import { useOperadorStore } from '../stores/operadorStore'
 import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
@@ -70,6 +72,7 @@ let tabCounter = 0
 export default function Escaneo() {
   const [tabs, setTabs] = useState([])                   // array of tab states
   const [activeTabId, setActiveTabId] = useState(null)   // which tab is focused
+  const [showOperadorAuth, setShowOperadorAuth] = useState(false) // operator auth before session
   const [showStartModal, setShowStartModal] = useState(false) // first session start
   const [showAddTabModal, setShowAddTabModal] = useState(false) // add new tab
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -88,6 +91,7 @@ export default function Escaneo() {
   const { canDelete, user } = useAuthStore()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
+  const { isAuthenticated: operadorAuthed, getSessionPayload, clearOperador } = useOperadorStore()
   const isSupervisor = ['Supervisor', 'Jefe', 'Administrador'].includes(user?.rol_nombre)
 
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
@@ -171,12 +175,36 @@ export default function Escaneo() {
     })
   }, [activeTabId])
 
+  /* ── operator auth flow ────────────────────────────── */
+  const handleRequestNewSession = () => {
+    if (operadorAuthed) {
+      setShowStartModal(true)
+    } else {
+      setShowOperadorAuth(true)
+    }
+  }
+
+  const handleRequestAddTab = () => {
+    if (operadorAuthed) {
+      setPickerEmpresa(''); setPickerCanal(''); setShowAddTabModal(true)
+    } else {
+      setShowOperadorAuth(true)
+    }
+  }
+
+  const handleOperadorAuthenticated = () => {
+    setShowOperadorAuth(false)
+    // After auth, show the empresa/canal picker
+    setShowStartModal(true)
+  }
+
   /* ── start session (first tab or add-tab) ─────────── */
   const handleStartSession = async (isNew = false) => {
     if (!pickerEmpresa || !pickerCanal) return
     setIsStarting(true)
     try {
-      const data = await ds.startSession(parseInt(pickerEmpresa), parseInt(pickerCanal))
+      const operadorPayload = getSessionPayload()
+      const data = await ds.startSession(parseInt(pickerEmpresa), parseInt(pickerCanal), operadorPayload)
       const emp = empresas.find(e => e.id === parseInt(pickerEmpresa))
       const can = allCanales.find(c => c.id === parseInt(pickerCanal))
       const tabId = ++tabCounter
@@ -365,7 +393,7 @@ export default function Escaneo() {
               </motion.div>
               <h2 className="text-2xl font-bold text-warm-800 mb-2">{t('scan.startSession')}</h2>
               <p className="text-sm text-warm-500 mb-8 leading-relaxed">{t('scan.startDesc')}</p>
-              <motion.button onClick={() => setShowStartModal(true)}
+              <motion.button onClick={handleRequestNewSession}
                 className="btn-primary inline-flex items-center gap-2.5 px-8 py-3.5 text-base shadow-glow"
                 whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                 <Play className="w-5 h-5" /> {t('scan.start')}
@@ -402,6 +430,13 @@ export default function Escaneo() {
             </motion.div>
           </div>
         </div>
+
+        {/* Operator auth modal */}
+        <OperadorAuthModal
+          isOpen={showOperadorAuth}
+          onClose={() => setShowOperadorAuth(false)}
+          onAuthenticated={handleOperadorAuthenticated}
+        />
 
         {/* Start modal */}
         <EmpresaCanalModal
@@ -504,7 +539,7 @@ export default function Escaneo() {
         {/* Add new tab button */}
         {tabs.length < 3 && (
           <button
-            onClick={() => { setPickerEmpresa(''); setPickerCanal(''); setShowAddTabModal(true) }}
+            onClick={handleRequestAddTab}
             className="flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-sm font-semibold text-success-600 bg-success-50 hover:bg-success-100 border-2 border-transparent transition-all shrink-0"
             title={t('scan.addPallet')}
           >
