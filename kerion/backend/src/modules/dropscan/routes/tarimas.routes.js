@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { query } from '../../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
+import { dateMX, dateFromMX, dateToMX } from '../../../shared/utils/dateUtils.js'
 
 const router = Router()
 
@@ -22,12 +23,12 @@ router.get('/',
 
       if (fecha_inicio) {
         paramCount++
-        where.push(`t.fecha_inicio >= $${paramCount}`)
+        where.push(dateFromMX('t.fecha_inicio', paramCount))
         params.push(fecha_inicio)
       }
       if (fecha_fin) {
         paramCount++
-        where.push(`t.fecha_inicio <= $${paramCount}::date + interval '1 day'`)
+        where.push(dateToMX('t.fecha_inicio', paramCount))
         params.push(fecha_fin)
       }
       if (empresa_id) {
@@ -98,7 +99,7 @@ router.get('/',
          LEFT JOIN LATERAL (
            SELECT usuario_operador FROM sesiones_escaneo
            WHERE tarima_actual_id = t.id
-              OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND DATE(fecha_inicio) = DATE(t.fecha_inicio))
+              OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND ${dateMX('fecha_inicio')} = ${dateMX('t.fecha_inicio')})
            ORDER BY (tarima_actual_id = t.id) DESC, fecha_inicio DESC
            LIMIT 1
          ) s ON true
@@ -143,7 +144,7 @@ router.get('/:id',
          LEFT JOIN LATERAL (
            SELECT usuario_operador FROM sesiones_escaneo
            WHERE tarima_actual_id = t.id
-              OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND DATE(fecha_inicio) = DATE(t.fecha_inicio))
+              OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND ${dateMX('fecha_inicio')} = ${dateMX('t.fecha_inicio')})
            ORDER BY (tarima_actual_id = t.id) DESC, fecha_inicio DESC
            LIMIT 1
          ) s ON true

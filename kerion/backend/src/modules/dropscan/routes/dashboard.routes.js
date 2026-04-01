@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { query } from '../../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
-import { getTodayMX, dateMX, hourMX } from '../../../shared/utils/dateUtils.js'
+import { getTodayMX, dateMX, hourMX, dateFromMX, dateToMX } from '../../../shared/utils/dateUtils.js'
 
 const router = Router()
 
@@ -339,8 +339,8 @@ router.get('/escaneadores',
       const params = []
       let pCount = 0
 
-      if (fecha_inicio) { pCount++; where.push(`t.fecha_inicio >= $${pCount}`); params.push(fecha_inicio) }
-      if (fecha_fin) { pCount++; where.push(`t.fecha_inicio <= $${pCount}::date + interval '1 day'`); params.push(fecha_fin) }
+      if (fecha_inicio) { pCount++; where.push(dateFromMX('t.fecha_inicio', pCount)); params.push(fecha_inicio) }
+      if (fecha_fin) { pCount++; where.push(dateToMX('t.fecha_inicio', pCount)); params.push(fecha_fin) }
       if (empresa_id) {
         const ids = String(empresa_id).split(',').map(Number).filter(Boolean)
         if (ids.length) { pCount++; where.push(`t.empresa_id = ANY($${pCount})`); params.push(ids) }

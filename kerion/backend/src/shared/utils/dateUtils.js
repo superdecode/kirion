@@ -32,3 +32,32 @@ export function dateMX(col) {
 export function hourMX(col) {
   return `EXTRACT(HOUR FROM (${col} AT TIME ZONE '${CDMX_TZ}'))`
 }
+
+/**
+ * SQL WHERE clause for filtering a UTC timestamp column by date range in CDMX timezone.
+ * Returns: "(col AT TIME ZONE 'America/Mexico_City')::DATE BETWEEN $start AND $end"
+ * 
+ * @param {string} col - The UTC timestamp column name
+ * @param {number} startParam - Parameter number for start date
+ * @param {number} endParam - Parameter number for end date (optional, uses startParam if same day)
+ */
+export function dateRangeMX(col, startParam, endParam = null) {
+  if (endParam === null) {
+    return `${dateMX(col)} = $${startParam}`
+  }
+  return `${dateMX(col)} BETWEEN $${startParam} AND $${endParam}`
+}
+
+/**
+ * SQL WHERE clause for filtering by start date only (>=) in CDMX timezone.
+ */
+export function dateFromMX(col, paramNum) {
+  return `${dateMX(col)} >= $${paramNum}`
+}
+
+/**
+ * SQL WHERE clause for filtering by end date only (<=) in CDMX timezone.
+ */
+export function dateToMX(col, paramNum) {
+  return `${dateMX(col)} <= $${paramNum}`
+}
