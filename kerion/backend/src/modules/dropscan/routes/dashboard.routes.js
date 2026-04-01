@@ -145,7 +145,7 @@ router.get('/metrics',
       const whereClause = where.join(' AND ')
 
       const operadorWhereClause = whereClause
-      const [dailyRes, totalRes, empresasRes, canalesRes, escaneadoresRes] = await Promise.all([
+      const [dailyRes, totalRes, empresasRes, canalesRes, escaneadoresRes, hourlyRes] = await Promise.all([
         query(
           `SELECT ${dateMX('t.fecha_inicio')} as fecha,
                   COUNT(DISTINCT t.id) as tarimas,
@@ -183,6 +183,14 @@ router.get('/metrics',
            WHERE ${operadorWhereClause}
            GROUP BY COALESCE(g.usuario_operador, u.nombre_completo)
            ORDER BY guias DESC LIMIT 15`, params),
+        query(
+          `SELECT ${hourMX('g.timestamp_escaneo')} as hora,
+                  COUNT(g.id) as cantidad
+           FROM tarimas t
+           JOIN guias g ON g.tarima_id = t.id
+           WHERE ${operadorWhereClause}
+           GROUP BY ${hourMX('g.timestamp_escaneo')}
+           ORDER BY hora`, params),
       ])
 
       res.json({
@@ -202,6 +210,10 @@ router.get('/metrics',
         por_empresa: empresasRes.rows.map(r => ({ empresa: r.empresa, color: r.color, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
         por_canal: canalesRes.rows.map(r => ({ canal: r.canal, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
         por_escaneador: escaneadoresRes.rows.map(r => ({ escaneador: r.escaneador, tarimas: parseInt(r.tarimas), guias: parseInt(r.guias) })),
+        por_hora: Array.from({ length: 24 }, (_, h) => {
+          const row = hourlyRes.rows.find(r => parseInt(r.hora) === h)
+          return { hora: h, cantidad: parseInt(row?.cantidad || 0) }
+        }),
       })
     } catch (error) {
       console.error('Metrics error:', error)

@@ -8,15 +8,15 @@ import * as ds from '../services/dropscanService'
 import { BarChart3, Download, TrendingUp, Package, CheckCircle, Building2, Radio, Clock, User, ChevronDown, X } from 'lucide-react'
 import MultiSelect from '../../../core/components/common/MultiSelect'
 import { useAuthStore } from '../../../core/stores/authStore'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts'
 import * as XLSX from 'xlsx'
-import { fmtDate, fmtDateShort, fmtDateTime } from '../../../core/utils/dateFormat'
+import { fmtDate, fmtDateShort, fmtDateTime, getTodayMX, subtractDaysMX } from '../../../core/utils/dateFormat'
 
 export default function Reportes() {
   const { t } = useI18nStore()
   const { canWrite } = useAuthStore()
-  const today = new Date().toISOString().slice(0, 10)
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+  const today = getTodayMX()
+  const weekAgo = subtractDaysMX(today, 7)
 
   const [fechaInicio, setFechaInicio] = useState(weekAgo)
   const [fechaFin, setFechaFin] = useState(today)
@@ -48,6 +48,12 @@ export default function Reportes() {
   const porEmpresa = data?.por_empresa || []
   const porCanal = data?.por_canal || []
   const porEscaneador = data?.por_escaneador || []
+  // Hourly productivity — fill all 24 hours so chart axis is complete
+  const rawPorHora = data?.por_hora || []
+  const porHora = Array.from({ length: 24 }, (_, h) => ({
+    hora: h,
+    cantidad: rawPorHora.find(d => parseInt(d.hora) === h)?.cantidad || 0,
+  }))
   const PIE_COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#84cc16']
 
   const [isExporting, setIsExporting] = useState(false)
@@ -56,11 +62,12 @@ export default function Reportes() {
   const CHART_OPTIONS = [
     { key: 'dailyGuides', label: 'Guías diarias' },
     { key: 'avgTime', label: 'Tiempo promedio' },
+    { key: 'hourlyProd', label: 'Productividad por hora' },
     { key: 'byEmpresa', label: 'Por empresa' },
     { key: 'byCanal', label: 'Por canal' },
     { key: 'byEscaneador', label: 'Por escaneador' },
   ]
-  const CHART_DEFAULTS = { dailyGuides: true, avgTime: true, byEmpresa: true, byCanal: true, byEscaneador: true }
+  const CHART_DEFAULTS = { dailyGuides: true, avgTime: true, hourlyProd: true, byEmpresa: true, byCanal: true, byEscaneador: true }
   const [visibleCharts, setVisibleCharts] = useState(() => {
     try {
       const saved = localStorage.getItem('dropscan-visible-charts')
@@ -166,7 +173,7 @@ export default function Reportes() {
               {[
                 { l: 'Hoy', f: () => { setFechaInicio(today); setFechaFin(today) } },
                 { l: '7d', f: () => { setFechaInicio(weekAgo); setFechaFin(today) } },
-                { l: '30d', f: () => { setFechaInicio(new Date(Date.now()-30*86400000).toISOString().slice(0,10)); setFechaFin(today) } },
+                { l: '30d', f: () => { setFechaInicio(subtractDaysMX(today, 30)); setFechaFin(today) } },
               ].map(({ l, f }) => (
                 <button key={l} onClick={f} className="px-2.5 py-1.5 text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 rounded-lg transition-colors">{l}</button>
               ))}
@@ -279,6 +286,38 @@ export default function Reportes() {
                             formatter={(v) => [`${v} min`, 'Tiempo promedio']} />
                           <Line type="monotone" dataKey="tiempo_promedio_min" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name="Tiempo (min)" connectNulls />
                         </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {/* Hourly productivity */}
+                  {visibleCharts.hourlyProd && (
+                    <div className="card p-4 col-span-full">
+                      <h3 className="text-xs font-semibold text-warm-600 mb-1">Productividad por hora del día</h3>
+                      <p className="text-[10px] text-warm-400 mb-3">Guías escaneadas acumuladas según la hora real de escaneo (CDMX) en el período seleccionado</p>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <AreaChart data={porHora} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="horaGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="hora"
+                            tick={{ fontSize: 9 }}
+                            tickFormatter={(h) => `${String(h).padStart(2,'0')}:00`}
+                            interval={1}
+                          />
+                          <YAxis tick={{ fontSize: 9 }} />
+                          <Tooltip
+                            contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                            labelFormatter={(h) => `${String(h).padStart(2,'0')}:00 – ${String(h+1).padStart(2,'0')}:00 hrs`}
+                            formatter={(v) => [v, 'Guías']}
+                          />
+                          <Area type="monotone" dataKey="cantidad" stroke="#8b5cf6" strokeWidth={2} fill="url(#horaGrad)" name="Guías" dot={false} />
+                        </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   )}

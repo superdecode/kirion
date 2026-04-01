@@ -34,3 +34,14 @@ export const fmtDateTimeMini = (date) =>
 /** Returns today as 'YYYY-MM-DD' in CDMX local time. */
 export const getTodayMX = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date())
+
+/**
+ * Returns a date string 'YYYY-MM-DD' in CDMX that is `days` before the
+ * given CDMX date string. Safe across DST boundaries.
+ */
+export const subtractDaysMX = (cdmxDateStr, days) => {
+  // Parse as noon UTC to avoid any DST/midnight edge cases
+  const d = new Date(`${cdmxDateStr}T18:00:00Z`) // 18:00 UTC = noon CDMX (UTC-6)
+  d.setUTCDate(d.getUTCDate() - days)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d)
+}

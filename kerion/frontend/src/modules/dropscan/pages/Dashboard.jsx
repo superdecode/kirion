@@ -76,7 +76,12 @@ export default function DropScanDashboard() {
   }
 
   const r = data?.resumen || {}
-  const hourlyData = data?.guias_por_hora || []
+  // Fill all 24 hours so the chart always shows a complete day axis
+  const rawHourly = data?.guias_por_hora || []
+  const hourlyData = Array.from({ length: 24 }, (_, h) => ({
+    hora: h,
+    cantidad: rawHourly.find(d => parseInt(d.hora) === h)?.cantidad || 0,
+  }))
   const operatorData = data?.por_operador || []
   const empresaData = data?.por_empresa || []
   const activeSessions = data?.sesiones_activas || []
