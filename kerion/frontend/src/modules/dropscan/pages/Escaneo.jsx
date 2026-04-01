@@ -109,8 +109,9 @@ export default function Escaneo() {
   const [showRecount, setShowRecount] = useState(false)
   const [completionPrompt, setCompletionPrompt] = useState(null) // { tabId, tarima, nuevaTarima }
   const [panelEditMode, setPanelEditMode] = useState(false)
-  const [suspiciousModal, setSuspiciousModal] = useState(null)  // { code, tabId, score, level }
+  const [suspiciousModal, setSuspiciousModal] = useState(null)      // { code, tabId, score, level }
   const [deleteLastGuideModal, setDeleteLastGuideModal] = useState(null) // { tabId, guia }
+  const [endSessionModal, setEndSessionModal] = useState(null)      // { tabId }
 
   // empresa/canal pickers for modals
   const [pickerEmpresa, setPickerEmpresa] = useState('')
@@ -333,10 +334,18 @@ export default function Escaneo() {
   }
 
   /* ── end session for a tab ─────────────────────────── */
-  const handleEndSession = async (tabId) => {
+  const handleEndSession = (tabId) => {
     const tab = tabs.find(t => t.tabId === tabId)
     if (!tab?.session) return
-    if (!confirm(t('scan.endConfirm'))) return
+    setEndSessionModal({ tabId })
+  }
+
+  const handleConfirmEndSession = async () => {
+    if (!endSessionModal) return
+    const { tabId } = endSessionModal
+    setEndSessionModal(null)
+    const tab = tabs.find(t => t.tabId === tabId)
+    if (!tab?.session) return
     try {
       await ds.endSession(tab.session.id)
       removeTab(tabId)
@@ -411,8 +420,8 @@ export default function Escaneo() {
     const validation = scoreTrackingCode(code)
     if (validation.score < 70) {
       if (soundEnabled) playSound('suspicious')
+      updateTab(tabId, { scanInput: '' })
       setSuspiciousModal({ code, tabId, score: validation.score, level: validation.level })
-      // Do NOT clear input — user may cancel and re-scan
       return
     }
 
@@ -1128,6 +1137,45 @@ export default function Escaneo() {
           </div>
         </div>
       </Modal>
+
+      {/* End session confirmation modal */}
+      {(() => {
+        const esTab = endSessionModal ? tabs.find(t => t.tabId === endSessionModal.tabId) : null
+        return (
+          <Modal isOpen={!!endSessionModal} onClose={() => setEndSessionModal(null)}
+            title="Finalizar sesión de escaneo" icon={Square} size="sm"
+            footer={<>
+              <button onClick={() => setEndSessionModal(null)} className="btn-ghost">Cancelar</button>
+              <button onClick={handleConfirmEndSession} className="btn-danger inline-flex items-center gap-2">
+                <Square className="w-4 h-4" /> Finalizar sesión
+              </button>
+            </>}>
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl bg-warning-50 border border-warning-200 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-warning-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-warning-800">¿Finalizar esta sesión de escaneo?</p>
+                  <p className="text-xs text-warning-700 mt-1">
+                    La tarima activa se marcará como <span className="font-bold">FINALIZADA</span> con la hora actual. Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+              {esTab?.tarima && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 rounded-xl bg-warm-50 border border-warm-100">
+                    <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-0.5">Tarima activa</p>
+                    <p className="text-sm font-mono font-bold text-warm-800">{esTab.tarima.codigo}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-warm-50 border border-warm-100">
+                    <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-0.5">Guías escaneadas</p>
+                    <p className="text-sm font-bold text-warm-800">{esTab.tarima.cantidad_guias} <span className="text-warm-400 font-normal">/ 100</span></p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Modal>
+        )
+      })()}
 
       {/* Suspicious scan confirmation modal */}
       <Modal isOpen={!!suspiciousModal} onClose={() => setSuspiciousModal(null)}

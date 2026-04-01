@@ -525,8 +525,19 @@ router.post('/sessions/:id/end',
         return res.status(404).json({ error: 'Sesión no encontrada' })
       }
 
-      // Auto-delete empty tarimas (0 guides) when ending session
       const sesion = result.rows[0]
+
+      // Finalize all non-empty EN_PROCESO tarimas for this session
+      await query(
+        `UPDATE tarimas
+         SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
+             tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER
+         WHERE operador_id = $1 AND estado = 'EN_PROCESO' AND cantidad_guias > 0
+           AND fecha_inicio >= $2`,
+        [userId, sesion.fecha_inicio]
+      )
+
+      // Auto-delete empty tarimas (0 guides) when ending session
       await query(
         `DELETE FROM tarimas WHERE operador_id = $1 AND estado = 'EN_PROCESO' AND cantidad_guias = 0
          AND fecha_inicio >= $2`,
