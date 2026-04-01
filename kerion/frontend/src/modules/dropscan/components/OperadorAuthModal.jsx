@@ -13,11 +13,13 @@ import {
 const HIGH_LEVEL_ROLES = ['Administrador', 'Supervisor', 'Jefe', 'Gestión', 'Gestion']
 
 export default function OperadorAuthModal({ isOpen, onClose, onAuthenticated }) {
-  const { user } = useAuthStore()
+  const { user, getPermissionLevel } = useAuthStore()
   const { setOperador } = useOperadorStore()
   const { t } = useI18nStore()
 
-  const isHighLevel = HIGH_LEVEL_ROLES.includes(user?.rol_nombre)
+  // High-level: matches role name OR has gestion/total permission on dropscan.escaneo
+  const permLevel = getPermissionLevel('dropscan.escaneo')
+  const isHighLevel = HIGH_LEVEL_ROLES.includes(user?.rol_nombre) || ['gestion', 'total'].includes(permLevel)
 
   if (!isOpen) return null
 

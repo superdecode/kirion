@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { query } from '../../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
+import { getTodayMX, dateMX, hourMX } from '../../../shared/utils/dateUtils.js'
 
 const router = Router()
 
@@ -11,10 +12,10 @@ router.get('/',
   requirePermission('dropscan.dashboard', 'ver'),
   async (req, res) => {
     try {
-      const today = new Date().toISOString().slice(0, 10)
+      const today = getTodayMX()
       const { fecha_inicio = today, fecha_fin = today } = req.query
 
-      const dateWhere = `DATE(t.fecha_inicio) BETWEEN $1 AND $2`
+      const dateWhere = `${dateMX('t.fecha_inicio')} BETWEEN $1 AND $2`
       const dateParams = [fecha_inicio, fecha_fin]
 
       const [summaryRes, alertasRes, activeSessions, hourlyRes, operatorsRes, empresasRes] = await Promise.all([
@@ -31,7 +32,7 @@ router.get('/',
         ),
         query(
           `SELECT COUNT(*) as total_alertas FROM alertas_duplicados
-           WHERE DATE(timestamp_alerta) BETWEEN $1 AND $2`,
+           WHERE ${dateMX('timestamp_alerta')} BETWEEN $1 AND $2`,
           dateParams
         ),
         query(
@@ -46,11 +47,11 @@ router.get('/',
            ORDER BY s.fecha_inicio DESC`
         ),
         query(
-          `SELECT EXTRACT(HOUR FROM g.timestamp_escaneo) as hora, COUNT(*) as cantidad
+          `SELECT ${hourMX('g.timestamp_escaneo')} as hora, COUNT(*) as cantidad
            FROM guias g
            JOIN tarimas t ON g.tarima_id = t.id
            WHERE ${dateWhere}
-           GROUP BY EXTRACT(HOUR FROM g.timestamp_escaneo)
+           GROUP BY ${hourMX('g.timestamp_escaneo')}
            ORDER BY hora`,
           dateParams
         ),
@@ -117,7 +118,7 @@ router.get('/metrics',
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' })
       }
 
-      const where = [`DATE(t.fecha_inicio) BETWEEN $1 AND $2`]
+      const where = [`${dateMX('t.fecha_inicio')} BETWEEN $1 AND $2`]
       const params = [fecha_inicio, fecha_fin]
       let pCount = 2
 
@@ -146,13 +147,13 @@ router.get('/metrics',
       const operadorWhereClause = whereClause
       const [dailyRes, totalRes, empresasRes, canalesRes, escaneadoresRes] = await Promise.all([
         query(
-          `SELECT DATE(t.fecha_inicio) as fecha,
+          `SELECT ${dateMX('t.fecha_inicio')} as fecha,
                   COUNT(DISTINCT t.id) as tarimas,
                   COALESCE(SUM(t.cantidad_guias), 0) as guias,
                   COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas,
                   COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio
            FROM tarimas t WHERE ${whereClause}
-           GROUP BY DATE(t.fecha_inicio) ORDER BY fecha`, params),
+           GROUP BY ${dateMX('t.fecha_inicio')} ORDER BY fecha`, params),
         query(
           `SELECT COUNT(DISTINCT t.id) as tarimas,
                   COALESCE(SUM(t.cantidad_guias), 0) as guias,
@@ -221,7 +222,7 @@ router.get('/export',
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' })
       }
 
-      let where = [`DATE(t.fecha_inicio) BETWEEN $1 AND $2`]
+      let where = [`${dateMX('t.fecha_inicio')} BETWEEN $1 AND $2`]
       let params = [fecha_inicio, fecha_fin]
       let paramCount = 2
 

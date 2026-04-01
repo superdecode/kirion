@@ -10,6 +10,7 @@ import MultiSelect from '../../../core/components/common/MultiSelect'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts'
 import * as XLSX from 'xlsx'
+import { fmtDate, fmtDateShort, fmtDateTime } from '../../../core/utils/dateFormat'
 
 export default function Reportes() {
   const { t } = useI18nStore()
@@ -90,7 +91,7 @@ export default function Reportes() {
         const resumenData = [
           [t('history.date'), t('dashboard.pallets'), t('dashboard.completedPallets'), t('dashboard.guides'), t('reports.avgTime')],
           ...porDia.map(d => [
-            new Date(d.fecha).toLocaleDateString('es-MX'),
+            fmtDate(d.fecha),
             d.tarimas,
             d.completadas,
             d.guias,
@@ -115,12 +116,12 @@ export default function Reportes() {
             r.operador,
             r.estado,
             r.cantidad_guias,
-            r.fecha_inicio ? new Date(r.fecha_inicio).toLocaleString('es-MX') : '',
-            r.fecha_cierre ? new Date(r.fecha_cierre).toLocaleString('es-MX') : '',
+            r.fecha_inicio ? fmtDateTime(r.fecha_inicio) : '',
+            r.fecha_cierre ? fmtDateTime(r.fecha_cierre) : '',
             r.duracion_min || '',
             r.codigo_guia || '',
             r.posicion || '',
-            r.timestamp_escaneo ? new Date(r.timestamp_escaneo).toLocaleString('es-MX') : '',
+            r.timestamp_escaneo ? fmtDateTime(r.timestamp_escaneo) : '',
             r.operador_guia || ''
           ])
         ]
@@ -255,9 +256,9 @@ export default function Reportes() {
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={porDia} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} />
+                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDate(d)} />
                           <YAxis tick={{ fontSize: 9 }} />
-                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')} />
+                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} labelFormatter={(d) => fmtDate(d)} />
                           <Bar dataKey="guias" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Guías" />
                         </BarChart>
                       </ResponsiveContainer>
@@ -271,10 +272,10 @@ export default function Reportes() {
                       <ResponsiveContainer width="100%" height={200}>
                         <LineChart data={porDia.filter(d => d.tiempo_promedio_min > 0)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })} />
+                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDate(d)} />
                           <YAxis tick={{ fontSize: 9 }} unit="m" />
                           <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                            labelFormatter={(d) => new Date(d).toLocaleDateString('es-MX')}
+                            labelFormatter={(d) => fmtDate(d)}
                             formatter={(v) => [`${v} min`, 'Tiempo promedio']} />
                           <Line type="monotone" dataKey="tiempo_promedio_min" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name="Tiempo (min)" connectNulls />
                         </LineChart>
@@ -401,7 +402,7 @@ export default function Reportes() {
                         {porDia.map(d => (
                           <tr key={d.fecha} className="hover:bg-primary-50/20 transition-colors">
                             <td className="px-4 py-3 text-warm-700">
-                              {new Date(d.fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })}
+                              {fmtDateShort(d.fecha)}
                             </td>
                             <td className="px-4 py-3 text-center text-warm-600">{d.tarimas}</td>
                             <td className="px-4 py-3 text-center text-success-600 font-semibold">{d.completadas}</td>

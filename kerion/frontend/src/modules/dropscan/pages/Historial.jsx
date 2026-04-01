@@ -11,6 +11,7 @@ import { useAuthStore } from '../../../core/stores/authStore'
 import { useToastStore } from '../../../core/stores/toastStore'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
+import { fmtTime, fmtTimeShort, fmtDate, fmtDateTime } from '../../../core/utils/dateFormat'
 import {
   ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
@@ -203,7 +204,7 @@ export default function Historial() {
     try {
       const csv = [
         ['Codigo', 'Empresa', 'Canal', 'Operador', 'Guias', 'Estado', 'Fecha'].join(','),
-        ...tarimas.map(row => [row.codigo, row.empresa_nombre, row.canal_nombre, row.operador_nombre, row.cantidad_guias, row.estado, new Date(row.fecha_inicio).toLocaleString('es-MX')].join(','))
+        ...tarimas.map(row => [row.codigo, row.empresa_nombre, row.canal_nombre, row.operador_nombre, row.cantidad_guias, row.estado, fmtDateTime(row.fecha_inicio)].join(','))
       ].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
@@ -228,8 +229,8 @@ export default function Historial() {
         ['Operador', detail.operador_nombre],
         ['Estado', estadoLabels[detail.estado] || detail.estado],
         ['Guías', `${detail.cantidad_guias}/100`],
-        ['Inicio', new Date(detail.fecha_inicio).toLocaleString('es-MX')],
-        ['Cierre', detail.fecha_cierre ? new Date(detail.fecha_cierre).toLocaleString('es-MX') : '--'],
+        ['Inicio', fmtDateTime(detail.fecha_inicio)],
+        ['Cierre', detail.fecha_cierre ? fmtDateTime(detail.fecha_cierre) : '--'],
         ['Duración', detail.tiempo_armado_segundos ? `${Math.round(detail.tiempo_armado_segundos / 60)} min` : '--'],
         [],
         ['#', 'Código Guía', 'Operador', 'Hora Escaneo'],
@@ -237,7 +238,7 @@ export default function Historial() {
           g.posicion,
           g.codigo_guia,
           g.operador_nombre,
-          new Date(g.timestamp_escaneo).toLocaleString('es-MX')
+          fmtDateTime(g.timestamp_escaneo)
         ])
       ]
       const ws = XLSX.utils.aoa_to_sheet(wsData)
@@ -394,8 +395,8 @@ export default function Historial() {
                             </div>
                           </td>
                           <td className="table-cell text-warm-500 text-xs">
-                            {new Date(row.fecha_inicio).toLocaleDateString('es-MX')}
-                            <br /><span className="text-warm-400">{new Date(row.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                            {fmtDate(row.fecha_inicio)}
+                            <br /><span className="text-warm-400">{fmtTimeShort(row.fecha_inicio)}</span>
                           </td>
                           <td className="table-cell">
                             <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
@@ -510,8 +511,8 @@ export default function Historial() {
                 { icon: Package, l: t('history.operator'), v: detail.operador_nombre },
                 { icon: Package, l: t('history.guides'), v: `${detail.cantidad_guias}/100` },
                 { icon: CheckCircle, l: t('common.status'), v: estadoLabels[detail.estado] || detail.estado },
-                { icon: Clock, l: t('history.startTime'), v: new Date(detail.fecha_inicio).toLocaleString('es-MX') },
-                { icon: Clock, l: t('history.endTime'), v: detail.fecha_cierre ? new Date(detail.fecha_cierre).toLocaleString('es-MX') : '--' },
+                { icon: Clock, l: t('history.startTime'), v: fmtDateTime(detail.fecha_inicio) },
+                { icon: Clock, l: t('history.endTime'), v: detail.fecha_cierre ? fmtDateTime(detail.fecha_cierre) : '--' },
                 { icon: Clock, l: t('history.duration'), v: calcDuration(detail) },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-warm-50 border border-warm-100/50">
@@ -592,7 +593,7 @@ export default function Historial() {
                                 {isHighlighted && <span className="ml-2 text-[9px] bg-warning-500 text-white px-1.5 py-0.5 rounded font-bold uppercase">encontrada</span>}
                               </td>
                               <td className="px-3 py-2 text-warm-500">{g.operador_nombre}</td>
-                              <td className="px-3 py-2 text-warm-400">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
+                              <td className="px-3 py-2 text-warm-400">{fmtTime(g.timestamp_escaneo)}</td>
                               {editMode && (
                                 <td className="px-2 py-1.5">
                                   <button
@@ -640,7 +641,7 @@ export default function Historial() {
                             <td className="px-3 py-2 font-mono font-semibold text-danger-600">{d.codigo_guia}</td>
                             <td className="px-3 py-2 font-mono text-warm-600">{d.guia_original || d.codigo_guia_original || '--'}</td>
                             <td className="px-3 py-2 text-warm-500">{d.operador_nombre}</td>
-                            <td className="px-3 py-2 text-warm-400">{d.timestamp ? new Date(d.timestamp).toLocaleTimeString('es-MX') : '--'}</td>
+                            <td className="px-3 py-2 text-warm-400">{d.timestamp ? fmtTime(d.timestamp) : '--'}</td>
                           </tr>
                         ))}
                       </tbody>

@@ -2,12 +2,13 @@ import { Router } from 'express'
 import { query, getClient } from '../../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
+import { getTodayMX } from '../../../shared/utils/dateUtils.js'
 
 const router = Router()
 
 // Helper: generate a unique tarima code using MAX sequence number (not COUNT)
 async function generateTarimaCodigo(dbClient) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const today = getTodayMX().replace(/-/g, '')
   const prefix = `TAR-${today}-`
   const maxRes = await dbClient.query(
     `SELECT MAX(CAST(SPLIT_PART(codigo, '-', 3) AS INTEGER)) AS max_seq

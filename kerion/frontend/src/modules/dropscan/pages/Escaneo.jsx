@@ -13,6 +13,7 @@ import api from '../../../core/services/api'
 import OperadorAuthModal from '../components/OperadorAuthModal'
 import RecountModal from '../components/RecountModal'
 import { useOperadorStore } from '../stores/operadorStore'
+import { fmtTime, fmtTimeShort, fmtDateTime, getTodayMX } from '../../../core/utils/dateFormat'
 import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
@@ -45,10 +46,7 @@ const playSound = (type) => {
   } catch (e) { /* silent */ }
 }
 
-function getTodayDateStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+const getTodayDateStr = getTodayMX
 
 const calcDuration = (tarima) => {
   if (!tarima) return '--'
@@ -160,12 +158,12 @@ export default function Escaneo() {
         ['Operador', td.operador_nombre],
         ['Guías', `${td.cantidad_guias}/100`],
         ['Estado', td.estado],
-        ['Inicio', td.fecha_inicio ? new Date(td.fecha_inicio).toLocaleString('es-MX') : '--'],
-        ['Cierre', td.fecha_cierre ? new Date(td.fecha_cierre).toLocaleString('es-MX') : '--'],
+        ['Inicio', td.fecha_inicio ? fmtDateTime(td.fecha_inicio) : '--'],
+        ['Cierre', td.fecha_cierre ? fmtDateTime(td.fecha_cierre) : '--'],
         ['Duración', td.tiempo_armado_segundos ? `${Math.round(td.tiempo_armado_segundos / 60)} min` : '--'],
         [],
         ['#', 'Código Guía', 'Operador', 'Hora Escaneo'],
-        ...guias.map(g => [g.posicion, g.codigo_guia, g.operador_nombre, new Date(g.timestamp_escaneo).toLocaleString('es-MX')])
+        ...guias.map(g => [g.posicion, g.codigo_guia, g.operador_nombre, fmtDateTime(g.timestamp_escaneo)])
       ]
       const ws = XLSX.utils.aoa_to_sheet(wsData)
       const wb = XLSX.utils.book_new()
@@ -873,7 +871,7 @@ export default function Escaneo() {
                                 <span className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold shrink-0">{g.posicion}</span>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-mono font-semibold text-warm-700 truncate">{g.codigo_guia}</p>
-                                  <p className="text-[10px] text-warm-400 font-medium">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</p>
+                                  <p className="text-[10px] text-warm-400 font-medium">{fmtTime(g.timestamp_escaneo)}</p>
                                 </div>
                                 {/* Last guide: any user with write permission can delete via modal */}
                                 {i === 0 && canWrite('dropscan.escaneo') && (
@@ -908,7 +906,7 @@ export default function Escaneo() {
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-mono font-semibold text-warm-700 truncate">{d.codigo_guia}</p>
                                   <p className="text-[10px] text-danger-500 font-medium truncate">{d.message}</p>
-                                  <p className="text-[10px] text-warm-400 font-medium">{d.timestamp.toLocaleTimeString('es-MX')}</p>
+                                  <p className="text-[10px] text-warm-400 font-medium">{fmtTime(d.timestamp)}</p>
                                 </div>
                                 {(isSupervisor || i === 0) && (
                                   <button onClick={() => updateTab(activeTabId, { duplicados: tab.duplicados.filter((_, j) => j !== i) })}
@@ -958,7 +956,7 @@ export default function Escaneo() {
                           <span className="text-[10px] text-warm-400 font-medium">{pallet.cantidad_guias}/100 guias</span>
                           {pallet.completedAt && (
                             <span className="text-[10px] text-warm-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />{new Date(pallet.completedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                              <Clock className="w-3 h-3" />{fmtTimeShort(pallet.completedAt)}
                             </span>
                           )}
                         </div>
@@ -1021,7 +1019,7 @@ export default function Escaneo() {
               {[
                 { l: t('history.guides'), v: `${panelDetailData.tarima.cantidad_guias}/100` },
                 { l: t('common.status'), v: formatEstado(panelDetailData.tarima.estado) },
-                { l: t('history.startTime'), v: panelDetailData.tarima.fecha_inicio ? new Date(panelDetailData.tarima.fecha_inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '--' },
+                { l: t('history.startTime'), v: panelDetailData.tarima.fecha_inicio ? fmtTimeShort(panelDetailData.tarima.fecha_inicio) : '--' },
                 { l: t('history.duration'), v: calcDuration(panelDetailData.tarima) },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-warm-50 border border-warm-100">
@@ -1047,7 +1045,7 @@ export default function Escaneo() {
                       <td className="px-4 py-2.5 text-warm-500 font-medium">{g.posicion}</td>
                       <td className="px-4 py-2.5 font-mono font-semibold text-warm-700">{g.codigo_guia}</td>
                       <td className="px-4 py-2.5 text-warm-400 text-xs">{g.operador_nombre}</td>
-                      <td className="px-4 py-2.5 text-warm-500 text-xs">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</td>
+                      <td className="px-4 py-2.5 text-warm-500 text-xs">{fmtTime(g.timestamp_escaneo)}</td>
                       {panelEditMode && (
                         <td className="px-2 py-2">
                           <button
