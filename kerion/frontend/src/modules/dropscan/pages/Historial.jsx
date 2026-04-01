@@ -40,7 +40,7 @@ export default function Historial() {
     estados: searchParams.get('estado') ? [searchParams.get('estado')] : [],
     empresa_ids: [],
     canal_ids: [],
-    escaneador: '',
+    escaneadores: [],
     fecha_inicio: searchParams.get('fecha_inicio') || defaultStart,
     fecha_fin: searchParams.get('fecha_fin') || defaultEnd,
   })
@@ -55,13 +55,19 @@ export default function Historial() {
   const { t } = useI18nStore()
   const qc = useQueryClient()
 
-  // Fetch empresas/canales for filters
+  // Fetch empresas/canales/escaneadores for filters
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
   const { data: canalesData } = useQuery({ queryKey: ['dropscan-canales'], queryFn: ds.getCanales })
+  const { data: escaneadoresListData } = useQuery({
+    queryKey: ['dropscan-escaneadores-list', filters.fecha_inicio, filters.fecha_fin, filters.empresa_ids, filters.canal_ids],
+    queryFn: () => ds.getEscaneadoresList(filters.fecha_inicio, filters.fecha_fin, filters.empresa_ids.length ? filters.empresa_ids : undefined, filters.canal_ids.length ? filters.canal_ids : undefined),
+    enabled: !!filters.fecha_inicio && !!filters.fecha_fin,
+  })
   const empresasOpts = (Array.isArray(empresasData) ? empresasData : empresasData?.empresas || [])
     .filter(e => e.activo !== false).map(e => ({ value: e.id, label: e.nombre, color: e.color }))
   const canalesOpts = (Array.isArray(canalesData) ? canalesData : canalesData?.canales || [])
     .filter(c => c.activo !== false).map(c => ({ value: c.id, label: c.nombre }))
+  const escaneadoresOpts = (escaneadoresListData?.escaneadores || []).map(e => ({ value: e, label: e }))
 
   const highlightGuia = searchParams.get('highlight_guia') || ''
   const highlightRowRef = useRef(null)
@@ -88,7 +94,7 @@ export default function Historial() {
       estado: filters.estados,
       empresa_id: filters.empresa_ids,
       canal_id: filters.canal_ids,
-      escaneador: filters.escaneador || undefined,
+      escaneador: filters.escaneadores.length ? filters.escaneadores : undefined,
       fecha_inicio: filters.fecha_inicio || undefined,
       fecha_fin: filters.fecha_fin || undefined,
       page, limit: pageLimit,
@@ -188,10 +194,10 @@ export default function Historial() {
   }
 
   const clearFilters = () => {
-    setFilters({ estados: [], empresa_ids: [], canal_ids: [], escaneador: '', fecha_inicio: defaultStart, fecha_fin: defaultEnd })
+    setFilters({ estados: [], empresa_ids: [], canal_ids: [], escaneadores: [], fecha_inicio: defaultStart, fecha_fin: defaultEnd })
     setPage(1)
   }
-  const hasActiveFilters = filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneador
+  const hasActiveFilters = filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneadores.length
 
   const handleExport = () => {
     try {
@@ -310,13 +316,13 @@ export default function Historial() {
               selected={filters.canal_ids}
               onChange={v => { setFilters(f => ({ ...f, canal_ids: v })); setPage(1) }}
             />
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-warm-400" />
-              <input value={filters.escaneador}
-                onChange={e => { setFilters(f => ({ ...f, escaneador: e.target.value })); setPage(1) }}
-                placeholder="Escaneador..."
-                className="pl-8 pr-3 py-2 text-xs rounded-lg border border-warm-200 outline-none focus:border-primary-400 bg-white w-40" />
-            </div>
+            <MultiSelect
+              icon={Search}
+              placeholder="Escaneador"
+              options={escaneadoresOpts}
+              selected={filters.escaneadores}
+              onChange={v => { setFilters(f => ({ ...f, escaneadores: v })); setPage(1) }}
+            />
           </div>
         </div>
 

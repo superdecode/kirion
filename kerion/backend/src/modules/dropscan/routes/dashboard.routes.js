@@ -184,18 +184,14 @@ router.get('/metrics',
            WHERE ${whereClause}
            GROUP BY c.id, c.nombre ORDER BY guias DESC`, params),
         query(
-          `SELECT COALESCE(s.usuario_operador, u.nombre_completo) as escaneador,
-                  COUNT(DISTINCT t.id) as tarimas,
-                  COALESCE(SUM(t.cantidad_guias), 0) as guias
+          `SELECT COALESCE(g.usuario_operador, u.nombre_completo) as escaneador,
+                  COUNT(DISTINCT g.tarima_id) as tarimas,
+                  COUNT(g.id) as guias
            FROM tarimas t
-           JOIN usuarios u ON t.operador_id = u.id
-           LEFT JOIN LATERAL (
-             SELECT usuario_operador FROM sesiones_escaneo
-             WHERE tarima_actual_id = t.id
-             ORDER BY fecha_inicio DESC LIMIT 1
-           ) s ON true
+           JOIN guias g ON g.tarima_id = t.id
+           JOIN usuarios u ON g.operador_id = u.id
            WHERE ${operadorWhereClause}
-           GROUP BY COALESCE(s.usuario_operador, u.nombre_completo)
+           GROUP BY COALESCE(g.usuario_operador, u.nombre_completo)
            ORDER BY guias DESC LIMIT 15`, params),
       ])
 
@@ -325,6 +321,49 @@ router.get('/guias/search',
     } catch (error) {
       console.error('Search guias error:', error)
       res.status(500).json({ error: 'Error buscando guías' })
+    }
+  }
+)
+
+// GET /api/dropscan/dashboard/escaneadores?fecha_inicio=&fecha_fin=
+router.get('/escaneadores',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.historial', 'ver'),
+  async (req, res) => {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id, canal_id } = req.query
+
+      const where = []
+      const params = []
+      let pCount = 0
+
+      if (fecha_inicio) { pCount++; where.push(`t.fecha_inicio >= $${pCount}`); params.push(fecha_inicio) }
+      if (fecha_fin) { pCount++; where.push(`t.fecha_inicio <= $${pCount}::date + interval '1 day'`); params.push(fecha_fin) }
+      if (empresa_id) {
+        const ids = String(empresa_id).split(',').map(Number).filter(Boolean)
+        if (ids.length) { pCount++; where.push(`t.empresa_id = ANY($${pCount})`); params.push(ids) }
+      }
+      if (canal_id) {
+        const ids = String(canal_id).split(',').map(Number).filter(Boolean)
+        if (ids.length) { pCount++; where.push(`t.canal_id = ANY($${pCount})`); params.push(ids) }
+      }
+
+      const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : ''
+
+      const result = await query(
+        `SELECT DISTINCT COALESCE(g.usuario_operador, u.nombre_completo) as escaneador
+         FROM guias g
+         JOIN tarimas t ON g.tarima_id = t.id
+         JOIN usuarios u ON g.operador_id = u.id
+         ${whereClause}
+         ORDER BY escaneador ASC`,
+        params
+      )
+
+      res.json({ escaneadores: result.rows.map(r => r.escaneador) })
+    } catch (error) {
+      console.error('Escaneadores list error:', error)
+      res.status(500).json({ error: 'Error obteniendo escaneadores' })
     }
   }
 )

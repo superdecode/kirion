@@ -52,9 +52,22 @@ router.get('/',
         params.push(operador_id)
       }
       if (escaneador) {
-        paramCount++
-        where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo ILIKE $${paramCount})`)
-        params.push(`%${escaneador}%`)
+        const names = String(escaneador).split(',').map(n => n.trim()).filter(Boolean)
+        if (names.length === 1) {
+          paramCount++
+          where.push(`EXISTS (
+            SELECT 1 FROM guias g2 JOIN usuarios ue ON g2.operador_id = ue.id
+            WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) ILIKE $${paramCount}
+          )`)
+          params.push(`%${names[0]}%`)
+        } else if (names.length > 1) {
+          paramCount++
+          where.push(`EXISTS (
+            SELECT 1 FROM guias g2 JOIN usuarios ue ON g2.operador_id = ue.id
+            WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) = ANY($${paramCount})
+          )`)
+          params.push(names)
+        }
       }
 
       const whereClause = where.length > 0 ? 'WHERE ' + where.join(' AND ') : ''
@@ -178,8 +191,7 @@ router.post('/:id/finalize',
       const { id } = req.params
       const result = await query(
         `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
-           tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER,
-           forzado_cierre = true
+           tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER
          WHERE id = $1 AND estado = 'EN_PROCESO' RETURNING *`,
         [id]
       )

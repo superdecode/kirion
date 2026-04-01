@@ -29,6 +29,7 @@ export const getTarimas = (params) => {
   if (Array.isArray(p.empresa_id)) p.empresa_id = p.empresa_id.join(',')
   if (Array.isArray(p.canal_id)) p.canal_id = p.canal_id.join(',')
   if (Array.isArray(p.estado)) p.estado = p.estado.join(',')
+  if (Array.isArray(p.escaneador)) p.escaneador = p.escaneador.join(',')
   return api.get('/dropscan/tarimas', { params: p }).then(r => r.data)
 }
 
@@ -76,6 +77,13 @@ export const getExportData = (fecha_inicio, fecha_fin, empresa_id, canal_id) => 
 
 export const searchGuias = (q) =>
   api.get('/dropscan/dashboard/guias/search', { params: { q } }).then(r => r.data)
+
+export const getEscaneadoresList = (fecha_inicio, fecha_fin, empresa_id, canal_id) => {
+  const params = { fecha_inicio, fecha_fin }
+  if (empresa_id) params.empresa_id = Array.isArray(empresa_id) ? empresa_id.join(',') : empresa_id
+  if (canal_id) params.canal_id = Array.isArray(canal_id) ? canal_id.join(',') : canal_id
+  return api.get('/dropscan/dashboard/escaneadores', { params }).then(r => r.data)
+}
 
 // Config (used by Escaneo for session start dropdowns)
 // Use the full dropscan config endpoint which returns empresas[] on each canal
