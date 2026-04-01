@@ -55,8 +55,12 @@ export const deleteGuiaFromTarima = (tarimaId, guiaId) =>
   api.delete(`/dropscan/tarimas/${tarimaId}/guias/${guiaId}`).then(r => r.data)
 
 // Dashboard & Metrics
-export const getDashboard = () =>
-  api.get('/dropscan/dashboard').then(r => r.data)
+export const getDashboard = (fecha_inicio, fecha_fin) => {
+  const params = {}
+  if (fecha_inicio) params.fecha_inicio = fecha_inicio
+  if (fecha_fin) params.fecha_fin = fecha_fin
+  return api.get('/dropscan/dashboard', { params }).then(r => r.data)
+}
 
 export const getMetrics = (fecha_inicio, fecha_fin, empresa_id, canal_id, escaneador) => {
   const params = { fecha_inicio, fecha_fin }

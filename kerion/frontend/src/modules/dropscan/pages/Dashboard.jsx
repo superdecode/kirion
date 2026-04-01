@@ -62,7 +62,7 @@ export default function DropScanDashboard() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['dropscan-dashboard', dateRange],
-    queryFn: ds.getDashboard,
+    queryFn: () => ds.getDashboard(dateRange.from, dateRange.to),
     refetchInterval: 30000,
   })
 
