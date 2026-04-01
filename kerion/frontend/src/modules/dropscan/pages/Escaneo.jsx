@@ -17,8 +17,9 @@ import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
   PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw,
-  Download, Pencil, Lock
+  Download, Pencil, Lock, ShieldAlert
 } from 'lucide-react'
+import { scoreTrackingCode } from '../utils/trackingValidator'
 
 /* ─── helpers ─────────────────────────────────────────── */
 const playSound = (type) => {
@@ -31,6 +32,16 @@ const playSound = (type) => {
     else if (type === 'error') { osc.frequency.value = 220; osc.type = 'square'; osc.start(); osc.stop(ctx.currentTime + 0.3) }
     else if (type === 'complete') { osc.frequency.value = 1200; osc.type = 'sine'; osc.start(); setTimeout(() => { osc.frequency.value = 1500 }, 100); osc.stop(ctx.currentTime + 0.25) }
     else if (type === 'warning') { osc.frequency.value = 600; osc.type = 'triangle'; osc.start(); osc.stop(ctx.currentTime + 0.2) }
+    else if (type === 'suspicious') {
+      // double-beep: two short pulses at 440Hz sawtooth — distinct "wait, check this" alert
+      osc.frequency.value = 440; osc.type = 'sawtooth'
+      gain.gain.setValueAtTime(0, ctx.currentTime)
+      gain.gain.setValueAtTime(0.12, ctx.currentTime + 0.01)
+      gain.gain.setValueAtTime(0, ctx.currentTime + 0.16)
+      gain.gain.setValueAtTime(0.12, ctx.currentTime + 0.26)
+      gain.gain.setValueAtTime(0, ctx.currentTime + 0.42)
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.45)
+    }
   } catch (e) { /* silent */ }
 }
 
@@ -98,6 +109,8 @@ export default function Escaneo() {
   const [showRecount, setShowRecount] = useState(false)
   const [completionPrompt, setCompletionPrompt] = useState(null) // { tabId, tarima, nuevaTarima }
   const [panelEditMode, setPanelEditMode] = useState(false)
+  const [suspiciousModal, setSuspiciousModal] = useState(null)  // { code, tabId, score, level }
+  const [deleteLastGuideModal, setDeleteLastGuideModal] = useState(null) // { tabId, guia }
 
   // empresa/canal pickers for modals
   const [pickerEmpresa, setPickerEmpresa] = useState('')
@@ -107,7 +120,7 @@ export default function Escaneo() {
   const inputRef = useRef(null)
   const location = useLocation()
   const qc = useQueryClient()
-  const { canDelete, user } = useAuthStore()
+  const { canDelete, canWrite, user } = useAuthStore()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const { isAuthenticated: operadorAuthed, getSessionPayload, clearOperador } = useOperadorStore()
@@ -332,14 +345,10 @@ export default function Escaneo() {
     } catch { toast.error(t('toast.error')) }
   }
 
-  /* ── scan ─────────────────────────────────────────── */
-  const handleScan = useCallback(async (e, tabId) => {
-    e.preventDefault()
+  /* ── perform actual scan (after validation passes) ── */
+  const performActualScan = useCallback(async (tabId, code) => {
     const tab = tabs.find(t => t.tabId === tabId)
     if (!tab) return
-    const code = tab.scanInput.trim()
-    if (!code) return
-    updateTab(tabId, { scanInput: '' })
     try {
       const data = await ds.scanGuia(tab.session.id, code, tab.tarima?.id)
       if (soundEnabled) playSound('success')
@@ -354,10 +363,8 @@ export default function Escaneo() {
           completedTarimas: [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...tab.completedTarimas],
         })
         if (soundEnabled) playSound('complete')
-        // Show quick completion prompt instead of plain toast
         setCompletionPrompt({ tabId, tarima: data.tarima, nuevaTarima: data.nueva_tarima })
       } else {
-        // normal scan → tarima object from backend is the source of truth
         updateTab(tabId, {
           tarima: data.tarima,
           guias: [data.guia, ...tab.guias],
@@ -389,11 +396,40 @@ export default function Escaneo() {
         updateTab(tabId, { flashType: 'error' })
       }
     }
-    // clear flash after 500ms
     setTimeout(() => updateTab(tabId, { flashType: null }), 500)
   }, [tabs, soundEnabled, updateTab, t, toast])
 
-  /* ── delete guide ─────────────────────────────────── */
+  /* ── scan ─────────────────────────────────────────── */
+  const handleScan = useCallback(async (e, tabId) => {
+    e.preventDefault()
+    const tab = tabs.find(t => t.tabId === tabId)
+    if (!tab) return
+    const code = tab.scanInput.trim()
+    if (!code) return
+
+    // Validate if the code looks like a real tracking guide
+    const validation = scoreTrackingCode(code)
+    if (validation.score < 70) {
+      if (soundEnabled) playSound('suspicious')
+      setSuspiciousModal({ code, tabId, score: validation.score, level: validation.level })
+      // Do NOT clear input — user may cancel and re-scan
+      return
+    }
+
+    updateTab(tabId, { scanInput: '' })
+    await performActualScan(tabId, code)
+  }, [tabs, soundEnabled, updateTab, performActualScan])
+
+  /* ── confirm suspicious scan ────────────────────── */
+  const handleConfirmSuspicious = useCallback(async () => {
+    if (!suspiciousModal) return
+    const { code, tabId } = suspiciousModal
+    setSuspiciousModal(null)
+    updateTab(tabId, { scanInput: '' })
+    await performActualScan(tabId, code)
+  }, [suspiciousModal, updateTab, performActualScan])
+
+  /* ── delete guide (any position, supervisor flow) ── */
   const handleDeleteGuia = async (tabId, guiaId) => {
     const tab = tabs.find(t => t.tabId === tabId)
     if (!tab) return
@@ -407,6 +443,23 @@ export default function Escaneo() {
       toast.success(t('scan.guideDeleted'))
     } catch { toast.error(t('toast.error')) }
   }
+
+  /* ── delete last guide (operador+ with modal confirm) */
+  const handleDeleteLastGuide = useCallback(async () => {
+    if (!deleteLastGuideModal) return
+    const { tabId, guia } = deleteLastGuideModal
+    setDeleteLastGuideModal(null)
+    const tab = tabs.find(t => t.tabId === tabId)
+    if (!tab) return
+    try {
+      await ds.deleteGuia(tab.session.id, guia.id)
+      updateTab(tabId, {
+        guias: tab.guias.filter(g => g.id !== guia.id),
+        tarima: tab.tarima ? { ...tab.tarima, cantidad_guias: Math.max(0, tab.tarima.cantidad_guias - 1) } : null,
+      })
+      toast.success(t('scan.guideDeleted'))
+    } catch { toast.error(t('toast.error')) }
+  }, [deleteLastGuideModal, tabs, updateTab, t, toast])
 
   /* ── close tab (X button) ─────────────────────────── */
   const handleCloseTab = async (tabId) => {
@@ -745,11 +798,13 @@ export default function Escaneo() {
                     type="text"
                     value={tab.scanInput}
                     onChange={(e) => updateTab(activeTabId, { scanInput: e.target.value })}
-                    placeholder={t('scan.placeholder')}
+                    placeholder={canWrite('dropscan.escaneo') ? t('scan.placeholder') : 'Solo lectura — sin permiso para escanear'}
                     autoComplete="off"
+                    disabled={!canWrite('dropscan.escaneo')}
                     className={`w-full pl-14 pr-5 py-5 text-xl bg-white border-2 border-warm-200 rounded-2xl
                       focus:border-primary-500 focus:ring-4 focus:ring-primary-100 focus:shadow-glow
                       transition-all outline-none placeholder:text-warm-300 font-mono tracking-wide
+                      disabled:bg-warm-50 disabled:text-warm-400 disabled:cursor-not-allowed
                       ${tab.flashType === 'success' ? 'animate-scan-success' : tab.flashType === 'error' ? 'animate-scan-error' : ''}`}
                   />
                 </div>
@@ -811,7 +866,16 @@ export default function Escaneo() {
                                   <p className="text-sm font-mono font-semibold text-warm-700 truncate">{g.codigo_guia}</p>
                                   <p className="text-[10px] text-warm-400 font-medium">{new Date(g.timestamp_escaneo).toLocaleTimeString('es-MX')}</p>
                                 </div>
-                                {canDelete('dropscan.escaneo') && (isSupervisor || i === 0) && (
+                                {/* Last guide: any user with write permission can delete via modal */}
+                                {i === 0 && canWrite('dropscan.escaneo') && (
+                                  <button onClick={() => setDeleteLastGuideModal({ tabId: activeTabId, guia: g })}
+                                    title="Eliminar última guía"
+                                    className="p-2 rounded-xl hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {/* Other guides: supervisor+gestion only */}
+                                {i !== 0 && canDelete('dropscan.escaneo') && isSupervisor && (
                                   <button onClick={() => handleDeleteGuia(activeTabId, g.id)}
                                     className="p-2 rounded-xl hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all">
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1062,6 +1126,74 @@ export default function Escaneo() {
               placeholder={t('scan.cancelReasonPlaceholder')} rows={3}
               className="w-full px-4 py-3 text-sm bg-white border-2 border-warm-200 rounded-xl focus:border-primary-500 focus:ring-4 focus:ring-primary-100 transition-all outline-none placeholder:text-warm-300 resize-none" />
           </div>
+        </div>
+      </Modal>
+
+      {/* Suspicious scan confirmation modal */}
+      <Modal isOpen={!!suspiciousModal} onClose={() => setSuspiciousModal(null)}
+        title="Código sospechoso" icon={ShieldAlert} size="sm"
+        footer={<>
+          <button onClick={() => setSuspiciousModal(null)} className="btn-ghost">Cancelar</button>
+          <button onClick={handleConfirmSuspicious}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-colors">
+            <CheckCircle className="w-4 h-4" /> Sí, agregar de todas formas
+          </button>
+        </>}>
+        <div className="space-y-3">
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Este código no parece una guía de paquetería</p>
+              <p className="text-xs text-amber-700 mt-1">
+                El código escaneado tiene baja similitud con guías de rastreo conocidas.
+                Podría ser un SKU, código de producto u otro código no relacionado con envíos.
+              </p>
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-warm-50 border border-warm-100">
+            <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-1">Código escaneado</p>
+            <p className="text-sm font-mono font-bold text-warm-800 break-all">{suspiciousModal?.code}</p>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-warm-500 font-medium">Similitud con guías de paquetería</p>
+              <span className={`text-xs font-bold ${suspiciousModal?.level === 'medium' ? 'text-amber-600' : 'text-danger-600'}`}>
+                {suspiciousModal?.score}%
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-warm-100 overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${suspiciousModal?.level === 'medium' ? 'bg-amber-400' : 'bg-danger-400'}`}
+                style={{ width: `${suspiciousModal?.score || 0}%` }} />
+            </div>
+          </div>
+          <p className="text-xs text-warm-500 text-center">¿Está seguro de que desea agregar este registro?</p>
+        </div>
+      </Modal>
+
+      {/* Delete last guide confirmation modal */}
+      <Modal isOpen={!!deleteLastGuideModal} onClose={() => setDeleteLastGuideModal(null)}
+        title="Eliminar última guía" icon={Trash2} size="sm"
+        footer={<>
+          <button onClick={() => setDeleteLastGuideModal(null)} className="btn-ghost">Cancelar</button>
+          <button onClick={handleDeleteLastGuide} className="btn-danger inline-flex items-center gap-2">
+            <Trash2 className="w-4 h-4" /> Eliminar
+          </button>
+        </>}>
+        <div className="space-y-3">
+          <div className="p-4 rounded-xl bg-danger-50 border border-danger-200 flex items-start gap-3">
+            <Trash2 className="w-5 h-5 text-danger-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-danger-800">¿Eliminar la última guía escaneada?</p>
+              <p className="text-xs text-danger-600 mt-1">Esta acción elimina el registro del escaneo y no se puede deshacer.</p>
+            </div>
+          </div>
+          {deleteLastGuideModal?.guia && (
+            <div className="p-3 rounded-xl bg-warm-50 border border-warm-100">
+              <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-1">Guía a eliminar</p>
+              <p className="text-sm font-mono font-bold text-warm-800">{deleteLastGuideModal.guia.codigo_guia}</p>
+              <p className="text-xs text-warm-400 mt-0.5">Posición #{deleteLastGuideModal.guia.posicion}</p>
+            </div>
+          )}
         </div>
       </Modal>
 
