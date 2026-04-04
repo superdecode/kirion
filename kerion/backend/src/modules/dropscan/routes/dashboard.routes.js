@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { query } from '../../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
-import { getTodayMX, dateMX, hourMX, dateFromMX, dateToMX } from '../../../shared/utils/dateUtils.js'
+import { getToday, dateInTZ, hourInTZ, dateFrom, dateTo } from '../../../shared/utils/dateUtils.js'
 
 const router = Router()
 
@@ -12,10 +12,11 @@ router.get('/',
   requirePermission('dropscan.dashboard', 'ver'),
   async (req, res) => {
     try {
-      const today = getTodayMX()
+      const tz = req.fullUser?.zona_horaria || 'America/Mexico_City'
+      const today = getToday(tz)
       const { fecha_inicio = today, fecha_fin = today } = req.query
 
-      const dateWhere = `${dateMX('t.fecha_inicio')} BETWEEN $1 AND $2`
+      const dateWhere = `${dateInTZ('t.fecha_inicio', tz)} BETWEEN $1 AND $2`
       const dateParams = [fecha_inicio, fecha_fin]
 
       const [summaryRes, alertasRes, activeSessions, hourlyRes, operatorsRes, empresasRes] = await Promise.all([
@@ -32,7 +33,7 @@ router.get('/',
         ),
         query(
           `SELECT COUNT(*) as total_alertas FROM alertas_duplicados
-           WHERE ${dateMX('timestamp_alerta')} BETWEEN $1 AND $2`,
+           WHERE ${dateInTZ('timestamp_alerta', tz)} BETWEEN $1 AND $2`,
           dateParams
         ),
         query(
@@ -47,11 +48,11 @@ router.get('/',
            ORDER BY s.fecha_inicio DESC`
         ),
         query(
-          `SELECT ${hourMX('g.timestamp_escaneo')} as hora, COUNT(*) as cantidad
+          `SELECT ${hourInTZ('g.timestamp_escaneo', tz)} as hora, COUNT(*) as cantidad
            FROM guias g
            JOIN tarimas t ON g.tarima_id = t.id
            WHERE ${dateWhere}
-           GROUP BY ${hourMX('g.timestamp_escaneo')}
+           GROUP BY ${hourInTZ('g.timestamp_escaneo', tz)}
            ORDER BY hora`,
           dateParams
         ),
@@ -118,7 +119,8 @@ router.get('/metrics',
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' })
       }
 
-      const where = [`${dateMX('t.fecha_inicio')} BETWEEN $1 AND $2`]
+      const tz = req.fullUser?.zona_horaria || 'America/Mexico_City'
+      const where = [`${dateInTZ('t.fecha_inicio', tz)} BETWEEN $1 AND $2`]
       const params = [fecha_inicio, fecha_fin]
       let pCount = 2
 
@@ -147,13 +149,13 @@ router.get('/metrics',
       const operadorWhereClause = whereClause
       const [dailyRes, totalRes, empresasRes, canalesRes, escaneadoresRes, hourlyRes] = await Promise.all([
         query(
-          `SELECT ${dateMX('t.fecha_inicio')} as fecha,
+          `SELECT ${dateInTZ('t.fecha_inicio', tz)} as fecha,
                   COUNT(DISTINCT t.id) as tarimas,
                   COALESCE(SUM(t.cantidad_guias), 0) as guias,
                   COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas,
-                  COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio
+                  COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN COALESCE(t.tiempo_armado_segundos, EXTRACT(EPOCH FROM (t.fecha_cierre - t.fecha_inicio))::INTEGER) END), 0) as tiempo_promedio
            FROM tarimas t WHERE ${whereClause}
-           GROUP BY ${dateMX('t.fecha_inicio')} ORDER BY fecha`, params),
+           GROUP BY ${dateInTZ('t.fecha_inicio', tz)} ORDER BY fecha`, params),
         query(
           `SELECT COUNT(DISTINCT t.id) as tarimas,
                   COALESCE(SUM(t.cantidad_guias), 0) as guias,
@@ -184,12 +186,12 @@ router.get('/metrics',
            GROUP BY COALESCE(g.usuario_operador, u.nombre_completo)
            ORDER BY guias DESC LIMIT 15`, params),
         query(
-          `SELECT ${hourMX('g.timestamp_escaneo')} as hora,
+          `SELECT ${hourInTZ('g.timestamp_escaneo', tz)} as hora,
                   COUNT(g.id) as cantidad
            FROM tarimas t
            JOIN guias g ON g.tarima_id = t.id
            WHERE ${operadorWhereClause}
-           GROUP BY ${hourMX('g.timestamp_escaneo')}
+           GROUP BY ${hourInTZ('g.timestamp_escaneo', tz)}
            ORDER BY hora`, params),
       ])
 
@@ -234,7 +236,8 @@ router.get('/export',
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' })
       }
 
-      let where = [`${dateMX('t.fecha_inicio')} BETWEEN $1 AND $2`]
+      const tz = req.fullUser?.zona_horaria || 'America/Mexico_City'
+      let where = [`${dateInTZ('t.fecha_inicio', tz)} BETWEEN $1 AND $2`]
       let params = [fecha_inicio, fecha_fin]
       let paramCount = 2
 
@@ -339,8 +342,9 @@ router.get('/escaneadores',
       const params = []
       let pCount = 0
 
-      if (fecha_inicio) { pCount++; where.push(dateFromMX('t.fecha_inicio', pCount)); params.push(fecha_inicio) }
-      if (fecha_fin) { pCount++; where.push(dateToMX('t.fecha_inicio', pCount)); params.push(fecha_fin) }
+      const tz = req.fullUser?.zona_horaria || 'America/Mexico_City'
+      if (fecha_inicio) { pCount++; where.push(dateFrom('t.fecha_inicio', pCount, tz)); params.push(fecha_inicio) }
+      if (fecha_fin) { pCount++; where.push(dateTo('t.fecha_inicio', pCount, tz)); params.push(fecha_fin) }
       if (empresa_id) {
         const ids = String(empresa_id).split(',').map(Number).filter(Boolean)
         if (ids.length) { pCount++; where.push(`t.empresa_id = ANY($${pCount})`); params.push(ids) }

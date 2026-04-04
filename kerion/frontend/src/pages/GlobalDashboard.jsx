@@ -2,6 +2,7 @@ import { useAuthStore } from '../core/stores/authStore'
 import { useI18nStore } from '../core/stores/i18nStore'
 import { motion } from 'framer-motion'
 import Header from '../core/components/layout/Header'
+import { fmtTimeShort, fmtDateShort } from '../core/utils/dateFormat'
 import {
   ScanBarcode, Package, Truck, CheckSquare, ArrowRight,
   Activity, Users, Clock
@@ -102,7 +103,7 @@ export default function GlobalDashboard() {
               {[
                 { icon: Activity, value: '1', label: t('globalDash.activeModules'), delay: 0.3 },
                 { icon: Users, value: '—', label: t('globalDash.onlineUsers'), delay: 0.4 },
-                { icon: Clock, value: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }), label: new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }), delay: 0.5 },
+                { icon: Clock, value: fmtTimeShort(new Date()), label: fmtDateShort(new Date()), delay: 0.5 },
               ].map((stat, i) => (
                 <motion.div
                   key={i}

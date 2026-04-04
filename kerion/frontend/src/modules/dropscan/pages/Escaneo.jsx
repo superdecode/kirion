@@ -13,7 +13,7 @@ import api from '../../../core/services/api'
 import OperadorAuthModal from '../components/OperadorAuthModal'
 import RecountModal from '../components/RecountModal'
 import { useOperadorStore } from '../stores/operadorStore'
-import { fmtTime, fmtTimeShort, fmtDateTime, getTodayMX } from '../../../core/utils/dateFormat'
+import { fmtTime, fmtTimeShort, fmtDateTime, getToday } from '../../../core/utils/dateFormat'
 import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
@@ -46,7 +46,7 @@ const playSound = (type) => {
   } catch (e) { /* silent */ }
 }
 
-const getTodayDateStr = getTodayMX
+const getTodayDateStr = getToday
 
 const calcDuration = (tarima) => {
   if (!tarima) return '--'
@@ -168,7 +168,7 @@ export default function Escaneo() {
       const ws = XLSX.utils.aoa_to_sheet(wsData)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Tarima')
-      XLSX.writeFile(wb, `tarima_${td.codigo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      XLSX.writeFile(wb, `tarima_${td.codigo}_${getToday()}.xlsx`)
     } catch { toast.error(t('toast.error')) }
   }
 

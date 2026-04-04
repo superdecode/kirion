@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../services/api.js'
 import { mockLogin, mockAuthMe } from '../services/mockAuth.js'
+import { setTimezone } from '../utils/dateFormat.js'
 
 /**
  * Permission resolution for 5-level system:
@@ -60,6 +61,7 @@ export const useAuthStore = create(
           
           // API real
           const { data } = await api.post('/auth/login', { email, password })
+          if (data.user?.zona_horaria) setTimezone(data.user.zona_horaria)
           set({
             user: data.user,
             token: data.token,
@@ -87,10 +89,20 @@ export const useAuthStore = create(
       refreshUser: async () => {
         try {
           const { data } = await api.get('/auth/me')
+          if (data.zona_horaria) setTimezone(data.zona_horaria)
           set((state) => ({ user: { ...state.user, ...data } }))
         } catch (e) {
           get().logout()
         }
+      },
+
+      updateTimezone: async (zona_horaria) => {
+        const { data } = await api.put('/auth/preferences', { zona_horaria })
+        if (data.success) {
+          setTimezone(zona_horaria)
+          set((state) => ({ user: { ...state.user, zona_horaria } }))
+        }
+        return data
       },
 
       // Permission check: hasPermission('dropscan.escaneo', 'crear')
@@ -149,6 +161,9 @@ export const useAuthStore = create(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.user?.zona_horaria) setTimezone(state.user.zona_horaria)
+      },
     }
   )
 )

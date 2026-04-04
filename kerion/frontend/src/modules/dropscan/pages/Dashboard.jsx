@@ -6,6 +6,7 @@ import Header from '../../../core/components/layout/Header'
 import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
+import { getToday, subtractDays } from '../../../core/utils/dateFormat'
 import {
   Package, CheckCircle, Clock, AlertTriangle, Activity,
   Users, BarChart3, Calendar, ChevronDown, XCircle
@@ -26,19 +27,39 @@ const getDatePresets = (t) => [
 ]
 
 function getDateRange(preset) {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const fmt = (d) => d.toISOString().slice(0, 10)
+  const today = getToday()
+  const sub = (days) => subtractDays(today, days)
 
   switch (preset) {
-    case 'today': return { from: fmt(today), to: fmt(today) }
-    case 'yesterday': { const y = new Date(today); y.setDate(y.getDate() - 1); return { from: fmt(y), to: fmt(y) } }
-    case 'thisWeek': { const s = new Date(today); s.setDate(s.getDate() - s.getDay()); return { from: fmt(s), to: fmt(today) } }
-    case 'lastWeek': { const s = new Date(today); s.setDate(s.getDate() - s.getDay() - 7); const e = new Date(s); e.setDate(e.getDate() + 6); return { from: fmt(s), to: fmt(e) } }
-    case 'thisMonth': return { from: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), to: fmt(today) }
-    case 'lastMonth': return { from: fmt(new Date(today.getFullYear(), today.getMonth() - 1, 1)), to: fmt(new Date(today.getFullYear(), today.getMonth(), 0)) }
-    case 'last7': { const s = new Date(today); s.setDate(s.getDate() - 6); return { from: fmt(s), to: fmt(today) } }
-    case 'last30': { const s = new Date(today); s.setDate(s.getDate() - 29); return { from: fmt(s), to: fmt(today) } }
+    case 'today': return { from: today, to: today }
+    case 'yesterday': { const y = sub(1); return { from: y, to: y } }
+    case 'thisWeek': {
+      // Parse today in user TZ, get day of week, subtract back to Sunday
+      const d = new Date(`${today}T18:00:00Z`)
+      const dow = d.getUTCDay()
+      return { from: sub(dow), to: today }
+    }
+    case 'lastWeek': {
+      const d = new Date(`${today}T18:00:00Z`)
+      const dow = d.getUTCDay()
+      const startLast = sub(dow + 7)
+      const endLast = sub(dow + 1)
+      return { from: startLast, to: endLast }
+    }
+    case 'thisMonth': {
+      const [y, m] = today.split('-')
+      return { from: `${y}-${m}-01`, to: today }
+    }
+    case 'lastMonth': {
+      const d = new Date(`${today}T18:00:00Z`)
+      const year = d.getUTCMonth() === 0 ? d.getUTCFullYear() - 1 : d.getUTCFullYear()
+      const month = d.getUTCMonth() === 0 ? 12 : d.getUTCMonth()
+      const mm = String(month).padStart(2, '0')
+      const lastDay = new Date(year, month, 0).getDate()
+      return { from: `${year}-${mm}-01`, to: `${year}-${mm}-${String(lastDay).padStart(2, '0')}` }
+    }
+    case 'last7': return { from: sub(6), to: today }
+    case 'last30': return { from: sub(29), to: today }
     default: return { from: fmt(today), to: fmt(today) }
   }
 }

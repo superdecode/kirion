@@ -8,6 +8,7 @@ import { useAuthStore } from '../../../core/stores/authStore'
 import { useToastStore } from '../../../core/stores/toastStore'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import api from '../../../core/services/api'
+import { fmtDate } from '../../../core/utils/dateFormat'
 import * as configService from '../services/configService'
 import {
   Settings, Plus, Edit3, Trash2,
@@ -591,9 +592,9 @@ function CanalesTab({ canEdit, canRemove }) {
                   )}
 
                   <div className="flex items-center gap-4 text-xs text-warm-400">
-                    <span>{t('config.created')}: {new Date(canal.created_at).toLocaleDateString('es-MX')}</span>
+                    <span>{t('config.created')}: {fmtDate(canal.created_at)}</span>
                     {canal.updated_at !== canal.created_at && (
-                      <span>{t('config.updated')}: {new Date(canal.updated_at).toLocaleDateString('es-MX')}</span>
+                      <span>{t('config.updated')}: {fmtDate(canal.updated_at)}</span>
                     )}
                   </div>
                 </div>
@@ -1115,7 +1116,7 @@ function OperadoresTab({ canEdit, canRemove }) {
               </div>
 
               <div className="text-xs text-warm-400 mb-3">
-                Creado: {new Date(op.created_at).toLocaleDateString('es-MX')}
+                Creado: {fmtDate(op.created_at)}
               </div>
 
               {(canEdit || canRemove) && (

@@ -10,13 +10,13 @@ import MultiSelect from '../../../core/components/common/MultiSelect'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts'
 import * as XLSX from 'xlsx'
-import { fmtDate, fmtDateShort, fmtDateTime, getTodayMX, subtractDaysMX } from '../../../core/utils/dateFormat'
+import { fmtDate, fmtDateShort, fmtDateTime, getToday, subtractDays } from '../../../core/utils/dateFormat'
 
 export default function Reportes() {
   const { t } = useI18nStore()
   const { canWrite } = useAuthStore()
-  const today = getTodayMX()
-  const weekAgo = subtractDaysMX(today, 7)
+  const today = getToday()
+  const weekAgo = subtractDays(today, 7)
 
   const [fechaInicio, setFechaInicio] = useState(weekAgo)
   const [fechaFin, setFechaFin] = useState(today)
@@ -81,6 +81,18 @@ export default function Reportes() {
   })
   const activeCharts = CHART_OPTIONS.filter(c => visibleCharts[c.key])
 
+  // Dynamic grid: compute xl col-span for each chart by key
+  const chartIndexMap = Object.fromEntries(activeCharts.map((c, i) => [c.key, i]))
+  const getColSpan = (key) => {
+    const index = chartIndexMap[key]
+    const n = activeCharts.length
+    if (n === 1) return 'xl:col-span-6 sm:col-span-2'
+    const rem = n % 3
+    if (rem === 1 && index === n - 1) return 'xl:col-span-6 sm:col-span-2' // last alone → full
+    if (rem === 2 && index >= n - 2) return 'xl:col-span-3' // last two → 50%
+    return 'xl:col-span-2' // 33%
+  }
+
   const handleExport = async () => {
     setIsExporting(true)
     try {
@@ -93,53 +105,32 @@ export default function Reportes() {
 
       const wb = XLSX.utils.book_new()
 
-      // Sheet 1: Daily summary
-      if (porDia.length) {
-        const resumenData = [
-          [t('history.date'), t('dashboard.pallets'), t('dashboard.completedPallets'), t('dashboard.guides'), t('reports.avgTime')],
-          ...porDia.map(d => [
-            fmtDate(d.fecha),
-            d.tarimas,
-            d.completadas,
-            d.guias,
-            d.tiempo_promedio_min
-          ]),
-          [],
-          ['TOTALES', totales.tarimas, totales.completadas, totales.guias, '']
-        ]
-        const wsResumen = XLSX.utils.aoa_to_sheet(resumenData)
-        wsResumen['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 18 }]
-        XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
-      }
-
-      // Sheet 2: All guides detail
-      if (registros.length) {
-        const detalleData = [
-          ['Tarima', 'Empresa', 'Canal', 'Operador Tarima', 'Estado', 'Guías en Tarima', 'Inicio Tarima', 'Cierre Tarima', 'Duración (min)', 'Código Guía', 'Posición', 'Fecha Escaneo', 'Operador Escaneo'],
-          ...registros.map(r => [
-            r.tarima_codigo,
-            r.empresa,
-            r.canal,
-            r.operador,
-            r.estado,
-            r.cantidad_guias,
-            r.fecha_inicio ? fmtDateTime(r.fecha_inicio) : '',
-            r.fecha_cierre ? fmtDateTime(r.fecha_cierre) : '',
-            r.duracion_min || '',
-            r.codigo_guia || '',
-            r.posicion || '',
-            r.timestamp_escaneo ? fmtDateTime(r.timestamp_escaneo) : '',
-            r.operador_guia || ''
-          ])
-        ]
-        const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData)
-        wsDetalle['!cols'] = [
-          { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 12 },
-          { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 22 },
-          { wch: 10 }, { wch: 20 }, { wch: 20 }
-        ]
-        XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle Guías')
-      }
+      // Single sheet: All guides detail
+      const detalleData = [
+        ['Tarima', 'Empresa', 'Canal', 'Operador Tarima', 'Estado', 'Guías en Tarima', 'Inicio Tarima', 'Cierre Tarima', 'Duración (min)', 'Código Guía', 'Posición', 'Fecha Escaneo', 'Operador Escaneo'],
+        ...registros.map(r => [
+          r.tarima_codigo,
+          r.empresa,
+          r.canal,
+          r.operador,
+          r.estado,
+          r.cantidad_guias,
+          r.fecha_inicio ? fmtDateTime(r.fecha_inicio) : '',
+          r.fecha_cierre ? fmtDateTime(r.fecha_cierre) : '',
+          r.duracion_min || '',
+          r.codigo_guia || '',
+          r.posicion || '',
+          r.timestamp_escaneo ? fmtDateTime(r.timestamp_escaneo) : '',
+          r.operador_guia || ''
+        ])
+      ]
+      const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData)
+      wsDetalle['!cols'] = [
+        { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 12 },
+        { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 22 },
+        { wch: 10 }, { wch: 20 }, { wch: 20 }
+      ]
+      XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle Guías')
 
       XLSX.writeFile(wb, `reporte-dropscan-${fechaInicio}-${fechaFin}.xlsx`)
     } catch {
@@ -173,7 +164,7 @@ export default function Reportes() {
               {[
                 { l: 'Hoy', f: () => { setFechaInicio(today); setFechaFin(today) } },
                 { l: '7d', f: () => { setFechaInicio(weekAgo); setFechaFin(today) } },
-                { l: '30d', f: () => { setFechaInicio(subtractDaysMX(today, 30)); setFechaFin(today) } },
+                { l: '30d', f: () => { setFechaInicio(subtractDays(today, 30)); setFechaFin(today) } },
               ].map(({ l, f }) => (
                 <button key={l} onClick={f} className="px-2.5 py-1.5 text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 rounded-lg transition-colors">{l}</button>
               ))}
@@ -251,14 +242,13 @@ export default function Reportes() {
 
               {/* Charts */}
               {porDia.length > 0 && activeCharts.length > 0 && (
-                <div className={`grid gap-4 ${
-                  activeCharts.length === 1 ? 'grid-cols-1' :
-                  activeCharts.length === 2 ? 'grid-cols-2' :
-                  activeCharts.length >= 3 ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2'
-                }`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+                  {/* Dynamic chart layout uses 6-col grid:
+                      33% = col-span-2, 50% = col-span-3, 100% = col-span-6
+                      Remainder logic: n%3==0 → all 33%, n%3==1 → last full, n%3==2 → last two 50% */}
                   {/* Daily guides */}
                   {visibleCharts.dailyGuides && (
-                    <div className="card p-4">
+                    <div className={`card p-4 ${getColSpan('dailyGuides')}`}>
                       <h3 className="text-xs font-semibold text-warm-600 mb-2">{t('reports.dailyTrend')}</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={porDia} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -274,25 +264,25 @@ export default function Reportes() {
 
                   {/* Avg time trend */}
                   {visibleCharts.avgTime && (
-                    <div className="card p-4">
+                    <div className={`card p-4 ${getColSpan('avgTime')}`}>
                       <h3 className="text-xs font-semibold text-warm-600 mb-2">{t('reports.avgTime')}</h3>
                       <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={porDia.filter(d => d.tiempo_promedio_min > 0)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                        <BarChart data={porDia.filter(d => d.tiempo_promedio_min > 0)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                           <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDate(d)} />
                           <YAxis tick={{ fontSize: 9 }} unit="m" />
                           <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
                             labelFormatter={(d) => fmtDate(d)}
                             formatter={(v) => [`${v} min`, 'Tiempo promedio']} />
-                          <Line type="monotone" dataKey="tiempo_promedio_min" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name="Tiempo (min)" connectNulls />
-                        </LineChart>
+                          <Bar dataKey="tiempo_promedio_min" fill="#06b6d4" radius={[3, 3, 0, 0]} name="Tiempo (min)" />
+                        </BarChart>
                       </ResponsiveContainer>
                     </div>
                   )}
 
                   {/* Hourly productivity */}
                   {visibleCharts.hourlyProd && (
-                    <div className="card p-4 col-span-full">
+                    <div className={`card p-4 ${getColSpan('hourlyProd')}`}>
                       <h3 className="text-xs font-semibold text-warm-600 mb-1">Productividad por hora del día</h3>
                       <p className="text-[10px] text-warm-400 mb-3">Guías escaneadas acumuladas según la hora real de escaneo (CDMX) en el período seleccionado</p>
                       <ResponsiveContainer width="100%" height={200}>
@@ -324,7 +314,7 @@ export default function Reportes() {
 
                   {/* Empresa donut */}
                   {visibleCharts.byEmpresa && porEmpresa.length > 0 && (
-                    <div className="card p-4">
+                    <div className={`card p-4 ${getColSpan('byEmpresa')}`}>
                       <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Empresa</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
@@ -342,7 +332,7 @@ export default function Reportes() {
 
                   {/* Canal donut */}
                   {visibleCharts.byCanal && porCanal.length > 0 && (
-                    <div className="card p-4">
+                    <div className={`card p-4 ${getColSpan('byCanal')}`}>
                       <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Canal</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
@@ -360,7 +350,7 @@ export default function Reportes() {
 
                   {/* Por escaneador */}
                   {visibleCharts.byEscaneador && porEscaneador.length > 0 && (
-                    <div className={`card p-4 ${activeCharts.length <= 2 ? '' : 'xl:col-span-2'}`}>
+                    <div className={`card p-4 ${getColSpan('byEscaneador')}`}>
                       <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Escaneador</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={porEscaneador} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>

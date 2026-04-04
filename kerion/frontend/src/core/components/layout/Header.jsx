@@ -20,8 +20,9 @@ export default function Header({ title, subtitle, actions, showSearch = false })
   const [changePassError, setChangePassError] = useState('')
   const [changePassLoading, setChangePassLoading] = useState(false)
   const [changePassSuccess, setChangePassSuccess] = useState(false)
-  const { user, logout } = useAuthStore()
+  const { user, logout, updateTimezone } = useAuthStore()
   const { locale, setLocale, t } = useI18nStore()
+  const [savingTz, setSavingTz] = useState(false)
   const navigate = useNavigate()
   const menuRef = useRef(null)
 
@@ -326,12 +327,32 @@ export default function Header({ title, subtitle, actions, showSearch = false })
               </div>
               <p className="text-sm font-semibold text-warm-700">{locale === 'es' ? 'Español' : '中文'}</p>
             </div>
-            <div className="p-3 rounded-xl bg-warm-50">
-              <div className="flex items-center gap-2 text-warm-400 mb-1">
+            <div className="p-3 rounded-xl bg-warm-50 col-span-2">
+              <div className="flex items-center gap-2 text-warm-400 mb-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 <span className="text-[10px] uppercase tracking-wider font-bold">Zona horaria</span>
               </div>
-              <p className="text-sm font-semibold text-warm-700">America/Mexico_City</p>
+              <select
+                value={user?.zona_horaria || 'America/Mexico_City'}
+                disabled={savingTz}
+                onChange={async (e) => {
+                  setSavingTz(true)
+                  try { await updateTimezone(e.target.value) } catch {}
+                  setSavingTz(false)
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-warm-200 text-sm font-semibold text-warm-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white disabled:opacity-50 cursor-pointer"
+              >
+                {[
+                  'America/Mexico_City', 'America/Cancun', 'America/Chihuahua',
+                  'America/Hermosillo', 'America/Tijuana', 'America/Monterrey',
+                  'America/Bogota', 'America/Lima', 'America/Santiago',
+                  'America/Argentina/Buenos_Aires', 'America/New_York',
+                  'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+                  'America/Sao_Paulo', 'Europe/Madrid', 'Europe/London', 'UTC',
+                ].map(tz => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
             </div>
           </div>
 

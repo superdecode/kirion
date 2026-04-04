@@ -73,6 +73,7 @@ router.post('/login', async (req, res) => {
         rol_nombre: user.rol_nombre,
         permisos,
         avatar_url: user.avatar_url,
+        zona_horaria: user.zona_horaria || 'America/Mexico_City',
       }
     })
   } catch (error) {
@@ -112,6 +113,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       avatar_url: user.avatar_url,
       estado: user.estado,
       ultimo_acceso: user.ultimo_acceso,
+      zona_horaria: user.zona_horaria || 'America/Mexico_City',
     })
   } catch (error) {
     console.error('Auth/me error:', error)
@@ -147,6 +149,30 @@ router.post('/change-password', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Change password error:', error)
     res.status(500).json({ error: 'Error al cambiar contraseña' })
+  }
+})
+
+// PUT /api/auth/preferences
+router.put('/preferences', authenticateToken, async (req, res) => {
+  try {
+    const { zona_horaria } = req.body
+    if (!zona_horaria || typeof zona_horaria !== 'string') {
+      return res.status(400).json({ error: 'zona_horaria es requerida' })
+    }
+    // Validate timezone by trying to format with it
+    try {
+      new Intl.DateTimeFormat('en-CA', { timeZone: zona_horaria }).format(new Date())
+    } catch {
+      return res.status(400).json({ error: 'Zona horaria inválida' })
+    }
+    await query(
+      'UPDATE usuarios SET zona_horaria = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [zona_horaria, req.user.id]
+    )
+    res.json({ success: true, zona_horaria })
+  } catch (error) {
+    console.error('Preferences error:', error)
+    res.status(500).json({ error: 'Error actualizando preferencias' })
   }
 })
 

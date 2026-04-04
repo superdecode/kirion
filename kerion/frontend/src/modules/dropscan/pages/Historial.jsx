@@ -11,7 +11,7 @@ import { useAuthStore } from '../../../core/stores/authStore'
 import { useToastStore } from '../../../core/stores/toastStore'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
-import { fmtTime, fmtTimeShort, fmtDate, fmtDateTime } from '../../../core/utils/dateFormat'
+import { fmtTime, fmtTimeShort, fmtDate, fmtDateTime, getToday, subtractDays } from '../../../core/utils/dateFormat'
 import {
   ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
@@ -34,8 +34,8 @@ export default function Historial() {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [pageLimit, setPageLimit] = useState(100)
-  const defaultEnd = new Date().toISOString().slice(0, 10)
-  const defaultStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const defaultEnd = getToday()
+  const defaultStart = subtractDays(defaultEnd, 30)
 
   const [filters, setFilters] = useState({
     estados: searchParams.get('estado') ? [searchParams.get('estado')] : [],
@@ -48,6 +48,9 @@ export default function Historial() {
   const [selectedTarima, setSelectedTarima] = useState(null)
   const [deletingTarima, setDeletingTarima] = useState(null)
   const [editMode, setEditMode] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [exportingBulk, setExportingBulk] = useState(false)
   const [sortCol, setSortCol] = useState('fecha_inicio')
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
@@ -208,7 +211,7 @@ export default function Historial() {
       ].join('\n')
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = `historial_${new Date().toISOString().slice(0,10)}.csv`; a.click()
+      const a = document.createElement('a'); a.href = url; a.download = `historial_${getToday()}.csv`; a.click()
       toast.success(t('toast.success'))
     } catch { toast.error(t('toast.error')) }
   }
@@ -244,8 +247,49 @@ export default function Historial() {
       const ws = XLSX.utils.aoa_to_sheet(wsData)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Tarima')
-      XLSX.writeFile(wb, `tarima_${detail.codigo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      XLSX.writeFile(wb, `tarima_${detail.codigo}_${getToday()}.xlsx`)
     } catch { toast.error(t('toast.error')) }
+  }
+
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const toggleSelectAll = () => {
+    if (selectedIds.size === tarimas.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(tarimas.map(t => t.id)))
+  }
+
+  const handleBulkExport = async () => {
+    if (selectedIds.size === 0) return
+    setExportingBulk(true)
+    try {
+      const details = await Promise.all(
+        [...selectedIds].map(id => ds.getTarimaDetail(id))
+      )
+      const wb = XLSX.utils.book_new()
+      const rows = [['Tarima', 'Empresa', 'Canal', 'Operador', 'Estado', 'Guías', 'Inicio', 'Cierre', 'Duración (min)', 'Código Guía', 'Posición', 'Fecha Escaneo', 'Operador Escaneo']]
+      for (const d of details) {
+        const t = d.tarima
+        const guias = d.guias || []
+        if (guias.length === 0) {
+          rows.push([t.codigo, t.empresa_nombre, t.canal_nombre, t.operador_nombre, t.estado, t.cantidad_guias, t.fecha_inicio ? fmtDateTime(t.fecha_inicio) : '', t.fecha_cierre ? fmtDateTime(t.fecha_cierre) : '', t.tiempo_armado_segundos ? Math.round(t.tiempo_armado_segundos / 60) : '', '', '', '', ''])
+        } else {
+          for (const g of guias) {
+            rows.push([t.codigo, t.empresa_nombre, t.canal_nombre, t.operador_nombre, t.estado, t.cantidad_guias, t.fecha_inicio ? fmtDateTime(t.fecha_inicio) : '', t.fecha_cierre ? fmtDateTime(t.fecha_cierre) : '', t.tiempo_armado_segundos ? Math.round(t.tiempo_armado_segundos / 60) : '', g.codigo_guia, g.posicion, g.timestamp_escaneo ? fmtDateTime(g.timestamp_escaneo) : '', g.operador_nombre || ''])
+          }
+        }
+      }
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 8 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 20 }]
+      XLSX.utils.book_append_sheet(wb, ws, 'Tarimas')
+      XLSX.writeFile(wb, `historial_${getToday()}.xlsx`)
+      toast.success('Exportación completada')
+      setSelectMode(false)
+      setSelectedIds(new Set())
+    } catch { toast.error(t('toast.error')) }
+    setExportingBulk(false)
   }
 
   const detail = detailData?.tarima
@@ -277,8 +321,9 @@ export default function Historial() {
               { label: '30d', d: 30 },
             ].map(({ label, d }) => (
               <button key={label} onClick={() => {
-                const s = new Date(Date.now() - d * 86400000).toISOString().slice(0, 10)
-                setFilters(f => ({ ...f, fecha_inicio: s, fecha_fin: defaultEnd })); setPage(1)
+                const todayNow = getToday()
+                const s = d === 0 ? todayNow : subtractDays(todayNow, d)
+                setFilters(f => ({ ...f, fecha_inicio: s, fecha_fin: todayNow })); setPage(1)
               }} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors">{label}</button>
             ))}
             <div className="ml-auto flex items-center gap-2">
@@ -288,6 +333,30 @@ export default function Historial() {
                 </button>
               )}
               <span className="badge bg-warm-100 text-warm-500 text-[10px]">{pagination.total} {t('dashboard.pallets')}</span>
+              {canWrite('dropscan.historial') && !selectMode && (
+                <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200">
+                  <Download className="w-3.5 h-3.5" /> Exportar
+                </button>
+              )}
+              {selectMode && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-primary-600">{selectedIds.size} seleccionadas</span>
+                  <button onClick={toggleSelectAll}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg transition-colors">
+                    {selectedIds.size === tarimas.length ? 'Deseleccionar' : 'Seleccionar todas'}
+                  </button>
+                  <button onClick={handleBulkExport} disabled={selectedIds.size === 0 || exportingBulk}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200 disabled:opacity-50">
+                    {exportingBulk ? <div className="w-3 h-3 border-2 border-success-600 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    Exportar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+                  </button>
+                  <button onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }}
+                    className="p-1 text-warm-400 hover:text-warm-600 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           {/* Row 2: Multi-select filters */}
@@ -345,6 +414,12 @@ export default function Historial() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-warm-50 border-b border-warm-100">
+                        {selectMode && (
+                          <th className="table-header w-10 text-center">
+                            <input type="checkbox" checked={selectedIds.size === tarimas.length && tarimas.length > 0}
+                              onChange={toggleSelectAll} className="w-4 h-4 rounded border-warm-300 text-primary-600 focus:ring-primary-500 cursor-pointer" />
+                          </th>
+                        )}
                         <th className="table-header" onClick={() => handleSort('codigo')}>
                           <span className="flex items-center gap-1.5">{t('history.palletCode')} <SortIcon col="codigo" /></span>
                         </th>
@@ -371,7 +446,13 @@ export default function Historial() {
                     </thead>
                     <tbody className="divide-y divide-warm-50">
                       {tarimas.map(row => (
-                        <tr key={row.id} className="hover:bg-warm-50/50 transition-colors group">
+                        <tr key={row.id} className={`hover:bg-warm-50/50 transition-colors group ${selectMode && selectedIds.has(row.id) ? 'bg-primary-50/40' : ''}`}>
+                          {selectMode && (
+                            <td className="table-cell text-center">
+                              <input type="checkbox" checked={selectedIds.has(row.id)}
+                                onChange={() => toggleSelect(row.id)} className="w-4 h-4 rounded border-warm-300 text-primary-600 focus:ring-primary-500 cursor-pointer" />
+                            </td>
+                          )}
                           <td className="table-cell">
                             <span className="font-mono font-semibold text-warm-700">{row.codigo}</span>
                           </td>
