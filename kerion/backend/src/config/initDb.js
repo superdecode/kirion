@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   rol_id INTEGER REFERENCES roles(id) ON DELETE SET NULL,
   estado VARCHAR(20) DEFAULT 'ACTIVO' CHECK (estado IN ('ACTIVO', 'INACTIVO', 'SUSPENDIDO')),
   permisos_override JSONB,
+  zona_horaria VARCHAR(50) DEFAULT 'America/Mexico_City',
   avatar_url TEXT,
   ultimo_acceso TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

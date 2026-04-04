@@ -6,6 +6,7 @@ import Modal from '../common/Modal'
 import { useAuthStore } from '../../stores/authStore'
 import { useI18nStore } from '../../stores/i18nStore'
 import api from '../../services/api'
+import { useToastStore } from '../../stores/toastStore'
 import {
   Search, X, User, LogOut, Key, Settings, Globe, ChevronDown,
   Shield, Clock, Activity
@@ -337,7 +338,12 @@ export default function Header({ title, subtitle, actions, showSearch = false })
                 disabled={savingTz}
                 onChange={async (e) => {
                   setSavingTz(true)
-                  try { await updateTimezone(e.target.value) } catch {}
+                  try {
+                    await updateTimezone(e.target.value)
+                    useToastStore.getState().success('Zona horaria actualizada')
+                  } catch (err) {
+                    useToastStore.getState().error(err?.response?.data?.error || 'Error al guardar zona horaria')
+                  }
                   setSavingTz(false)
                 }}
                 className="w-full px-2.5 py-1.5 rounded-lg border border-warm-200 text-sm font-semibold text-warm-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white disabled:opacity-50 cursor-pointer"

@@ -27,7 +27,7 @@ router.get('/',
             COUNT(DISTINCT CASE WHEN t.estado = 'EN_PROCESO' THEN t.id END) as tarimas_en_proceso,
             COUNT(DISTINCT CASE WHEN t.estado = 'CANCELADA' THEN t.id END) as tarimas_canceladas,
             COALESCE(SUM(t.cantidad_guias), 0) as total_guias,
-            COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN t.tiempo_armado_segundos END), 0) as tiempo_promedio_seg
+            COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN COALESCE(t.tiempo_armado_segundos, EXTRACT(EPOCH FROM (t.fecha_cierre - t.fecha_inicio))::INTEGER) END), 0) as tiempo_promedio_seg
            FROM tarimas t WHERE ${dateWhere}`,
           dateParams
         ),

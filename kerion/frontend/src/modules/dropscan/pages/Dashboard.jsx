@@ -60,7 +60,7 @@ function getDateRange(preset) {
     }
     case 'last7': return { from: sub(6), to: today }
     case 'last30': return { from: sub(29), to: today }
-    default: return { from: fmt(today), to: fmt(today) }
+    default: return { from: today, to: today }
   }
 }
 
