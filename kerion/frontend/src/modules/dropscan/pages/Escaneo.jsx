@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -18,9 +18,33 @@ import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
   PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw,
-  Download, Pencil, Lock, ShieldAlert
+  Download, Pencil, Lock, ShieldAlert, Timer, Zap
 } from 'lucide-react'
 import { scoreTrackingCode } from '../utils/trackingValidator'
+import { useOfflineStore } from '../../../core/stores/offlineStore'
+
+/* ─── session timer hook ─────────────────────────────── */
+function useSessionTimer(sessionStartTime) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!sessionStartTime) { setElapsed(0); return }
+    const start = new Date(sessionStartTime).getTime()
+    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [sessionStartTime])
+  return elapsed
+}
+
+const fmtElapsed = (secs) => {
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`
+}
 
 /* ─── helpers ─────────────────────────────────────────── */
 const playSound = (type) => {
@@ -356,6 +380,24 @@ export default function Escaneo() {
   const performActualScan = useCallback(async (tabId, code) => {
     const tab = tabs.find(t => t.tabId === tabId)
     if (!tab) return
+
+    // Offline mode: queue locally and show optimistic feedback
+    const isOffline = useOfflineStore.getState().status === 'offline'
+    if (isOffline) {
+      useOfflineStore.getState().enqueue(tab.session.id, code, tab.tarima?.id)
+      if (soundEnabled) playSound('warning')
+      const nextPos = (tab.tarima?.cantidad_guias || 0) + 1
+      updateTab(tabId, {
+        tarima: tab.tarima ? { ...tab.tarima, cantidad_guias: nextPos } : tab.tarima,
+        guias: [{ id: `offline-${Date.now()}`, codigo_guia: code, posicion: nextPos, timestamp_escaneo: new Date().toISOString(), offline: true }, ...tab.guias],
+        lastScan: { type: 'success', code, pos: nextPos },
+        flashType: 'success',
+      })
+      toast.info(`Guardado offline: ${code}`)
+      setTimeout(() => updateTab(tabId, { flashType: null }), 500)
+      return
+    }
+
     try {
       const data = await ds.scanGuia(tab.session.id, code, tab.tarima?.id)
       if (soundEnabled) playSound('success')
@@ -530,6 +572,16 @@ export default function Escaneo() {
     qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
     toast.info(t('scan.sessionEnded'))
   }
+
+  /* ── session timer & live stats ──────────────────── */
+  const sessionElapsed = useSessionTimer(activeTab?.session?.fecha_inicio)
+  const scanRate = useMemo(() => {
+    if (!activeTab?.tarima) return 0
+    const mins = sessionElapsed / 60
+    if (mins < 0.5) return 0
+    const totalGuias = (activeTab.guiasCount || 0) + (activeTab.tarima?.cantidad_guias || 0)
+    return (totalGuias / mins).toFixed(1)
+  }, [sessionElapsed, activeTab?.guiasCount, activeTab?.tarima?.cantidad_guias])
 
   /* ── derived values for active tab ───────────────── */
   const tab = activeTab
@@ -784,7 +836,7 @@ export default function Escaneo() {
                 )}
 
                 {/* Per-tab counters */}
-                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t" style={{ borderColor: empresaColor + '25' }}>
+                <div className="grid grid-cols-4 gap-2 mt-2 pt-2 border-t" style={{ borderColor: empresaColor + '25' }}>
                   <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
                     <p className="text-lg font-extrabold text-warm-800 leading-none">{currentGuias}</p>
                     <p className="text-[9px] text-warm-400 uppercase tracking-wider font-bold leading-tight">{t('scan.totalGuides')}</p>
@@ -792,6 +844,20 @@ export default function Escaneo() {
                   <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
                     <p className="text-lg font-extrabold text-danger-500 leading-none">{tab.duplicados.length}</p>
                     <p className="text-[9px] text-warm-400 uppercase tracking-wider font-bold leading-tight">{t('scan.duplicates')}</p>
+                  </div>
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
+                    <Timer className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-warm-700 font-mono leading-none">{fmtElapsed(sessionElapsed)}</p>
+                      <p className="text-[8px] text-warm-400 uppercase tracking-wider font-bold">Tiempo</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/60">
+                    <Zap className="w-3.5 h-3.5 text-accent-500 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-warm-700 leading-none">{scanRate}<span className="text-[8px] text-warm-400 ml-0.5">/min</span></p>
+                      <p className="text-[8px] text-warm-400 uppercase tracking-wider font-bold">Ritmo</p>
+                    </div>
                   </div>
                 </div>
               </motion.div>

@@ -4,6 +4,7 @@ import { useAuthStore } from './core/stores/authStore'
 
 // Layout
 import MainLayout from './core/components/layout/MainLayout'
+import ErrorBoundary from './core/components/common/ErrorBoundary'
 
 // Auth
 import Login from './core/components/auth/Login'
@@ -69,28 +70,28 @@ function AppRoutes() {
         }
       >
         {/* Global — smart redirect if no dashboard access */}
-        <Route path="/" element={<SmartRedirect />} />
+        <Route path="/" element={<ErrorBoundary><SmartRedirect /></ErrorBoundary>} />
 
         {/* DropScan Module */}
         <Route path="/dropscan" element={
-          <PermissionRoute module="dropscan.dashboard"><DropScanDashboard /></PermissionRoute>
+          <PermissionRoute module="dropscan.dashboard"><ErrorBoundary><DropScanDashboard /></ErrorBoundary></PermissionRoute>
         } />
         <Route path="/dropscan/escaneo" element={
-          <PermissionRoute module="dropscan.escaneo"><Escaneo /></PermissionRoute>
+          <PermissionRoute module="dropscan.escaneo"><ErrorBoundary><Escaneo /></ErrorBoundary></PermissionRoute>
         } />
         <Route path="/dropscan/historial" element={
-          <PermissionRoute module="dropscan.historial"><Historial /></PermissionRoute>
+          <PermissionRoute module="dropscan.historial"><ErrorBoundary><Historial /></ErrorBoundary></PermissionRoute>
         } />
         <Route path="/dropscan/reportes" element={
-          <PermissionRoute module="dropscan.reportes"><Reportes /></PermissionRoute>
+          <PermissionRoute module="dropscan.reportes"><ErrorBoundary><Reportes /></ErrorBoundary></PermissionRoute>
         } />
         <Route path="/dropscan/configuracion" element={
-          <PermissionRoute module="dropscan.configuracion"><Configuracion /></PermissionRoute>
+          <PermissionRoute module="dropscan.configuracion"><ErrorBoundary><Configuracion /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* Administration (unified users + roles) */}
         <Route path="/admin" element={
-          <PermissionRoute module="global.administracion"><Administracion /></PermissionRoute>
+          <PermissionRoute module="global.administracion"><ErrorBoundary><Administracion /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* Catch-all */}
