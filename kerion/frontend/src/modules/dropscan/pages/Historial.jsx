@@ -201,7 +201,7 @@ export default function Historial() {
     setFilters({ estados: [], empresa_ids: [], canal_ids: [], escaneadores: [], fecha_inicio: defaultStart, fecha_fin: defaultEnd })
     setPage(1)
   }
-  const hasActiveFilters = filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneadores.length
+  const hasActiveFilters = !!(filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneadores.length)
 
   const handleExport = () => {
     try {
@@ -332,6 +332,7 @@ export default function Historial() {
                   <X className="w-3 h-3" />{t('common.clear')}
                 </button>
               )}
+              <span className="badge bg-primary-100 text-primary-600 text-[10px]">{tarimas.reduce((sum, t) => sum + (t.cantidad_guias || 0), 0)} {t('dashboard.guides')}</span>
               <span className="badge bg-warm-100 text-warm-500 text-[10px]">{pagination.total} {t('dashboard.pallets')}</span>
               {canWrite('dropscan.historial') && !selectMode && (
                 <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}

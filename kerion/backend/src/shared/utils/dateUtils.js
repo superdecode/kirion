@@ -20,11 +20,17 @@ export function getToday(tz = DEFAULT_TZ) {
 export const getTodayMX = () => getToday(DEFAULT_TZ)
 
 /**
- * SQL expression to cast a UTC timestamp column to a date in `tz`.
- * Example: `${dateInTZ('t.fecha_inicio', tz)} BETWEEN $1 AND $2`
+ * SQL expression to cast a UTC value stored in a TIMESTAMP (without tz)
+ * column to a DATE in the user's timezone.
+ *
+ * Because the columns are `TIMESTAMP` (not `TIMESTAMPTZ`), PostgreSQL
+ * doesn't know they hold UTC.  We must first declare them as UTC, then
+ * convert to the target timezone:
+ *   col AT TIME ZONE 'UTC'          → interprets as UTC → returns TIMESTAMPTZ
+ *   ... AT TIME ZONE 'user_tz'      → converts to local  → returns TIMESTAMP
  */
 export function dateInTZ(col, tz = DEFAULT_TZ) {
-  return `(${col} AT TIME ZONE '${tz}')::DATE`
+  return `(${col} AT TIME ZONE 'UTC' AT TIME ZONE '${tz}')::DATE`
 }
 
 /** @deprecated Use dateInTZ() instead */
@@ -34,7 +40,7 @@ export const dateMX = (col) => dateInTZ(col, DEFAULT_TZ)
  * SQL expression to extract hour (0-23) in the given timezone.
  */
 export function hourInTZ(col, tz = DEFAULT_TZ) {
-  return `EXTRACT(HOUR FROM (${col} AT TIME ZONE '${tz}'))`
+  return `EXTRACT(HOUR FROM (${col} AT TIME ZONE 'UTC' AT TIME ZONE '${tz}'))`
 }
 
 /** @deprecated Use hourInTZ() instead */
