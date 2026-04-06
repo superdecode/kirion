@@ -27,6 +27,19 @@ export const fmtTimeShort = (date) =>
 export const fmtDate = (date) =>
   new Date(date).toLocaleDateString(LOCALE, { timeZone: _tz, day: '2-digit', month: '2-digit', year: 'numeric' })
 
+/**
+ * Format a date string (YYYY-MM-DD) directly without timezone conversion.
+ * Use this for backend responses that already return dates in the user's timezone.
+ * Returns "DD/MM/YYYY"
+ */
+export const fmtDateString = (dateStr) => {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return dateStr
+  const [year, month, day] = parts
+  return `${day}/${month}/${year}`
+}
+
 /** "lun. 1 ene." */
 export const fmtDateShort = (date) =>
   new Date(date).toLocaleDateString(LOCALE, { timeZone: _tz, weekday: 'short', day: 'numeric', month: 'short' })

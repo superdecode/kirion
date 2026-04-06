@@ -10,7 +10,7 @@ import MultiSelect from '../../../core/components/common/MultiSelect'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts'
 import * as XLSX from 'xlsx'
-import { fmtDate, fmtDateShort, fmtDateTime, getToday, subtractDays } from '../../../core/utils/dateFormat'
+import { fmtDate, fmtDateShort, fmtDateTime, fmtDateString, getToday, subtractDays } from '../../../core/utils/dateFormat'
 
 export default function Reportes() {
   const { t } = useI18nStore()
@@ -253,7 +253,7 @@ export default function Reportes() {
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={porDia} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDate(d)} />
+                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDateString(d)} />
                           <YAxis tick={{ fontSize: 9 }} />
                           <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} labelFormatter={(d) => fmtDate(d)} />
                           <Bar dataKey="guias" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Guías" />
@@ -269,7 +269,7 @@ export default function Reportes() {
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={porDia.filter(d => d.tiempo_promedio_min > 0)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDate(d)} />
+                          <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDateString(d)} />
                           <YAxis tick={{ fontSize: 9 }} unit="m" />
                           <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
                             labelFormatter={(d) => fmtDate(d)}

@@ -349,14 +349,56 @@ export default function Header({ title, subtitle, actions, showSearch = false })
                 className="w-full px-2.5 py-1.5 rounded-lg border border-warm-200 text-sm font-semibold text-warm-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white disabled:opacity-50 cursor-pointer"
               >
                 {[
-                  'America/Mexico_City', 'America/Cancun', 'America/Chihuahua',
-                  'America/Hermosillo', 'America/Tijuana', 'America/Monterrey',
-                  'America/Bogota', 'America/Lima', 'America/Santiago',
-                  'America/Argentina/Buenos_Aires', 'America/New_York',
-                  'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-                  'America/Sao_Paulo', 'Europe/Madrid', 'Europe/London', 'UTC',
-                ].map(tz => (
-                  <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                  // América
+                  { tz: 'America/Vancouver', label: 'Vancouver (Canadá)' },
+                  { tz: 'America/Mexico_City', label: 'Mexico City (México)' },
+                  { tz: 'America/Cancun', label: 'Cancun (México)' },
+                  { tz: 'America/Tijuana', label: 'Tijuana (México)' },
+                  { tz: 'America/New_York', label: 'New York (USA)' },
+                  { tz: 'America/Los_Angeles', label: 'Los Angeles (USA)' },
+                  { tz: 'America/Bogota', label: 'Bogota (Colombia)' },
+                  { tz: 'America/Lima', label: 'Lima (Perú)' },
+                  { tz: 'America/Sao_Paulo', label: 'Sao Paulo (Brasil)' },
+                  { tz: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires (Argentina)' },
+                  { tz: 'America/Santiago', label: 'Santiago (Chile)' },
+                  // Europa
+                  { tz: 'Europe/London', label: 'Londres (UK)' },
+                  { tz: 'Europe/Paris', label: 'París (Francia)' },
+                  { tz: 'Europe/Berlin', label: 'Berlin (Alemania)' },
+                  { tz: 'Europe/Rome', label: 'Roma (Italia)' },
+                  { tz: 'Europe/Madrid', label: 'Madrid (España)' },
+                  { tz: 'Europe/Amsterdam', label: 'Amsterdam (Países Bajos)' },
+                  { tz: 'Europe/Istanbul', label: 'Istanbul (Turquía)' },
+                  { tz: 'Europe/Moscow', label: 'Moscow (Rusia)' },
+                  // África
+                  { tz: 'Africa/Cairo', label: 'El Cairo (Egipto)' },
+                  { tz: 'Africa/Lagos', label: 'Lagos (Nigeria)' },
+                  { tz: 'Africa/Johannesburg', label: 'Johannesburg (Sudáfrica)' },
+                  // Asia Oriente Próximo
+                  { tz: 'Asia/Dubai', label: 'Dubai (EAU)' },
+                  { tz: 'Asia/Karachi', label: 'Karachi (Pakistán)' },
+                  { tz: 'Asia/Kolkata', label: 'Kolkata (India)' },
+                  { tz: 'Asia/Dhaka', label: 'Dhaka (Bangladesh)' },
+                  { tz: 'Asia/Bangkok', label: 'Bangkok (Tailandia)' },
+                  // Asia Sudeste
+                  { tz: 'Asia/Singapore', label: 'Singapur' },
+                  { tz: 'Asia/Jakarta', label: 'Jakarta (Indonesia)' },
+                  { tz: 'Asia/Kuala_Lumpur', label: 'Kuala Lumpur (Malasia)' },
+                  { tz: 'Asia/Ho_Chi_Minh', label: 'Ho Chi Minh (Vietnam)' },
+                  { tz: 'Asia/Manila', label: 'Manila (Filipinas)' },
+                  // Asia Este
+                  { tz: 'Asia/Shanghai', label: 'Shanghai (China)' },
+                  { tz: 'Asia/Hong_Kong', label: 'Hong Kong' },
+                  { tz: 'Asia/Taipei', label: 'Taipei (Taiwán)' },
+                  { tz: 'Asia/Tokyo', label: 'Tokyo (Japón)' },
+                  { tz: 'Asia/Seoul', label: 'Seoul (Corea)' },
+                  // Oceanía
+                  { tz: 'Australia/Sydney', label: 'Sydney (Australia)' },
+                  { tz: 'Pacific/Auckland', label: 'Auckland (Nueva Zelanda)' },
+                  // UTC
+                  { tz: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+                ].map(item => (
+                  <option key={item.tz} value={item.tz}>{item.label}</option>
                 ))}
               </select>
             </div>
