@@ -28,14 +28,31 @@ export const fmtDate = (date) =>
   new Date(date).toLocaleDateString(LOCALE, { timeZone: _tz, day: '2-digit', month: '2-digit', year: 'numeric' })
 
 /**
- * Format a date string (YYYY-MM-DD) directly without timezone conversion.
+ * Format a date string that's already in the user's timezone (from backend).
+ * Handles: YYYY-MM-DD, ISO timestamps (2026-04-06T00:00:00Z), and Date objects.
+ * Returns "DD/MM/YYYY" without any timezone conversion.
+ *
  * Use this for backend responses that already return dates in the user's timezone.
- * Returns "DD/MM/YYYY"
  */
-export const fmtDateString = (dateStr) => {
-  if (!dateStr) return ''
+export const fmtDateString = (input) => {
+  if (!input) return ''
+
+  let dateStr = input
+
+  // If it's a Date object, convert to YYYY-MM-DD in local timezone
+  if (input instanceof Date) {
+    const y = input.getFullYear()
+    const m = String(input.getMonth() + 1).padStart(2, '0')
+    const d = String(input.getDate()).padStart(2, '0')
+    dateStr = `${y}-${m}-${d}`
+  } else {
+    // If it's a string, extract just the YYYY-MM-DD part (handle ISO timestamps)
+    dateStr = String(input).split('T')[0]
+  }
+
   const parts = dateStr.split('-')
-  if (parts.length !== 3) return dateStr
+  if (parts.length !== 3) return String(input)
+
   const [year, month, day] = parts
   return `${day}/${month}/${year}`
 }

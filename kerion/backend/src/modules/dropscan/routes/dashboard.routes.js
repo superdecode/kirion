@@ -120,7 +120,7 @@ router.get('/metrics',
       }
 
       const tz = req.fullUser?.zona_horaria || 'America/Mexico_City'
-      const where = [`${dateInTZ('t.fecha_inicio', tz)} BETWEEN $1 AND $2`]
+      const where = [`TO_CHAR(${dateInTZ('t.fecha_inicio', tz)}, 'YYYY-MM-DD') BETWEEN $1 AND $2`]
       const params = [fecha_inicio, fecha_fin]
       let pCount = 2
 
@@ -149,13 +149,13 @@ router.get('/metrics',
       const operadorWhereClause = whereClause
       const [dailyRes, totalRes, empresasRes, canalesRes, escaneadoresRes, hourlyRes] = await Promise.all([
         query(
-          `SELECT ${dateInTZ('t.fecha_inicio', tz)} as fecha,
+          `SELECT TO_CHAR(${dateInTZ('t.fecha_inicio', tz)}, 'YYYY-MM-DD') as fecha,
                   COUNT(DISTINCT t.id) as tarimas,
                   COALESCE(SUM(t.cantidad_guias), 0) as guias,
                   COUNT(DISTINCT CASE WHEN t.estado = 'FINALIZADA' THEN t.id END) as completadas,
                   COALESCE(AVG(CASE WHEN t.estado = 'FINALIZADA' THEN COALESCE(t.tiempo_armado_segundos, EXTRACT(EPOCH FROM (t.fecha_cierre - t.fecha_inicio))::INTEGER) END), 0) as tiempo_promedio
            FROM tarimas t WHERE ${whereClause}
-           GROUP BY ${dateInTZ('t.fecha_inicio', tz)} ORDER BY fecha`, params),
+           GROUP BY TO_CHAR(${dateInTZ('t.fecha_inicio', tz)}, 'YYYY-MM-DD') ORDER BY fecha`, params),
         query(
           `SELECT COUNT(DISTINCT t.id) as tarimas,
                   COALESCE(SUM(t.cantidad_guias), 0) as guias,
