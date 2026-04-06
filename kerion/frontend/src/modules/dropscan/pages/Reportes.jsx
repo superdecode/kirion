@@ -10,7 +10,7 @@ import MultiSelect from '../../../core/components/common/MultiSelect'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts'
 import * as XLSX from 'xlsx'
-import { fmtDate, fmtDateShort, fmtDateTime, fmtDateString, getToday, subtractDays } from '../../../core/utils/dateFormat'
+import { fmtDate, fmtDateShort, fmtDateTime, fmtDateString, fmtDateStringShort, getToday, subtractDays } from '../../../core/utils/dateFormat'
 
 export default function Reportes() {
   const { t } = useI18nStore()
@@ -162,11 +162,11 @@ export default function Reportes() {
               </div>
               {/* Quick presets */}
               {[
-                { l: 'Hoy', f: () => { setFechaInicio(today); setFechaFin(today) } },
-                { l: '7d', f: () => { setFechaInicio(weekAgo); setFechaFin(today) } },
-                { l: '30d', f: () => { setFechaInicio(subtractDays(today, 30)); setFechaFin(today) } },
-              ].map(({ l, f }) => (
-                <button key={l} onClick={f} className="px-2.5 py-1.5 text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 rounded-lg transition-colors">{l}</button>
+                { k: 'shortcut.today', f: () => { setFechaInicio(today); setFechaFin(today) } },
+                { k: 'shortcut.7days', f: () => { setFechaInicio(weekAgo); setFechaFin(today) } },
+                { k: 'shortcut.30days', f: () => { setFechaInicio(subtractDays(today, 30)); setFechaFin(today) } },
+              ].map(({ k, f }) => (
+                <button key={k} onClick={f} className="px-2.5 py-1.5 text-xs font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 rounded-lg transition-colors">{t(k)}</button>
               ))}
               {/* Empresa + Canal */}
               <MultiSelect icon={Building2} placeholder={t('history.company')}
@@ -431,7 +431,7 @@ export default function Reportes() {
                         {porDia.map(d => (
                           <tr key={d.fecha} className="hover:bg-primary-50/20 transition-colors">
                             <td className="px-4 py-3 text-warm-700">
-                              {fmtDateShort(d.fecha)}
+                              {fmtDateStringShort(d.fecha)}
                             </td>
                             <td className="px-4 py-3 text-center text-warm-600">{d.tarimas}</td>
                             <td className="px-4 py-3 text-center text-success-600 font-semibold">{d.completadas}</td>

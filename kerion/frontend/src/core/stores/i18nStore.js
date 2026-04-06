@@ -461,6 +461,34 @@ const translations = {
     'toast.info': '提示',
     'toast.networkError': '网络错误，请检查连接',
     'toast.serverError': '服务器错误，请稍后重试',
+
+    // Reports / 报表
+    'reports.title': '报表',
+    'reports.subtitle': 'DropScan · 数据分析与统计',
+    'reports.dailyTrend': '每日趋势',
+    'reports.dailyDetail': '每日详情',
+    'reports.avgTime': '平均时间',
+    'reports.totalPallets': '总托盘数',
+    'reports.byCompany': '按公司',
+    'reports.byChannel': '按通道',
+    'reports.byScanner': '按扫描员',
+    'reports.performance': '绩效',
+
+    // Shortcuts / 快捷方式
+    'shortcut.today': '今天',
+    'shortcut.7days': '7天',
+    'shortcut.30days': '30天',
+
+    // Profile / 个人资料
+    'profile.timezone': '时区',
+    'profile.assignedPermissions': '分配的权限',
+    'profile.pin': 'PIN',
+    'profile.language': '语言',
+
+    // Config / 配置
+    'config.edit': '编辑',
+    'config.delete': '删除',
+    'config.inCompanies': '在公司中',
   },
 
   es: {
@@ -920,6 +948,34 @@ const translations = {
     'dashboard.recentPallets': 'Tarimas Recientes',
     'dashboard.viewAll': 'Ver todo',
     'dashboard.noRecentPallets': 'Sin tarimas recientes',
+
+    // Reports / Reportes
+    'reports.title': 'Reportes',
+    'reports.subtitle': 'DropScan · Análisis de datos',
+    'reports.dailyTrend': 'Tendencia Diaria',
+    'reports.dailyDetail': 'Detalle Diario',
+    'reports.avgTime': 'Tiempo Promedio',
+    'reports.totalPallets': 'Total de Tarimas',
+    'reports.byCompany': 'Por Empresa',
+    'reports.byChannel': 'Por Canal',
+    'reports.byScanner': 'Por Escaneador',
+    'reports.performance': 'Rendimiento',
+
+    // Shortcuts / Atajos
+    'shortcut.today': 'Hoy',
+    'shortcut.7days': '7 Días',
+    'shortcut.30days': '30 Días',
+
+    // Profile / Perfil
+    'profile.timezone': 'Zona Horaria',
+    'profile.assignedPermissions': 'Permisos Asignados',
+    'profile.pin': 'PIN',
+    'profile.language': 'Idioma',
+
+    // Config / Configuración
+    'config.edit': 'Editar',
+    'config.delete': 'Eliminar',
+    'config.inCompanies': 'En Empresas',
   },
 }
 

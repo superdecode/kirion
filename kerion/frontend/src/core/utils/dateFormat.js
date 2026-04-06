@@ -57,6 +57,24 @@ export const fmtDateString = (input) => {
   return `${day}/${month}/${year}`
 }
 
+/**
+ * Format a date string as "lun. 6 abr" without timezone conversion.
+ * Useful for backend date strings already in user's timezone.
+ * Same format as fmtDateShort but without UTC conversion issues.
+ */
+export const fmtDateStringShort = (input) => {
+  if (!input) return ''
+
+  let dateStr = String(input).split('T')[0]  // Extract YYYY-MM-DD
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return String(input)
+
+  const [year, month, day] = parts
+  // Create a date at noon UTC to avoid day boundary issues
+  const date = new Date(`${year}-${month}-${String(day).padStart(2,'0')}T12:00:00Z`)
+  return date.toLocaleDateString(LOCALE, { timeZone: _tz, weekday: 'short', day: 'numeric', month: 'short' })
+}
+
 /** "lun. 1 ene." */
 export const fmtDateShort = (date) =>
   new Date(date).toLocaleDateString(LOCALE, { timeZone: _tz, weekday: 'short', day: 'numeric', month: 'short' })

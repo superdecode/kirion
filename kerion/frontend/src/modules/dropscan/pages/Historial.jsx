@@ -316,15 +316,15 @@ export default function Historial() {
                 className="text-xs outline-none bg-transparent text-warm-700 w-[110px]" />
             </div>
             {[
-              { label: 'Hoy', d: 0 },
-              { label: '7d', d: 7 },
-              { label: '30d', d: 30 },
-            ].map(({ label, d }) => (
-              <button key={label} onClick={() => {
+              { k: 'shortcut.today', d: 0 },
+              { k: 'shortcut.7days', d: 7 },
+              { k: 'shortcut.30days', d: 30 },
+            ].map(({ k, d }) => (
+              <button key={k} onClick={() => {
                 const todayNow = getToday()
                 const s = d === 0 ? todayNow : subtractDays(todayNow, d)
                 setFilters(f => ({ ...f, fecha_inicio: s, fecha_fin: todayNow })); setPage(1)
-              }} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors">{label}</button>
+              }} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors">{t(k)}</button>
             ))}
             <div className="ml-auto flex items-center gap-2">
               {hasActiveFilters && (
