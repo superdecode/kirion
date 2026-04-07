@@ -503,6 +503,59 @@ const translations = {
     'history.deleting': '删除中...',
     'history.deletePermamently': '永久删除',
     'history.forceClosed': '强制关闭 — 托盘在未完成 100 个面单前已手动关闭',
+
+    // Admin / 管理员
+    'admin.users': '用户',
+    'admin.roles': '角色',
+    'admin.email': '电子邮件',
+    'admin.code': '代码',
+    'admin.role': '角色',
+    'admin.status': '状态',
+    'admin.actions': '操作',
+    'admin.newUser': '新用户',
+    'admin.newRole': '新角色',
+    'admin.description': '描述',
+    'admin.userCount': '用户数',
+    'admin.permissions': '权限',
+    'admin.rolesNeeded': '需要至少 1 个角色',
+
+    // Filters / 过滤器
+    'filter.status': '状态',
+    'filter.scanner': '扫描员',
+    'filter.color': '颜色',
+
+    // Timezone / 时区
+    'timezone.vancouver': '温哥华（加拿大）',
+    'timezone.mexicoCity': '墨西哥城（墨西哥）',
+    'timezone.cancun': '坎昆（墨西哥）',
+    'timezone.tijuana': '蒂华纳（墨西哥）',
+    'timezone.newYork': '纽约（美国）',
+    'timezone.losAngeles': '洛杉矶（美国）',
+    'timezone.shanghai': '上海（中国）',
+    'timezone.tokyo': '东京（日本）',
+    'timezone.london': '伦敦（英国）',
+    'timezone.utc': '协调世界时',
+
+    // Export / 导出
+    'export.title': '导出',
+    'export.button': '导出',
+    'export.exporting': '导出中...',
+
+    // Permission Levels / 权限级别
+    'perm.sin_acceso': '无访问权限',
+    'perm.lectura': '只读',
+    'perm.escritura': '读/写',
+    'perm.gestion': '管理',
+    'perm.total': '管理员',
+
+    // Role Names / 角色名称
+    'role.administrador': '管理员',
+    'role.supervisor': '主管',
+    'role.jefe': '主任',
+    'role.gestion': '管理',
+    'role.operador': '操作员',
+    'role.auditor': '审计员',
+    'role.sinRol': '无角色',
   },
 
   es: {
@@ -1004,6 +1057,59 @@ const translations = {
     'history.deleting': 'Eliminando...',
     'history.deletePermamently': 'Eliminar permanentemente',
     'history.forceClosed': 'Cierre forzado — tarima cerrada manualmente antes de completar 100 guías',
+
+    // Admin / Administración
+    'admin.users': 'Usuarios',
+    'admin.roles': 'Roles',
+    'admin.email': 'Correo Electrónico',
+    'admin.code': 'Código',
+    'admin.role': 'Rol',
+    'admin.status': 'Estado',
+    'admin.actions': 'Acciones',
+    'admin.newUser': 'Nuevo Usuario',
+    'admin.newRole': 'Nuevo Rol',
+    'admin.description': 'Descripción',
+    'admin.userCount': 'Cantidad de Usuarios',
+    'admin.permissions': 'Permisos',
+    'admin.rolesNeeded': 'Se requiere al menos 1 rol',
+
+    // Filters / Filtros
+    'filter.status': 'Estado',
+    'filter.scanner': 'Escaneador',
+    'filter.color': 'Color',
+
+    // Timezone / Zona Horaria
+    'timezone.vancouver': 'Vancouver (Canadá)',
+    'timezone.mexicoCity': 'Ciudad de México (México)',
+    'timezone.cancun': 'Cancún (México)',
+    'timezone.tijuana': 'Tijuana (México)',
+    'timezone.newYork': 'Nueva York (EUA)',
+    'timezone.losAngeles': 'Los Ángeles (EUA)',
+    'timezone.shanghai': 'Shangái (China)',
+    'timezone.tokyo': 'Tokio (Japón)',
+    'timezone.london': 'Londres (Reino Unido)',
+    'timezone.utc': 'Tiempo Universal Coordinado',
+
+    // Export / Exportar
+    'export.title': 'Exportar',
+    'export.button': 'Exportar',
+    'export.exporting': 'Exportando...',
+
+    // Permission Levels / Niveles de Permiso
+    'perm.sin_acceso': 'Sin acceso',
+    'perm.lectura': 'Solo lectura',
+    'perm.escritura': 'Lectura/Escritura',
+    'perm.gestion': 'Gestión',
+    'perm.total': 'Administrador',
+
+    // Role Names / Nombres de Roles
+    'role.administrador': 'Administrador',
+    'role.supervisor': 'Supervisor',
+    'role.jefe': 'Jefe',
+    'role.gestion': 'Gestión',
+    'role.operador': 'Operador',
+    'role.auditor': 'Auditor',
+    'role.sinRol': 'Sin rol',
   },
 }
 
