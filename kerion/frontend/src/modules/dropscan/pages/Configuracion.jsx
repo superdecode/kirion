@@ -1040,7 +1040,7 @@ function OperadoresTab({ canEdit, canRemove }) {
     o.nombre.toLowerCase().includes(search.toLowerCase())
   )
 
-  if (isLoading) return <LoadingSpinner text="Cargando operadores..." />
+  if (isLoading) return <LoadingSpinner text={t('config.loadingOperators')} />
 
   return (
     <>
@@ -1056,7 +1056,7 @@ function OperadoresTab({ canEdit, canRemove }) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar escaneadores..."
+              placeholder={t('config.searchOperators')}
               className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-warm-200 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white"
             />
             {search && (
@@ -1100,7 +1100,7 @@ function OperadoresTab({ canEdit, canRemove }) {
 
               <div className="flex items-center justify-between mb-3">
                 <span className={`text-xs font-semibold ${op.activo ? 'text-success-600' : 'text-warm-400'}`}>
-                  {op.activo ? 'Activo' : 'Inactivo'}
+                  {op.activo ? t('common.active') : t('common.inactive')}
                 </span>
                 {canEdit && (
                   <button
@@ -1116,7 +1116,7 @@ function OperadoresTab({ canEdit, canRemove }) {
               </div>
 
               <div className="text-xs text-warm-400 mb-3">
-                Creado: {fmtDate(op.created_at)}
+                {t('common.created')}: {fmtDate(op.created_at)}
               </div>
 
               {(canEdit || canRemove) && (
@@ -1126,7 +1126,7 @@ function OperadoresTab({ canEdit, canRemove }) {
                       onClick={() => { setEditingOp(op); setShowModal(true) }}
                       className="flex-1 p-2 rounded-xl hover:bg-primary-50 text-warm-500 hover:text-primary-600 transition-all text-sm font-medium"
                     >
-                      <Edit3 className="w-4 h-4 inline mr-1" /> Editar
+                      <Edit3 className="w-4 h-4 inline mr-1" /> {t('common.edit')}
                     </button>
                   )}
                   {canEdit && (
@@ -1142,7 +1142,7 @@ function OperadoresTab({ canEdit, canRemove }) {
                       onClick={() => handleDelete(op)}
                       className="flex-1 p-2 rounded-xl hover:bg-danger-50 text-warm-500 hover:text-danger-500 transition-all text-sm font-medium"
                     >
-                      <Trash2 className="w-4 h-4 inline mr-1" /> Eliminar
+                      <Trash2 className="w-4 h-4 inline mr-1" /> {t('common.delete')}
                     </button>
                   )}
                 </div>
@@ -1154,7 +1154,7 @@ function OperadoresTab({ canEdit, canRemove }) {
             <div className="col-span-full card p-16 text-center">
               <Users className="w-12 h-12 text-warm-300 mx-auto mb-3" />
               <p className="text-sm text-warm-400">
-                {search ? 'No se encontraron escaneadores' : t('config.noOperators')}
+                {search ? t('common.noResults') : t('config.noOperators')}
               </p>
             </div>
           )}

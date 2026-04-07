@@ -50,6 +50,9 @@ const translations = {
     'common.name': '名称',
     'common.description': '描述',
     'common.code': '编码',
+    'common.created': '创建时间',
+    'common.language': '语言',
+    'common.timezone': '时区',
 
     // Auth / 认证
     'auth.login': '登录',
@@ -335,6 +338,8 @@ const translations = {
     // Internal Operators (Escaneadores) / 扫描员
     'config.internalUsers': '扫描员',
     'config.internalUsersDesc': '管理扫描模块的内部扫描员',
+    'config.loadingOperators': '加载扫描员...',
+    'config.searchOperators': '搜索扫描员...',
     'config.newOperator': '新建扫描员',
     'config.editOperator': '编辑扫描员',
     'config.operatorName': '扫描员姓名',
@@ -484,6 +489,10 @@ const translations = {
     'profile.assignedPermissions': '分配的权限',
     'profile.pin': 'PIN',
     'profile.language': '语言',
+    'profile.code': '编码',
+    'profile.status': '状态',
+    'profile.timezoneUpdated': '时区已更新',
+    'profile.timezoneUpdateError': '时区更新失败',
 
     // Config / 配置
     'config.edit': '编辑',

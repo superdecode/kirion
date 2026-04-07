@@ -310,28 +310,28 @@ export default function Header({ title, subtitle, actions, showSearch = false })
             <div className="p-3 rounded-xl bg-warm-50">
               <div className="flex items-center gap-2 text-warm-400 mb-1">
                 <Shield className="w-3.5 h-3.5" />
-                <span className="text-[10px] uppercase tracking-wider font-bold">Código</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold">{t('profile.code')}</span>
               </div>
               <p className="text-sm font-semibold text-warm-700">{user?.codigo || '—'}</p>
             </div>
             <div className="p-3 rounded-xl bg-warm-50">
               <div className="flex items-center gap-2 text-warm-400 mb-1">
                 <Activity className="w-3.5 h-3.5" />
-                <span className="text-[10px] uppercase tracking-wider font-bold">Estado</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold">{t('profile.status')}</span>
               </div>
-              <p className="text-sm font-semibold text-success-600">Activo</p>
+              <p className="text-sm font-semibold text-success-600">{t('common.active')}</p>
             </div>
             <div className="p-3 rounded-xl bg-warm-50">
               <div className="flex items-center gap-2 text-warm-400 mb-1">
                 <Globe className="w-3.5 h-3.5" />
-                <span className="text-[10px] uppercase tracking-wider font-bold">Idioma</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold">{t('profile.language')}</span>
               </div>
               <p className="text-sm font-semibold text-warm-700">{locale === 'es' ? 'Español' : '中文'}</p>
             </div>
             <div className="p-3 rounded-xl bg-warm-50 col-span-2">
               <div className="flex items-center gap-2 text-warm-400 mb-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                <span className="text-[10px] uppercase tracking-wider font-bold">Zona horaria</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold">{t('profile.timezone')}</span>
               </div>
               <select
                 value={user?.zona_horaria || 'America/Mexico_City'}
@@ -340,9 +340,9 @@ export default function Header({ title, subtitle, actions, showSearch = false })
                   setSavingTz(true)
                   try {
                     await updateTimezone(e.target.value)
-                    useToastStore.getState().success('Zona horaria actualizada')
+                    useToastStore.getState().success(t('profile.timezoneUpdated'))
                   } catch (err) {
-                    useToastStore.getState().error(err?.response?.data?.error || 'Error al guardar zona horaria')
+                    useToastStore.getState().error(err?.response?.data?.error || t('profile.timezoneUpdateError'))
                   }
                   setSavingTz(false)
                 }}
