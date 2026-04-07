@@ -136,11 +136,11 @@ router.get('/metrics',
         const names = escaneador.split(',').map(n => n.trim()).filter(Boolean)
         if (names.length === 1) {
           pCount++
-          where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo ILIKE $${pCount})`)
+          where.push(`EXISTS (SELECT 1 FROM guias g2 LEFT JOIN usuarios ue ON g2.operador_id = ue.id WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) ILIKE $${pCount})`)
           params.push(`%${names[0]}%`)
         } else if (names.length > 1) {
           pCount++
-          where.push(`EXISTS (SELECT 1 FROM usuarios ue WHERE ue.id = t.operador_id AND ue.nombre_completo = ANY($${pCount}))`)
+          where.push(`EXISTS (SELECT 1 FROM guias g2 LEFT JOIN usuarios ue ON g2.operador_id = ue.id WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) = ANY($${pCount}))`)
           params.push(names)
         }
       }
