@@ -15,7 +15,7 @@ import { fmtTime, fmtTimeShort, fmtDate, fmtDateTime, getToday, subtractDays } f
 import {
   ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
-  RotateCcw, AlertTriangle, Copy, Pencil, Building2, Radio, Lock
+  RotateCcw, AlertTriangle, Copy, Pencil, Building2, Radio, Lock, Plus
 } from 'lucide-react'
 
 const calcDuration = (tarima) => {
@@ -54,6 +54,7 @@ export default function Historial() {
   const [sortCol, setSortCol] = useState('fecha_inicio')
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
+  const [newGuiaCode, setNewGuiaCode] = useState('')
   const { canDelete, canWrite, user } = useAuthStore()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
@@ -150,6 +151,23 @@ export default function Historial() {
       qc.invalidateQueries({ queryKey: ['dropscan-tarimas'] })
     },
     onError: (err) => toast.error(err.response?.data?.error || t('toast.error'))
+  })
+
+  const addGuiaMutation = useMutation({
+    mutationFn: ({ tarimaId, codigo_guia }) => ds.addGuiaToTarima(tarimaId, codigo_guia),
+    onSuccess: (data) => {
+      toast.success('Guía agregada correctamente')
+      setNewGuiaCode('')
+      qc.invalidateQueries({ queryKey: ['dropscan-tarima-detail', selectedTarima] })
+      qc.invalidateQueries({ queryKey: ['dropscan-tarimas'] })
+    },
+    onError: (err) => {
+      if (err.response?.data?.error === 'DUPLICADO') {
+        toast.error('Esta guía ya está registrada en esta tarima')
+      } else {
+        toast.error(err.response?.data?.error || t('toast.error'))
+      }
+    }
   })
 
   const reopenMutation = useMutation({
@@ -569,14 +587,7 @@ export default function Historial() {
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
                   editMode ? 'bg-warning-100 text-warning-700 hover:bg-warning-200' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
                 }`}>
-                <Pencil className="w-4 h-4" /> {editMode ? 'Finalizar edición' : 'Editar'}
-              </button>
-            )}
-            {detail.estado === 'FINALIZADA' && canReopen && (
-              <button onClick={() => reopenMutation.mutate(detail.id)}
-                disabled={reopenMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-warm-50 text-warm-700 rounded-xl hover:bg-warm-100 font-semibold transition-all disabled:opacity-50">
-                <RotateCcw className="w-4 h-4" /> {t('history.reopen')}
+                <Pencil className="w-4 h-4" /> {editMode ? t('common.close') : 'Editar'}
               </button>
             )}
           </>
@@ -691,6 +702,35 @@ export default function Historial() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {/* Add guide section (edit mode only) */}
+                {editMode && canDelete('dropscan.historial') && (
+                  <div className="mt-5 p-4 rounded-xl bg-primary-50 border border-primary-200">
+                    <p className="text-xs font-bold text-primary-700 mb-3 uppercase tracking-wider">{t('history.addNewGuide')}</p>
+                    <form onSubmit={(e) => {
+                      e.preventDefault()
+                      if (newGuiaCode.trim()) {
+                        addGuiaMutation.mutate({ tarimaId: detail.id, codigo_guia: newGuiaCode.trim() })
+                      }
+                    }} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newGuiaCode}
+                        onChange={(e) => setNewGuiaCode(e.target.value)}
+                        placeholder={t('history.guideCode')}
+                        disabled={addGuiaMutation.isPending}
+                        className="flex-1 px-3 py-2 text-sm bg-white border border-primary-200 rounded-lg outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 disabled:opacity-50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={addGuiaMutation.isPending || !newGuiaCode.trim()}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <Plus className="w-4 h-4" />
+                        <span className="hidden sm:inline">{t('history.addGuide')}</span>
+                      </button>
+                    </form>
                   </div>
                 )}
               </div>

@@ -274,6 +274,79 @@ router.get('/:id/duplicados',
   }
 )
 
+// POST /api/dropscan/tarimas/:tarimaId/guias (add a guide to existing tarima)
+router.post('/:tarimaId/guias',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.historial', 'gestion'),
+  async (req, res) => {
+    try {
+      const { tarimaId } = req.params
+      const { codigo_guia } = req.body
+
+      if (!codigo_guia || typeof codigo_guia !== 'string') {
+        return res.status(400).json({ error: 'codigo_guia requerido' })
+      }
+
+      // Verify tarima exists
+      const tarimaRes = await query(
+        'SELECT id, cantidad_guias FROM tarimas WHERE id = $1',
+        [tarimaId]
+      )
+      if (tarimaRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Tarima no encontrada' })
+      }
+
+      // Check for duplicates
+      const dupRes = await query(
+        'SELECT id FROM guias WHERE tarima_id = $1 AND codigo_guia = $2',
+        [tarimaId, codigo_guia]
+      )
+      if (dupRes.rows.length > 0) {
+        return res.status(400).json({ error: 'DUPLICADO', message: 'Esta guía ya está registrada en esta tarima' })
+      }
+
+      // Get next position
+      const posRes = await query(
+        'SELECT MAX(CAST(posicion AS INTEGER)) as max_pos FROM guias WHERE tarima_id = $1',
+        [tarimaId]
+      )
+      const nextPos = (parseInt(posRes.rows[0]?.max_pos || 0) || 0) + 1
+
+      // Insert new guide
+      const guiaRes = await query(
+        `INSERT INTO guias (tarima_id, codigo_guia, posicion, operador_id, timestamp_escaneo)
+         VALUES ($1, $2, $3, $4, NOW())
+         RETURNING id, codigo_guia, posicion, timestamp_escaneo, operador_id`,
+        [tarimaId, codigo_guia, nextPos, req.fullUser.id]
+      )
+      const newGuia = guiaRes.rows[0]
+
+      // Update guide count (but don't touch fecha_cierre or tiempo_armado)
+      const newCount = (parseInt(tarimaRes.rows[0].cantidad_guias) || 0) + 1
+      await query('UPDATE tarimas SET cantidad_guias = $1 WHERE id = $2', [newCount, tarimaId])
+
+      // Return new guide with operator name
+      const operRes = await query('SELECT nombre_completo FROM usuarios WHERE id = $1', [req.fullUser.id])
+      const operadorNombre = operRes.rows[0]?.nombre_completo || req.fullUser.nombre_completo || 'Desconocido'
+
+      res.json({
+        success: true,
+        guia: {
+          id: newGuia.id,
+          codigo_guia: newGuia.codigo_guia,
+          posicion: newGuia.posicion,
+          timestamp_escaneo: newGuia.timestamp_escaneo,
+          operador_nombre: operadorNombre,
+        },
+        cantidad_guias: newCount,
+      })
+    } catch (error) {
+      console.error('Add guia to tarima error:', error)
+      res.status(500).json({ error: 'Error agregando guía' })
+    }
+  }
+)
+
 // DELETE /api/dropscan/tarimas/:tarimaId/guias/:guiaId
 router.delete('/:tarimaId/guias/:guiaId',
   authenticateToken, loadFullUser,

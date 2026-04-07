@@ -489,6 +489,12 @@ const translations = {
     'config.edit': '编辑',
     'config.delete': '删除',
     'config.inCompanies': '在公司中',
+
+    // History / 历史
+    'history.addNewGuide': '添加新面单',
+    'history.guideCode': '面单编码',
+    'history.addGuide': '添加',
+    'history.guideAdded': '面单添加成功',
   },
 
   es: {
@@ -976,6 +982,12 @@ const translations = {
     'config.edit': 'Editar',
     'config.delete': 'Eliminar',
     'config.inCompanies': 'En Empresas',
+
+    // History / Historial
+    'history.addNewGuide': 'Agregar nueva guía',
+    'history.guideCode': 'Código de guía',
+    'history.addGuide': 'Agregar',
+    'history.guideAdded': 'Guía agregada correctamente',
   },
 }
 
