@@ -495,6 +495,14 @@ const translations = {
     'history.guideCode': '面单编码',
     'history.addGuide': '添加',
     'history.guideAdded': '面单添加成功',
+    'history.finalize': '关闭',
+    'history.edit': '编辑',
+    'history.delete': '删除',
+    'history.deletePallet': '删除托盘',
+    'history.deleteConfirm': '确定要永久删除这个托盘吗？',
+    'history.deleting': '删除中...',
+    'history.deletePermamently': '永久删除',
+    'history.forceClosed': '强制关闭 — 托盘在未完成 100 个面单前已手动关闭',
   },
 
   es: {
@@ -988,6 +996,14 @@ const translations = {
     'history.guideCode': 'Código de guía',
     'history.addGuide': 'Agregar',
     'history.guideAdded': 'Guía agregada correctamente',
+    'history.finalize': 'Finalizar',
+    'history.edit': 'Editar',
+    'history.delete': 'Eliminar',
+    'history.deletePallet': 'Eliminar Tarima',
+    'history.deleteConfirm': '¿Eliminar esta tarima permanentemente?',
+    'history.deleting': 'Eliminando...',
+    'history.deletePermamently': 'Eliminar permanentemente',
+    'history.forceClosed': 'Cierre forzado — tarima cerrada manualmente antes de completar 100 guías',
   },
 }
 
