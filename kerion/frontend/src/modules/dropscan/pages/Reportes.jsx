@@ -60,12 +60,12 @@ export default function Reportes() {
 
   // Chart visibility selector
   const CHART_OPTIONS = [
-    { key: 'dailyGuides', label: 'Guías diarias' },
-    { key: 'avgTime', label: 'Tiempo promedio' },
-    { key: 'hourlyProd', label: 'Productividad por hora' },
-    { key: 'byEmpresa', label: 'Por empresa' },
-    { key: 'byCanal', label: 'Por canal' },
-    { key: 'byEscaneador', label: 'Por escaneador' },
+    { key: 'dailyGuides', label: 'reports.dailyGuides' },
+    { key: 'avgTime', label: 'reports.avgTime' },
+    { key: 'hourlyProd', label: 'reports.dailyTrend' },
+    { key: 'byEmpresa', label: 'reports.byCompany' },
+    { key: 'byCanal', label: 'reports.byChannel' },
+    { key: 'byEscaneador', label: 'reports.byScanner' },
   ]
   const CHART_DEFAULTS = { dailyGuides: true, avgTime: true, hourlyProd: true, byEmpresa: true, byCanal: true, byEscaneador: true }
   const [visibleCharts, setVisibleCharts] = useState(() => {
@@ -175,7 +175,7 @@ export default function Reportes() {
               <MultiSelect icon={Radio} placeholder={t('history.channel')}
                 options={canales.map(c => ({ value: c.id, label: c.nombre }))}
                 selected={canalFilter} onChange={setCanalFilter} />
-              <MultiSelect icon={User} placeholder="Escaneador"
+              <MultiSelect icon={User} placeholder={t('reports.scanner')}
                 options={escaneadoresOpts}
                 selected={escaneadorFilter} onChange={setEscaneadorFilter} />
               <div className="ml-auto flex items-center gap-2">
@@ -195,7 +195,7 @@ export default function Reportes() {
                         }`}>
                           {visibleCharts[opt.key] && <span className="text-white text-[8px] font-bold">✓</span>}
                         </div>
-                        {opt.label}
+                        {t(opt.label)}
                       </button>
                     ))}
                   </div>
@@ -204,7 +204,7 @@ export default function Reportes() {
                   <button onClick={handleExport} disabled={!porDia.length || isExporting}
                     className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-xl transition-colors border border-success-200 disabled:opacity-50">
                     {isExporting ? <div className="w-3.5 h-3.5 border-2 border-success-600 border-t-transparent rounded-full animate-spin" />
-                      : <Download className="w-3.5 h-3.5" />} Exportar
+                      : <Download className="w-3.5 h-3.5" />} {t('common.export')}
                   </button>
                 )}
               </div>
@@ -256,7 +256,7 @@ export default function Reportes() {
                           <XAxis dataKey="fecha" tick={{ fontSize: 9 }} tickFormatter={(d) => fmtDateString(d)} />
                           <YAxis tick={{ fontSize: 9 }} />
                           <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} labelFormatter={(d) => fmtDate(d)} />
-                          <Bar dataKey="guias" fill="#8b5cf6" radius={[3, 3, 0, 0]} name="Guías" />
+                          <Bar dataKey="guias" fill="#8b5cf6" radius={[3, 3, 0, 0]} name={t('dashboard.guides')} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -273,7 +273,7 @@ export default function Reportes() {
                           <YAxis tick={{ fontSize: 9 }} unit="m" />
                           <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
                             labelFormatter={(d) => fmtDate(d)}
-                            formatter={(v) => [`${v} min`, 'Tiempo promedio']} />
+                            formatter={(v) => [`${v} min`, t('reports.avgTime')]} />
                           <Bar dataKey="tiempo_promedio_min" fill="#06b6d4" radius={[3, 3, 0, 0]} name="Tiempo (min)" />
                         </BarChart>
                       </ResponsiveContainer>
@@ -283,8 +283,8 @@ export default function Reportes() {
                   {/* Hourly productivity */}
                   {visibleCharts.hourlyProd && (
                     <div className={`card p-4 ${getColSpan('hourlyProd')}`}>
-                      <h3 className="text-xs font-semibold text-warm-600 mb-1">Productividad por hora del día</h3>
-                      <p className="text-[10px] text-warm-400 mb-3">Guías escaneadas acumuladas según la hora real de escaneo (CDMX) en el período seleccionado</p>
+                      <h3 className="text-xs font-semibold text-warm-600 mb-1">{t('reports.hourlyProductivity')}</h3>
+                      <p className="text-[10px] text-warm-400 mb-3">{t('reports.hourlyProductivityDesc')}</p>
                       <ResponsiveContainer width="100%" height={200}>
                         <AreaChart data={porHora} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                           <defs>
@@ -304,9 +304,9 @@ export default function Reportes() {
                           <Tooltip
                             contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
                             labelFormatter={(h) => `${String(h).padStart(2,'0')}:00 – ${String(h+1).padStart(2,'0')}:00 hrs`}
-                            formatter={(v) => [v, 'Guías']}
+                            formatter={(v) => [v, t('dashboard.guides')]}
                           />
-                          <Area type="monotone" dataKey="cantidad" stroke="#8b5cf6" strokeWidth={2} fill="url(#horaGrad)" name="Guías" dot={false} />
+                          <Area type="monotone" dataKey="cantidad" stroke="#8b5cf6" strokeWidth={2} fill="url(#horaGrad)" name={t('dashboard.guides')} dot={false} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -315,7 +315,7 @@ export default function Reportes() {
                   {/* Empresa donut */}
                   {visibleCharts.byEmpresa && porEmpresa.length > 0 && (
                     <div className={`card p-4 ${getColSpan('byEmpresa')}`}>
-                      <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Empresa</h3>
+                      <h3 className="text-xs font-semibold text-warm-600 mb-2">{t('reports.byCompany')}</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
                           <Pie data={porEmpresa} dataKey="guias" nameKey="empresa" cx="50%" cy="45%" innerRadius={48} outerRadius={75} paddingAngle={3} strokeWidth={0}>
@@ -333,7 +333,7 @@ export default function Reportes() {
                   {/* Canal donut */}
                   {visibleCharts.byCanal && porCanal.length > 0 && (
                     <div className={`card p-4 ${getColSpan('byCanal')}`}>
-                      <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Canal</h3>
+                      <h3 className="text-xs font-semibold text-warm-600 mb-2">{t('reports.byChannel')}</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
                           <Pie data={porCanal} dataKey="guias" nameKey="canal" cx="50%" cy="45%" innerRadius={48} outerRadius={75} paddingAngle={3} strokeWidth={0}>
@@ -351,7 +351,7 @@ export default function Reportes() {
                   {/* Por escaneador */}
                   {visibleCharts.byEscaneador && porEscaneador.length > 0 && (
                     <div className={`card p-4 ${getColSpan('byEscaneador')}`}>
-                      <h3 className="text-xs font-semibold text-warm-600 mb-2">Por Escaneador</h3>
+                      <h3 className="text-xs font-semibold text-warm-600 mb-2">{t('reports.byScanner')}</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={porEscaneador} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
@@ -359,7 +359,7 @@ export default function Reportes() {
                           <YAxis type="category" dataKey="escaneador" tick={{ fontSize: 9 }} width={90} />
                           <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
                             formatter={(v) => [`${v} guías`, 'Guías']} />
-                          <Bar dataKey="guias" fill="#10b981" radius={[0, 3, 3, 0]} name="Guías" />
+                          <Bar dataKey="guias" fill="#10b981" radius={[0, 3, 3, 0]} name={t('dashboard.guides')} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -372,17 +372,17 @@ export default function Reportes() {
                 <div className="card overflow-hidden">
                   <div className="px-5 py-3 border-b border-warm-100/60 bg-gradient-to-r from-warm-50 to-primary-50/40">
                     <h3 className="text-sm font-semibold text-warm-700 flex items-center gap-2">
-                      <User className="w-4 h-4 text-warm-400" /> Por Escaneador
+                      <User className="w-4 h-4 text-warm-400" /> {t('reports.byScanner')}
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gradient-to-r from-warm-50 to-primary-50/40 border-b border-warm-200">
-                          <th className="text-left px-4 py-3 font-bold text-warm-600">Escaneador</th>
+                          <th className="text-left px-4 py-3 font-bold text-warm-600">{t('reports.scanner')}</th>
                           <th className="text-center px-4 py-3 font-bold text-warm-600">{t('dashboard.pallets')}</th>
                           <th className="text-center px-4 py-3 font-bold text-warm-600">{t('dashboard.guides')}</th>
-                          <th className="px-4 py-3 font-bold text-warm-600 w-40">Rendimiento</th>
+                          <th className="px-4 py-3 font-bold text-warm-600 w-40">{t('reports.performance')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
