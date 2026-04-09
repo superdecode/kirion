@@ -35,7 +35,7 @@ export default function Modal({ isOpen, onClose, title, icon: Icon, children, si
       {isOpen && (
         <motion.div
           ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === overlayRef.current && !preventBackdropClose) onClose() }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

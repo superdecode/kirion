@@ -274,8 +274,11 @@ export default function Escaneo() {
   }, [activeTabId, activeTab?.session])
 
   /* ── tab state helpers ─────────────────────────────── */
-  const updateTab = useCallback((tabId, patch) => {
-    setTabs(prev => prev.map(t => t.tabId === tabId ? { ...t, ...patch } : t))
+  const updateTab = useCallback((tabId, patchOrFn) => {
+    setTabs(prev => prev.map(t => t.tabId === tabId
+      ? { ...t, ...(typeof patchOrFn === 'function' ? patchOrFn(t) : patchOrFn) }
+      : t
+    ))
   }, [])
 
   const removeTab = useCallback((tabId) => {
@@ -402,24 +405,26 @@ export default function Escaneo() {
       const data = await ds.scanGuia(tab.session.id, code, tab.tarima?.id)
       if (soundEnabled) playSound('success')
       if (data.tarima_completada) {
-        const completedCount = (data.tarima?.cantidad_guias || (tab.tarima?.cantidad_guias || 0) + 1)
-        updateTab(tabId, {
-          tarima: data.nueva_tarima,
-          guias: [],
-          lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
-          flashType: 'success',
-          guiasCount: (tab.guiasCount || 0) + completedCount,
-          completedTarimas: [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...tab.completedTarimas],
+        updateTab(tabId, (t) => {
+          const completedCount = data.tarima?.cantidad_guias || (t.tarima?.cantidad_guias || 0) + 1
+          return {
+            tarima: data.nueva_tarima,
+            guias: [],
+            lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
+            flashType: 'success',
+            guiasCount: (t.guiasCount || 0) + completedCount,
+            completedTarimas: [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...t.completedTarimas],
+          }
         })
         if (soundEnabled) playSound('complete')
         setCompletionPrompt({ tabId, tarima: data.tarima, nuevaTarima: data.nueva_tarima })
       } else {
-        updateTab(tabId, {
+        updateTab(tabId, (t) => ({
           tarima: data.tarima,
-          guias: [data.guia, ...tab.guias],
+          guias: [data.guia, ...t.guias],
           lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
           flashType: 'success',
-        })
+        }))
       }
       if (data.alerta) { if (soundEnabled) playSound('warning'); toast.warning(data.alerta.message) }
     } catch (err) {
@@ -433,12 +438,12 @@ export default function Escaneo() {
         }
         if (soundEnabled) playSound('error')
         toast.error(msg)
-        updateTab(tabId, {
+        updateTab(tabId, (t) => ({
           lastScan: { type: 'duplicate', message: msg },
           flashType: 'error',
-          duplicadosCount: (tab.duplicadosCount || 0) + 1,
-          duplicados: [{ codigo_guia: code, message: msg, tarima_original: d.tarima_original, posicion_original: d.posicion_original, duplicado_en: d.duplicado_en, timestamp: new Date() }, ...tab.duplicados],
-        })
+          duplicadosCount: (t.duplicadosCount || 0) + 1,
+          duplicados: [{ codigo_guia: code, message: msg, tarima_original: d.tarima_original, posicion_original: d.posicion_original, duplicado_en: d.duplicado_en, timestamp: new Date() }, ...t.duplicados],
+        }))
       } else {
         if (soundEnabled) playSound('error')
         toast.error(d?.error || t('toast.error'))
