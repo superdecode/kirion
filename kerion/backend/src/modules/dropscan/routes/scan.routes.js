@@ -273,10 +273,11 @@ router.post('/sessions/:id/scan',
       const newPos = parseInt(countRes.rows[0].cnt) + 1
       const guiaOperador = sesion.usuario_operador || null
       const guiaNivel = sesion.nivel_usuario || null
+      const guiaInternoId = sesion.usuario_interno_id || null
       const guiaRes = await client.query(
-        `INSERT INTO guias (codigo_guia, tarima_id, posicion, operador_id, usuario_operador, nivel_usuario)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [code, tarima.id, newPos, userId, guiaOperador, guiaNivel]
+        `INSERT INTO guias (codigo_guia, tarima_id, posicion, operador_id, usuario_operador, nivel_usuario, usuario_interno_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [code, tarima.id, newPos, userId, guiaOperador, guiaNivel, guiaInternoId]
       )
       const guia = guiaRes.rows[0]
 
@@ -528,22 +529,26 @@ router.post('/sessions/:id/end',
 
       const sesion = result.rows[0]
 
-      // Finalize all non-empty EN_PROCESO tarimas for this session
-      await query(
-        `UPDATE tarimas
-         SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
-             tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER
-         WHERE operador_id = $1 AND estado = 'EN_PROCESO' AND cantidad_guias > 0
-           AND fecha_inicio >= $2`,
-        [userId, sesion.fecha_inicio]
-      )
-
-      // Auto-delete empty tarimas (0 guides) when ending session
-      await query(
-        `DELETE FROM tarimas WHERE operador_id = $1 AND estado = 'EN_PROCESO' AND cantidad_guias = 0
-         AND fecha_inicio >= $2`,
-        [userId, sesion.fecha_inicio]
-      )
+      // Only finalize/delete the tarima linked to THIS session (not all operator tarimas)
+      if (sesion.tarima_actual_id) {
+        const tarimaCheck = await query(
+          'SELECT id, cantidad_guias, estado FROM tarimas WHERE id = $1 AND estado = $2',
+          [sesion.tarima_actual_id, 'EN_PROCESO']
+        )
+        if (tarimaCheck.rows.length > 0) {
+          const t = tarimaCheck.rows[0]
+          if (t.cantidad_guias > 0) {
+            await query(
+              `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
+                   tiempo_armado_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - fecha_inicio))::INTEGER
+               WHERE id = $1`,
+              [t.id]
+            )
+          } else {
+            await query('DELETE FROM tarimas WHERE id = $1', [t.id])
+          }
+        }
+      }
 
       res.json({ success: true, sesion: result.rows[0] })
     } catch (error) {

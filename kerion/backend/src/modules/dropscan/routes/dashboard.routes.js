@@ -37,13 +37,14 @@ router.get('/',
           dateParams
         ),
         query(
-          `SELECT s.id, COALESCE(s.usuario_operador, u.nombre_completo) as operador,
+          `SELECT s.id, COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador,
                   e.nombre as empresa, c.nombre as canal,
                   s.total_guias, s.tarimas_completadas, s.fecha_inicio
            FROM sesiones_escaneo s
            JOIN usuarios u ON s.operador_id = u.id
            JOIN configuraciones e ON s.empresa_id = e.id
            JOIN configuraciones c ON s.canal_id = c.id
+           LEFT JOIN usuarios_internos ui ON s.usuario_interno_id = ui.id
            WHERE s.activa = true
            ORDER BY s.fecha_inicio DESC`
         ),
@@ -57,14 +58,15 @@ router.get('/',
           dateParams
         ),
         query(
-          `SELECT COALESCE(u.nombre_completo, g.usuario_operador) as operador,
+          `SELECT COALESCE(ui.nombre, g.usuario_operador, u.nombre_completo) as operador,
                   COUNT(DISTINCT g.tarima_id) as tarimas,
                   COUNT(g.id) as guias
            FROM guias g
            JOIN tarimas t ON g.tarima_id = t.id
            JOIN usuarios u ON g.operador_id = u.id
+           LEFT JOIN usuarios_internos ui ON g.usuario_interno_id = ui.id
            WHERE ${dateWhere}
-           GROUP BY COALESCE(u.nombre_completo, g.usuario_operador)
+           GROUP BY COALESCE(ui.nombre, g.usuario_operador, u.nombre_completo)
            ORDER BY guias DESC
            LIMIT 10`,
           dateParams
@@ -136,11 +138,21 @@ router.get('/metrics',
         const names = escaneador.split(',').map(n => n.trim()).filter(Boolean)
         if (names.length === 1) {
           pCount++
-          where.push(`EXISTS (SELECT 1 FROM guias g2 LEFT JOIN usuarios ue ON g2.operador_id = ue.id WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) ILIKE $${pCount})`)
+          where.push(`EXISTS (
+            SELECT 1 FROM guias g2
+            LEFT JOIN usuarios_internos ui2 ON g2.usuario_interno_id = ui2.id
+            LEFT JOIN usuarios ue ON g2.operador_id = ue.id
+            WHERE g2.tarima_id = t.id AND COALESCE(ui2.nombre, g2.usuario_operador, ue.nombre_completo) ILIKE $${pCount}
+          )`)
           params.push(`%${names[0]}%`)
         } else if (names.length > 1) {
           pCount++
-          where.push(`EXISTS (SELECT 1 FROM guias g2 LEFT JOIN usuarios ue ON g2.operador_id = ue.id WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) = ANY($${pCount}))`)
+          where.push(`EXISTS (
+            SELECT 1 FROM guias g2
+            LEFT JOIN usuarios_internos ui2 ON g2.usuario_interno_id = ui2.id
+            LEFT JOIN usuarios ue ON g2.operador_id = ue.id
+            WHERE g2.tarima_id = t.id AND COALESCE(ui2.nombre, g2.usuario_operador, ue.nombre_completo) = ANY($${pCount})
+          )`)
           params.push(names)
         }
       }
@@ -176,14 +188,15 @@ router.get('/metrics',
            WHERE ${whereClause}
            GROUP BY c.id, c.nombre ORDER BY guias DESC`, params),
         query(
-          `SELECT COALESCE(g.usuario_operador, u.nombre_completo) as escaneador,
+          `SELECT COALESCE(ui.nombre, g.usuario_operador, u.nombre_completo) as escaneador,
                   COUNT(DISTINCT g.tarima_id) as tarimas,
                   COUNT(g.id) as guias
            FROM tarimas t
            JOIN guias g ON g.tarima_id = t.id
            JOIN usuarios u ON g.operador_id = u.id
+           LEFT JOIN usuarios_internos ui ON g.usuario_interno_id = ui.id
            WHERE ${operadorWhereClause}
-           GROUP BY COALESCE(g.usuario_operador, u.nombre_completo)
+           GROUP BY COALESCE(ui.nombre, g.usuario_operador, u.nombre_completo)
            ORDER BY guias DESC LIMIT 15`, params),
         query(
           `SELECT ${hourInTZ('g.timestamp_escaneo', tz)} as hora,
@@ -265,7 +278,7 @@ router.get('/export',
           t.codigo as tarima_codigo,
           e.nombre as empresa,
           c.nombre as canal,
-          COALESCE(s.usuario_operador, u.nombre_completo) as operador,
+          COALESCE(ui_s.nombre, s.usuario_operador, u.nombre_completo) as operador,
           t.estado,
           t.cantidad_guias,
           t.fecha_inicio,
@@ -275,14 +288,16 @@ router.get('/export',
           g.codigo_guia,
           g.posicion,
           g.timestamp_escaneo,
-          COALESCE(g.usuario_operador, gu.nombre_completo) as operador_guia
+          COALESCE(ui_g.nombre, g.usuario_operador, gu.nombre_completo) as operador_guia
         FROM tarimas t
         JOIN configuraciones e ON t.empresa_id = e.id
         JOIN configuraciones c ON t.canal_id = c.id
         JOIN usuarios u ON t.operador_id = u.id
         LEFT JOIN sesiones_escaneo s ON s.tarima_actual_id = t.id OR (s.operador_id = t.operador_id AND s.empresa_id = t.empresa_id AND s.canal_id = t.canal_id AND DATE(s.fecha_inicio) = DATE(t.fecha_inicio))
+        LEFT JOIN usuarios_internos ui_s ON s.usuario_interno_id = ui_s.id
         LEFT JOIN guias g ON g.tarima_id = t.id
         LEFT JOIN usuarios gu ON g.operador_id = gu.id
+        LEFT JOIN usuarios_internos ui_g ON g.usuario_interno_id = ui_g.id
         WHERE ${whereClause}
         ORDER BY t.fecha_inicio ASC, t.codigo ASC, g.posicion ASC`,
         params
@@ -357,10 +372,11 @@ router.get('/escaneadores',
       const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : ''
 
       const result = await query(
-        `SELECT DISTINCT COALESCE(g.usuario_operador, u.nombre_completo) as escaneador
+        `SELECT DISTINCT COALESCE(ui.nombre, g.usuario_operador, u.nombre_completo) as escaneador
          FROM guias g
          JOIN tarimas t ON g.tarima_id = t.id
          LEFT JOIN usuarios u ON g.operador_id = u.id
+         LEFT JOIN usuarios_internos ui ON g.usuario_interno_id = ui.id
          ${whereClause}
          ORDER BY escaneador ASC`,
         params

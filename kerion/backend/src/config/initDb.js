@@ -144,6 +144,9 @@ CREATE TABLE IF NOT EXISTS guias (
   tarima_id INTEGER REFERENCES tarimas(id) ON DELETE CASCADE NOT NULL,
   posicion INTEGER NOT NULL CHECK (posicion >= 1 AND posicion <= 100),
   operador_id INTEGER REFERENCES usuarios(id) ON DELETE RESTRICT NOT NULL,
+  usuario_interno_id INTEGER REFERENCES usuarios_internos(id),
+  usuario_operador VARCHAR(100),
+  nivel_usuario VARCHAR(30),
   timestamp_escaneo TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -152,6 +155,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_guias_unique ON guias(codigo_guia, tarima_
 CREATE INDEX IF NOT EXISTS idx_guias_tarima ON guias(tarima_id);
 CREATE INDEX IF NOT EXISTS idx_guias_codigo ON guias(codigo_guia);
 CREATE INDEX IF NOT EXISTS idx_guias_timestamp ON guias(timestamp_escaneo);
+CREATE INDEX IF NOT EXISTS idx_guias_usuario_interno ON guias(usuario_interno_id);
 
 -- DROPSCAN: Sesiones de escaneo
 CREATE TABLE IF NOT EXISTS sesiones_escaneo (

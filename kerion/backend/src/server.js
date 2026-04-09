@@ -103,6 +103,8 @@ async function runMigrations() {
     `ALTER TABLE sesiones_escaneo ADD COLUMN IF NOT EXISTS nivel_usuario VARCHAR(30)`,
     `ALTER TABLE guias ADD COLUMN IF NOT EXISTS usuario_operador VARCHAR(100)`,
     `ALTER TABLE guias ADD COLUMN IF NOT EXISTS nivel_usuario VARCHAR(30)`,
+    `ALTER TABLE guias ADD COLUMN IF NOT EXISTS usuario_interno_id INTEGER REFERENCES usuarios_internos(id)`,
+    `CREATE INDEX IF NOT EXISTS idx_guias_usuario_interno ON guias(usuario_interno_id)`,
   ]
   for (const sql of steps) {
     try {

@@ -349,56 +349,48 @@ export default function Header({ title, subtitle, actions, showSearch = false })
                 className="w-full px-2.5 py-1.5 rounded-lg border border-warm-200 text-sm font-semibold text-warm-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 bg-white disabled:opacity-50 cursor-pointer"
               >
                 {[
-                  // América
-                  { tz: 'America/Vancouver', label: 'Vancouver (Canadá)' },
-                  { tz: 'America/Mexico_City', label: 'Mexico City (México)' },
-                  { tz: 'America/Cancun', label: 'Cancun (México)' },
-                  { tz: 'America/Tijuana', label: 'Tijuana (México)' },
-                  { tz: 'America/New_York', label: 'New York (USA)' },
-                  { tz: 'America/Los_Angeles', label: 'Los Angeles (USA)' },
-                  { tz: 'America/Bogota', label: 'Bogota (Colombia)' },
-                  { tz: 'America/Lima', label: 'Lima (Perú)' },
-                  { tz: 'America/Sao_Paulo', label: 'Sao Paulo (Brasil)' },
-                  { tz: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires (Argentina)' },
-                  { tz: 'America/Santiago', label: 'Santiago (Chile)' },
-                  // Europa
-                  { tz: 'Europe/London', label: 'Londres (UK)' },
-                  { tz: 'Europe/Paris', label: 'París (Francia)' },
-                  { tz: 'Europe/Berlin', label: 'Berlin (Alemania)' },
-                  { tz: 'Europe/Rome', label: 'Roma (Italia)' },
-                  { tz: 'Europe/Madrid', label: 'Madrid (España)' },
-                  { tz: 'Europe/Amsterdam', label: 'Amsterdam (Países Bajos)' },
-                  { tz: 'Europe/Istanbul', label: 'Istanbul (Turquía)' },
-                  { tz: 'Europe/Moscow', label: 'Moscow (Rusia)' },
-                  // África
-                  { tz: 'Africa/Cairo', label: 'El Cairo (Egipto)' },
-                  { tz: 'Africa/Lagos', label: 'Lagos (Nigeria)' },
-                  { tz: 'Africa/Johannesburg', label: 'Johannesburg (Sudáfrica)' },
-                  // Asia Oriente Próximo
-                  { tz: 'Asia/Dubai', label: 'Dubai (EAU)' },
-                  { tz: 'Asia/Karachi', label: 'Karachi (Pakistán)' },
-                  { tz: 'Asia/Kolkata', label: 'Kolkata (India)' },
-                  { tz: 'Asia/Dhaka', label: 'Dhaka (Bangladesh)' },
-                  { tz: 'Asia/Bangkok', label: 'Bangkok (Tailandia)' },
-                  // Asia Sudeste
-                  { tz: 'Asia/Singapore', label: 'Singapur' },
-                  { tz: 'Asia/Jakarta', label: 'Jakarta (Indonesia)' },
-                  { tz: 'Asia/Kuala_Lumpur', label: 'Kuala Lumpur (Malasia)' },
-                  { tz: 'Asia/Ho_Chi_Minh', label: 'Ho Chi Minh (Vietnam)' },
-                  { tz: 'Asia/Manila', label: 'Manila (Filipinas)' },
-                  // Asia Este
-                  { tz: 'Asia/Shanghai', label: 'Shanghai (China)' },
-                  { tz: 'Asia/Hong_Kong', label: 'Hong Kong' },
-                  { tz: 'Asia/Taipei', label: 'Taipei (Taiwán)' },
-                  { tz: 'Asia/Tokyo', label: 'Tokyo (Japón)' },
-                  { tz: 'Asia/Seoul', label: 'Seoul (Corea)' },
-                  // Oceanía
-                  { tz: 'Australia/Sydney', label: 'Sydney (Australia)' },
-                  { tz: 'Pacific/Auckland', label: 'Auckland (Nueva Zelanda)' },
-                  // UTC
-                  { tz: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+                  { tz: 'America/Vancouver', key: 'timezone.vancouver' },
+                  { tz: 'America/Mexico_City', key: 'timezone.mexicoCity' },
+                  { tz: 'America/Cancun', key: 'timezone.cancun' },
+                  { tz: 'America/Tijuana', key: 'timezone.tijuana' },
+                  { tz: 'America/New_York', key: 'timezone.newYork' },
+                  { tz: 'America/Los_Angeles', key: 'timezone.losAngeles' },
+                  { tz: 'America/Bogota', key: 'timezone.bogota' },
+                  { tz: 'America/Lima', key: 'timezone.lima' },
+                  { tz: 'America/Sao_Paulo', key: 'timezone.saoPaulo' },
+                  { tz: 'America/Argentina/Buenos_Aires', key: 'timezone.buenosAires' },
+                  { tz: 'America/Santiago', key: 'timezone.santiago' },
+                  { tz: 'Europe/London', key: 'timezone.london' },
+                  { tz: 'Europe/Paris', key: 'timezone.paris' },
+                  { tz: 'Europe/Berlin', key: 'timezone.berlin' },
+                  { tz: 'Europe/Rome', key: 'timezone.rome' },
+                  { tz: 'Europe/Madrid', key: 'timezone.madrid' },
+                  { tz: 'Europe/Amsterdam', key: 'timezone.amsterdam' },
+                  { tz: 'Europe/Istanbul', key: 'timezone.istanbul' },
+                  { tz: 'Europe/Moscow', key: 'timezone.moscow' },
+                  { tz: 'Africa/Cairo', key: 'timezone.cairo' },
+                  { tz: 'Africa/Lagos', key: 'timezone.lagos' },
+                  { tz: 'Africa/Johannesburg', key: 'timezone.johannesburg' },
+                  { tz: 'Asia/Dubai', key: 'timezone.dubai' },
+                  { tz: 'Asia/Karachi', key: 'timezone.karachi' },
+                  { tz: 'Asia/Kolkata', key: 'timezone.kolkata' },
+                  { tz: 'Asia/Dhaka', key: 'timezone.dhaka' },
+                  { tz: 'Asia/Bangkok', key: 'timezone.bangkok' },
+                  { tz: 'Asia/Singapore', key: 'timezone.singapore' },
+                  { tz: 'Asia/Jakarta', key: 'timezone.jakarta' },
+                  { tz: 'Asia/Kuala_Lumpur', key: 'timezone.kualaLumpur' },
+                  { tz: 'Asia/Ho_Chi_Minh', key: 'timezone.hoChiMinh' },
+                  { tz: 'Asia/Manila', key: 'timezone.manila' },
+                  { tz: 'Asia/Shanghai', key: 'timezone.shanghai' },
+                  { tz: 'Asia/Hong_Kong', key: 'timezone.hongKong' },
+                  { tz: 'Asia/Taipei', key: 'timezone.taipei' },
+                  { tz: 'Asia/Tokyo', key: 'timezone.tokyo' },
+                  { tz: 'Asia/Seoul', key: 'timezone.seoul' },
+                  { tz: 'Australia/Sydney', key: 'timezone.sydney' },
+                  { tz: 'Pacific/Auckland', key: 'timezone.auckland' },
+                  { tz: 'UTC', key: 'timezone.utc' },
                 ].map(item => (
-                  <option key={item.tz} value={item.tz}>{item.label}</option>
+                  <option key={item.tz} value={item.tz}>{t(item.key)}</option>
                 ))}
               </select>
             </div>
@@ -407,11 +399,11 @@ export default function Header({ title, subtitle, actions, showSearch = false })
           {/* Permissions */}
           {user?.permisos && (
             <div>
-              <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-3">Permisos Asignados</h4>
+              <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-3">{t('profile.assignedPermissions')}</h4>
               <div className="space-y-2">
                 {Object.entries(user.permisos).map(([mod, perms]) => (
                   <div key={mod} className="p-3 rounded-xl border border-warm-100 bg-white">
-                    <p className="text-xs font-bold text-warm-600 uppercase mb-2">{mod}</p>
+                    <p className="text-xs font-bold text-warm-600 uppercase mb-2">{t(`perm.mod.${mod}`)}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {typeof perms === 'object' ? Object.entries(perms).map(([sub, level]) => (
                         <span key={sub} className={`badge text-[10px] ${
@@ -421,10 +413,10 @@ export default function Header({ title, subtitle, actions, showSearch = false })
                           level === 'lectura' ? 'bg-warning-100 text-warning-700' :
                           'bg-warm-100 text-warm-500'
                         }`}>
-                          {sub}: {level}
+                          {t(`perm.sub.${sub}`)}: {t(`perm.${level}`)}
                         </span>
                       )) : (
-                        <span className="badge bg-primary-100 text-primary-700 text-[10px]">{perms}</span>
+                        <span className="badge bg-primary-100 text-primary-700 text-[10px]">{t(`perm.${perms}`)}</span>
                       )}
                     </div>
                   </div>

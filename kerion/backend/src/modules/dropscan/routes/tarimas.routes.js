@@ -58,15 +58,19 @@ router.get('/',
         if (names.length === 1) {
           paramCount++
           where.push(`EXISTS (
-            SELECT 1 FROM guias g2 JOIN usuarios ue ON g2.operador_id = ue.id
-            WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) ILIKE $${paramCount}
+            SELECT 1 FROM guias g2
+            LEFT JOIN usuarios_internos ui2 ON g2.usuario_interno_id = ui2.id
+            LEFT JOIN usuarios ue ON g2.operador_id = ue.id
+            WHERE g2.tarima_id = t.id AND COALESCE(ui2.nombre, g2.usuario_operador, ue.nombre_completo) ILIKE $${paramCount}
           )`)
           params.push(`%${names[0]}%`)
         } else if (names.length > 1) {
           paramCount++
           where.push(`EXISTS (
-            SELECT 1 FROM guias g2 JOIN usuarios ue ON g2.operador_id = ue.id
-            WHERE g2.tarima_id = t.id AND COALESCE(g2.usuario_operador, ue.nombre_completo) = ANY($${paramCount})
+            SELECT 1 FROM guias g2
+            LEFT JOIN usuarios_internos ui2 ON g2.usuario_interno_id = ui2.id
+            LEFT JOIN usuarios ue ON g2.operador_id = ue.id
+            WHERE g2.tarima_id = t.id AND COALESCE(ui2.nombre, g2.usuario_operador, ue.nombre_completo) = ANY($${paramCount})
           )`)
           params.push(names)
         }
@@ -92,18 +96,19 @@ router.get('/',
                 t.fecha_inicio, t.fecha_cierre, t.tiempo_armado_segundos,
                 e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
-                COALESCE(s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
+                COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
          FROM tarimas t
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
          JOIN usuarios u ON t.operador_id = u.id
          LEFT JOIN LATERAL (
-           SELECT usuario_operador FROM sesiones_escaneo
+           SELECT usuario_operador, usuario_interno_id FROM sesiones_escaneo
            WHERE tarima_actual_id = t.id
               OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND DATE(fecha_inicio) = DATE(t.fecha_inicio))
            ORDER BY (tarima_actual_id = t.id) DESC, fecha_inicio DESC
            LIMIT 1
          ) s ON true
+         LEFT JOIN usuarios_internos ui ON s.usuario_interno_id = ui.id
          ${whereClause}
          ORDER BY t.fecha_inicio DESC
          LIMIT $${paramCount - 1} OFFSET $${paramCount}`,
@@ -137,18 +142,19 @@ router.get('/:id',
       const tarimaRes = await query(
         `SELECT t.*, e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
-                COALESCE(s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
+                COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
          FROM tarimas t
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
          JOIN usuarios u ON t.operador_id = u.id
          LEFT JOIN LATERAL (
-           SELECT usuario_operador FROM sesiones_escaneo
+           SELECT usuario_operador, usuario_interno_id FROM sesiones_escaneo
            WHERE tarima_actual_id = t.id
               OR (operador_id = t.operador_id AND empresa_id = t.empresa_id AND canal_id = t.canal_id AND DATE(fecha_inicio) = DATE(t.fecha_inicio))
            ORDER BY (tarima_actual_id = t.id) DESC, fecha_inicio DESC
            LIMIT 1
          ) s ON true
+         LEFT JOIN usuarios_internos ui ON s.usuario_interno_id = ui.id
          WHERE t.id = $1`,
         [id]
       )
@@ -159,9 +165,10 @@ router.get('/:id',
 
       const guiasRes = await query(
         `SELECT g.id, g.codigo_guia, g.posicion, g.timestamp_escaneo,
-                COALESCE(g.usuario_operador, u.nombre_completo) as operador_nombre
+                COALESCE(ui.nombre, g.usuario_operador, u.nombre_completo) as operador_nombre
          FROM guias g
          JOIN usuarios u ON g.operador_id = u.id
+         LEFT JOIN usuarios_internos ui ON g.usuario_interno_id = ui.id
          WHERE g.tarima_id = $1
          ORDER BY g.posicion ASC`,
         [id]
