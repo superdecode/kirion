@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import api from '../../../core/services/api'
 import * as XLSX from 'xlsx'
 import Header from '../../../core/components/layout/Header'
 import Modal from '../../../core/components/common/Modal'
@@ -15,7 +16,7 @@ import { fmtTime, fmtTimeShort, fmtDate, fmtDateTime, getToday, subtractDays } f
 import {
   ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
-  RotateCcw, AlertTriangle, Copy, Pencil, Building2, Radio, Lock, Plus
+  RotateCcw, AlertTriangle, Copy, Pencil, Building2, Radio, Lock, Plus, ArrowRight
 } from 'lucide-react'
 
 const calcDuration = (tarima) => {
@@ -47,6 +48,12 @@ export default function Historial() {
   })
   const [guiaSearch, setGuiaSearch] = useState('')
   const [guiaSearchInput, setGuiaSearchInput] = useState('')
+  const [guiaSearchResults, setGuiaSearchResults] = useState([])
+  const [guiaSearchOpen, setGuiaSearchOpen] = useState(false)
+  const [guiaSearchLoading, setGuiaSearchLoading] = useState(false)
+  const guiaSearchRef = useRef(null)
+  const guiaDebounceRef = useRef(null)
+  const [copiedGuia, setCopiedGuia] = useState(null)
   const [selectedTarima, setSelectedTarima] = useState(null)
   const [deletingTarima, setDeletingTarima] = useState(null)
   const [editMode, setEditMode] = useState(false)
@@ -94,6 +101,43 @@ export default function Historial() {
       setTimeout(() => highlightRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400)
     }
   }, [selectedTarima, highlightGuia])
+
+  // Close guide search dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (guiaSearchRef.current && !guiaSearchRef.current.contains(e.target)) setGuiaSearchOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const searchGuias = useCallback(async (q) => {
+    if (!q || q.length < 2) { setGuiaSearchResults([]); setGuiaSearchOpen(false); return }
+    setGuiaSearchLoading(true)
+    setGuiaSearchOpen(true)
+    try {
+      const { data } = await api.get('/dropscan/dashboard/guias/search', { params: { q } })
+      setGuiaSearchResults(data.guias || [])
+    } catch { setGuiaSearchResults([]) }
+    finally { setGuiaSearchLoading(false) }
+  }, [])
+
+  const handleGuiaResultClick = (guia) => {
+    setGuiaSearchOpen(false)
+    setGuiaSearchInput(guia.codigo_guia)
+    setGuiaSearch(guia.codigo_guia)
+    setPage(1)
+    setDetailTab('guias')
+    setSelectedTarima(guia.tarima_id)
+    navigate(`/dropscan/historial?tarima_id=${guia.tarima_id}&highlight_guia=${encodeURIComponent(guia.codigo_guia)}`, { replace: true })
+  }
+
+  const copyGuia = (code) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedGuia(code)
+      setTimeout(() => setCopiedGuia(null), 1500)
+    })
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['dropscan-tarimas', page, filters, pageLimit, guiaSearch],
@@ -416,25 +460,81 @@ export default function Historial() {
               selected={filters.escaneadores}
               onChange={v => { setFilters(f => ({ ...f, escaneadores: v })); setPage(1) }}
             />
-            {/* Guide search bar */}
-            <form
-              onSubmit={(e) => { e.preventDefault(); setGuiaSearch(guiaSearchInput.trim()); setPage(1) }}
-              className="flex items-center gap-1.5 bg-warm-50 border border-warm-200 rounded-xl px-3 py-1.5 min-w-[200px]"
-            >
-              <Search className="w-3.5 h-3.5 text-warm-400 shrink-0" />
-              <input
-                type="text"
-                value={guiaSearchInput}
-                onChange={e => { setGuiaSearchInput(e.target.value); if (!e.target.value.trim()) { setGuiaSearch(''); setPage(1) } }}
-                placeholder={t('common.searchGuide')}
-                className="text-xs outline-none bg-transparent text-warm-700 flex-1 min-w-[120px]"
-              />
-              {guiaSearchInput && (
-                <button type="button" onClick={() => { setGuiaSearchInput(''); setGuiaSearch(''); setPage(1) }} className="text-warm-400 hover:text-warm-600">
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </form>
+            {/* Guide search bar with dropdown */}
+            <div ref={guiaSearchRef} className="relative">
+              <form
+                onSubmit={(e) => { e.preventDefault(); const q = guiaSearchInput.trim(); setGuiaSearch(q); setPage(1); if (q) searchGuias(q) }}
+                className={`flex items-center gap-1.5 bg-warm-50 border rounded-xl px-3 py-1.5 min-w-[220px] transition-colors ${guiaSearchOpen ? 'border-primary-400 bg-white' : 'border-warm-200'}`}
+              >
+                <Search className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+                <input
+                  type="text"
+                  value={guiaSearchInput}
+                  onChange={e => {
+                    const v = e.target.value
+                    setGuiaSearchInput(v)
+                    clearTimeout(guiaDebounceRef.current)
+                    if (!v.trim()) { setGuiaSearch(''); setGuiaSearchOpen(false); setPage(1) }
+                    else { guiaDebounceRef.current = setTimeout(() => searchGuias(v), 300) }
+                  }}
+                  onFocus={() => guiaSearchInput.length >= 2 && guiaSearchResults.length > 0 && setGuiaSearchOpen(true)}
+                  onKeyDown={e => { if (e.key === 'Enter') { const q = guiaSearchInput.trim(); setGuiaSearch(q); setPage(1); if (q) searchGuias(q) } if (e.key === 'Escape') setGuiaSearchOpen(false) }}
+                  placeholder={t('common.searchGuide')}
+                  className="text-xs outline-none bg-transparent text-warm-700 flex-1 min-w-[140px]"
+                />
+                {guiaSearchInput && (
+                  <button type="button" onClick={() => { setGuiaSearchInput(''); setGuiaSearch(''); setGuiaSearchOpen(false); setGuiaSearchResults([]); setPage(1) }} className="text-warm-400 hover:text-warm-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </form>
+              {/* Dropdown results */}
+              <AnimatePresence>
+                {guiaSearchOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 mt-1 z-[100] bg-white/95 backdrop-blur-xl rounded-xl shadow-depth border border-warm-100 overflow-hidden min-w-[320px]"
+                  >
+                    {guiaSearchLoading ? (
+                      <div className="p-4 text-center"><div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
+                    ) : guiaSearchResults.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-warm-400">{t('common.noResults')}</div>
+                    ) : (
+                      <div>
+                        <div className="px-3 py-1.5 border-b border-warm-100 bg-warm-50/50">
+                          <p className="text-[10px] text-warm-400 font-bold uppercase tracking-wider">{guiaSearchResults.length} {t('search.results')}</p>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto scrollbar-thin">
+                          {guiaSearchResults.map((g) => (
+                            <div
+                              key={g.id}
+                              onMouseDown={(e) => { e.preventDefault(); handleGuiaResultClick(g) }}
+                              className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-primary-50/50 cursor-pointer border-b border-warm-50 last:border-b-0 transition-colors group"
+                            >
+                              <Package className="w-4 h-4 text-primary-500 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-mono font-bold text-warm-800 truncate">{g.codigo_guia}</p>
+                                <div className="flex items-center gap-1 mt-0.5 text-[10px] text-warm-400">
+                                  <span className="truncate">{g.tarima_codigo}</span>
+                                  <span>·</span>
+                                  <span className="truncate">{g.empresa_nombre}</span>
+                                  <span>·</span>
+                                  <span className="text-primary-600 font-semibold shrink-0">#{g.posicion}</span>
+                                </div>
+                              </div>
+                              <ArrowRight className="w-3.5 h-3.5 text-warm-300 group-hover:text-primary-500 transition-colors shrink-0" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -593,7 +693,7 @@ export default function Historial() {
         headerAction={detail && canWrite('dropscan.historial') && (
           <button onClick={handleExportTarimaExcel}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-success-50 text-success-700 rounded-lg hover:bg-success-100 font-semibold transition-all border border-success-200">
-            <Download className="w-3.5 h-3.5" /> Exportar
+            <Download className="w-3.5 h-3.5" /> {t('common.export')}
           </button>
         )}
         footer={detail && (
@@ -602,7 +702,7 @@ export default function Historial() {
               <button onClick={() => finalizeMutation.mutate(detail.id)}
                 disabled={finalizeMutation.isPending}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200 disabled:opacity-50">
-                <Lock className="w-4 h-4" /> Finalizar
+                <Lock className="w-4 h-4" /> {t('history.finalize')}
               </button>
             )}
             {canDelete('dropscan.historial') && (
@@ -610,7 +710,7 @@ export default function Historial() {
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
                   editMode ? 'bg-warning-100 text-warning-700 hover:bg-warning-200' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
                 }`}>
-                <Pencil className="w-4 h-4" /> {editMode ? t('common.close') : 'Editar'}
+                <Pencil className="w-4 h-4" /> {editMode ? t('common.close') : t('common.edit')}
               </button>
             )}
           </>
@@ -705,8 +805,21 @@ export default function Historial() {
                               className={`transition-colors ${isHighlighted ? 'bg-warning-100 border-l-4 border-warning-500' : 'hover:bg-warm-50'}`}>
                               <td className="px-3 py-2 text-warm-400 font-bold">{g.posicion}</td>
                               <td className={`px-3 py-2 font-mono font-semibold ${isHighlighted ? 'text-warning-700' : 'text-warm-700'}`}>
-                                {g.codigo_guia}
-                                {isHighlighted && <span className="ml-2 text-[9px] bg-warning-500 text-white px-1.5 py-0.5 rounded font-bold uppercase">encontrada</span>}
+                                <div className="flex items-center gap-1.5 group/code">
+                                  <span>{g.codigo_guia}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyGuia(g.codigo_guia)}
+                                    className="opacity-0 group-hover/code:opacity-100 transition-opacity p-0.5 rounded hover:bg-warm-100"
+                                    title={t('common.copy')}
+                                  >
+                                    {copiedGuia === g.codigo_guia
+                                      ? <CheckCircle className="w-3 h-3 text-success-500" />
+                                      : <Copy className="w-3 h-3 text-warm-400" />
+                                    }
+                                  </button>
+                                  {isHighlighted && <span className="text-[9px] bg-warning-500 text-white px-1.5 py-0.5 rounded font-bold uppercase">{t('search.found')}</span>}
+                                </div>
                               </td>
                               <td className="px-3 py-2 text-warm-500">{g.operador_nombre}</td>
                               <td className="px-3 py-2 text-warm-400">{fmtTime(g.timestamp_escaneo)}</td>
