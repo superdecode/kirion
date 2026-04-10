@@ -12,7 +12,7 @@ router.get('/',
   requirePermission('dropscan.historial', 'ver'),
   async (req, res) => {
     try {
-      const { fecha_inicio, fecha_fin, empresa_id, canal_id, estado, operador_id, escaneador, page = 1, limit = 20 } = req.query
+      const { fecha_inicio, fecha_fin, empresa_id, canal_id, estado, operador_id, escaneador, codigo_guia, page = 1, limit = 20 } = req.query
       const safePage = Math.max(1, parseInt(page) || 1)
       const safeLimit = Math.min(500, Math.max(1, parseInt(limit) || 20))
       const offset = (safePage - 1) * safeLimit
@@ -74,6 +74,12 @@ router.get('/',
           )`)
           params.push(names)
         }
+      }
+
+      if (codigo_guia && codigo_guia.trim()) {
+        paramCount++
+        where.push(`EXISTS (SELECT 1 FROM guias g3 WHERE g3.tarima_id = t.id AND g3.codigo_guia ILIKE $${paramCount})`)
+        params.push(`%${codigo_guia.trim()}%`)
       }
 
       const whereClause = where.length > 0 ? 'WHERE ' + where.join(' AND ') : ''

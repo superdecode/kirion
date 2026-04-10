@@ -182,7 +182,7 @@ export default function Reportes() {
                 {/* Chart selector */}
                 <div className="relative group">
                   <button className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-warm-100 text-warm-700 hover:bg-warm-200 rounded-xl transition-colors border border-warm-200">
-                    <BarChart3 className="w-3.5 h-3.5" /> Gráficas <ChevronDown className="w-3 h-3" />
+                    <BarChart3 className="w-3.5 h-3.5" /> {t('reports.charts')} <ChevronDown className="w-3 h-3" />
                   </button>
                   <div className="absolute right-0 top-full mt-1 z-30 bg-white rounded-xl shadow-depth border border-warm-100 min-w-[180px] overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
                     {CHART_OPTIONS.map(opt => (

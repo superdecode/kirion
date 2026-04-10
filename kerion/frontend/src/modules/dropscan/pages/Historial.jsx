@@ -45,6 +45,8 @@ export default function Historial() {
     fecha_inicio: searchParams.get('fecha_inicio') || defaultStart,
     fecha_fin: searchParams.get('fecha_fin') || defaultEnd,
   })
+  const [guiaSearch, setGuiaSearch] = useState('')
+  const [guiaSearchInput, setGuiaSearchInput] = useState('')
   const [selectedTarima, setSelectedTarima] = useState(null)
   const [deletingTarima, setDeletingTarima] = useState(null)
   const [editMode, setEditMode] = useState(false)
@@ -94,7 +96,7 @@ export default function Historial() {
   }, [selectedTarima, highlightGuia])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dropscan-tarimas', page, filters, pageLimit],
+    queryKey: ['dropscan-tarimas', page, filters, pageLimit, guiaSearch],
     queryFn: () => ds.getTarimas({
       estado: filters.estados,
       empresa_id: filters.empresa_ids,
@@ -102,6 +104,7 @@ export default function Historial() {
       escaneador: filters.escaneadores.length ? filters.escaneadores : undefined,
       fecha_inicio: filters.fecha_inicio || undefined,
       fecha_fin: filters.fecha_fin || undefined,
+      codigo_guia: guiaSearch || undefined,
       page, limit: pageLimit,
     }),
   })
@@ -217,9 +220,10 @@ export default function Historial() {
 
   const clearFilters = () => {
     setFilters({ estados: [], empresa_ids: [], canal_ids: [], escaneadores: [], fecha_inicio: defaultStart, fecha_fin: defaultEnd })
+    setGuiaSearch(''); setGuiaSearchInput('')
     setPage(1)
   }
-  const hasActiveFilters = !!(filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneadores.length)
+  const hasActiveFilters = !!(filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneadores.length || guiaSearch)
 
   const handleExport = () => {
     try {
@@ -355,20 +359,20 @@ export default function Historial() {
               {canWrite('dropscan.historial') && !selectMode && (
                 <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200">
-                  <Download className="w-3.5 h-3.5" /> Exportar
+                  <Download className="w-3.5 h-3.5" /> {t('common.export')}
                 </button>
               )}
               {selectMode && (
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-primary-600">{selectedIds.size} seleccionadas</span>
+                  <span className="text-[11px] font-semibold text-primary-600">{selectedIds.size} {t('history.selected')}</span>
                   <button onClick={toggleSelectAll}
                     className="px-2.5 py-1 text-[11px] font-semibold bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg transition-colors">
-                    {selectedIds.size === tarimas.length ? 'Deseleccionar' : 'Seleccionar todas'}
+                    {selectedIds.size === tarimas.length ? t('history.deselectAll') : t('history.selectAll')}
                   </button>
                   <button onClick={handleBulkExport} disabled={selectedIds.size === 0 || exportingBulk}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200 disabled:opacity-50">
                     {exportingBulk ? <div className="w-3 h-3 border-2 border-success-600 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                    Exportar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+                    {t('common.export')} {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
                   </button>
                   <button onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }}
                     className="p-1 text-warm-400 hover:text-warm-600 transition-colors">
@@ -378,11 +382,11 @@ export default function Historial() {
               )}
             </div>
           </div>
-          {/* Row 2: Multi-select filters */}
+          {/* Row 2: Multi-select filters + guide search */}
           <div className="flex items-center gap-2 flex-wrap">
             <MultiSelect
               icon={CheckCircle}
-              placeholder="Estado"
+              placeholder={t('filter.status')}
               options={[
                 { value: 'EN_PROCESO', label: estadoLabels['EN_PROCESO'] },
                 { value: 'FINALIZADA', label: estadoLabels['FINALIZADA'] },
@@ -407,11 +411,30 @@ export default function Historial() {
             />
             <MultiSelect
               icon={Search}
-              placeholder="Escaneador"
+              placeholder={t('filter.scanner')}
               options={escaneadoresOpts}
               selected={filters.escaneadores}
               onChange={v => { setFilters(f => ({ ...f, escaneadores: v })); setPage(1) }}
             />
+            {/* Guide search bar */}
+            <form
+              onSubmit={(e) => { e.preventDefault(); setGuiaSearch(guiaSearchInput.trim()); setPage(1) }}
+              className="flex items-center gap-1.5 bg-warm-50 border border-warm-200 rounded-xl px-3 py-1.5 min-w-[200px]"
+            >
+              <Search className="w-3.5 h-3.5 text-warm-400 shrink-0" />
+              <input
+                type="text"
+                value={guiaSearchInput}
+                onChange={e => { setGuiaSearchInput(e.target.value); if (!e.target.value.trim()) { setGuiaSearch(''); setPage(1) } }}
+                placeholder={t('common.searchGuide')}
+                className="text-xs outline-none bg-transparent text-warm-700 flex-1 min-w-[120px]"
+              />
+              {guiaSearchInput && (
+                <button type="button" onClick={() => { setGuiaSearchInput(''); setGuiaSearch(''); setPage(1) }} className="text-warm-400 hover:text-warm-600">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </form>
           </div>
         </div>
 
