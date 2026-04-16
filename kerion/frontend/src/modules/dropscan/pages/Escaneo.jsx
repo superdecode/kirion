@@ -134,6 +134,7 @@ export default function Escaneo() {
   const [suspiciousModal, setSuspiciousModal] = useState(null)      // { code, tabId, score, level }
   const [deleteLastGuideModal, setDeleteLastGuideModal] = useState(null) // { tabId, guia }
   const [endSessionModal, setEndSessionModal] = useState(null)      // { tabId }
+  const [reopenConfirmModal, setReopenConfirmModal] = useState(null) // { pallet }
 
   // empresa/canal pickers for modals
   const [pickerEmpresa, setPickerEmpresa] = useState('')
@@ -148,6 +149,7 @@ export default function Escaneo() {
   const { t } = useI18nStore()
   const { isAuthenticated: operadorAuthed, getSessionPayload, clearOperador } = useOperadorStore()
   const isSupervisor = ['Supervisor', 'Jefe', 'Administrador'].includes(user?.rol_nombre)
+  const MAX_ACTIVE_TABS = 3
 
   const deleteGuiaFromTarimaMutation = useMutation({
     mutationFn: ({ tarimaId, guiaId }) => ds.deleteGuiaFromTarima(tarimaId, guiaId),
@@ -231,28 +233,31 @@ export default function Escaneo() {
     enabled: !!panelDetailId,
   })
 
-  /* restore any active backend session on mount */
+  /* restore active backend sessions on mount (multi-tab) */
   useEffect(() => {
-    ds.getActiveSession().then((data) => {
-      if (data.sesion) {
-        const tabId = ++tabCounter
-        const emp = empresas.find(e => e.id === data.sesion.empresa_id)
-        const can = allCanales.find(c => c.id === data.sesion.canal_id)
-        const tab = {
-          ...newTabState(tabId),
-          session: data.sesion,
-          tarima: data.tarima_actual,
-          guias: data.ultimas_guias || [],
-          guiasCount: data.tarima_actual?.cantidad_guias || 0,
-          empresa: emp || { id: data.sesion.empresa_id, nombre: data.sesion.empresa_nombre, color: '#8b5cf6' },
-          canal: can || { id: data.sesion.canal_id, nombre: data.sesion.canal_nombre },
-        }
-        setTabs([tab])
-        setActiveTabId(tabId)
+    ds.getAllActiveSessions().then((data) => {
+      const sessions = data?.sesiones || []
+      if (sessions.length > 0) {
+        const nextTabs = sessions.slice(0, MAX_ACTIVE_TABS).map((item) => {
+          const tabId = ++tabCounter
+          const emp = empresas.find(e => e.id === item.sesion.empresa_id)
+          const can = allCanales.find(c => c.id === item.sesion.canal_id)
+          return {
+            ...newTabState(tabId),
+            session: item.sesion,
+            tarima: item.tarima_actual,
+            guias: item.ultimas_guias || [],
+            guiasCount: item.tarima_actual?.cantidad_guias || 0,
+            empresa: emp || { id: item.sesion.empresa_id, nombre: item.sesion.empresa_nombre, color: '#8b5cf6' },
+            canal: can || { id: item.sesion.canal_id, nombre: item.sesion.canal_nombre },
+          }
+        })
+        setTabs(nextTabs)
+        setActiveTabId(nextTabs[0].tabId)
       }
     }).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [empresasData, canalesData])
 
   /* resume scan from Historial navigation */
   useEffect(() => {
@@ -306,6 +311,10 @@ export default function Escaneo() {
   }
 
   const handleRequestAddTab = () => {
+    if (tabs.length >= MAX_ACTIVE_TABS) {
+      toast.warning(t('scan.reopenLimitReached'))
+      return
+    }
     if (operadorAuthed) {
       setPickerEmpresa(''); setPickerCanal(''); setShowAddTabModal(true)
     } else {
@@ -326,6 +335,10 @@ export default function Escaneo() {
 
   /* ── start session (first tab or add-tab) ─────────── */
   const handleStartSession = async (isNew = false) => {
+    if (tabs.length >= MAX_ACTIVE_TABS) {
+      toast.warning(t('scan.reopenLimitReached'))
+      return
+    }
     if (!pickerEmpresa || !pickerCanal) return
     setIsStarting(true)
     try {
@@ -377,6 +390,53 @@ export default function Escaneo() {
       toast.info(t('scan.sessionEnded'))
       qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
     } catch { toast.error(t('toast.error')) }
+  }
+
+  const handleRequestReopenFromPanel = (pallet) => {
+    if (!pallet || pallet.estado !== 'EN_PROCESO') return
+    const alreadyOpen = tabs.find(tb => tb.tarima?.id === pallet.id)
+    if (alreadyOpen) {
+      setActiveTabId(alreadyOpen.tabId)
+      toast.info(t('scan.reopenAlreadyOpen'))
+      return
+    }
+    if (tabs.length >= MAX_ACTIVE_TABS) {
+      toast.warning(t('scan.reopenLimitReached'))
+      return
+    }
+    setReopenConfirmModal({ pallet })
+  }
+
+  const handleConfirmReopenFromPanel = async () => {
+    const pallet = reopenConfirmModal?.pallet
+    if (!pallet) return
+    setReopenConfirmModal(null)
+    if (tabs.length >= MAX_ACTIVE_TABS) {
+      toast.warning(t('scan.reopenLimitReached'))
+      return
+    }
+    try {
+      const data = await ds.adoptTarima(pallet.id)
+      const tabId = ++tabCounter
+      const emp = empresas.find(e => e.id === data.sesion.empresa_id)
+      const can = allCanales.find(c => c.id === data.sesion.canal_id)
+      const tab = {
+        ...newTabState(tabId),
+        session: data.sesion,
+        tarima: data.tarima_actual,
+        guias: data.ultimas_guias || [],
+        guiasCount: data.tarima_actual?.cantidad_guias || 0,
+        empresa: emp || { id: data.sesion.empresa_id, nombre: data.sesion.empresa_nombre, color: '#8b5cf6' },
+        canal: can || { id: data.sesion.canal_id, nombre: data.sesion.canal_nombre },
+      }
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tabId)
+      toast.success(t('scan.reopenSuccess'))
+      qc.invalidateQueries({ queryKey: ['dropscan-panel-today'] })
+      qc.invalidateQueries({ queryKey: ['dropscan-today-history'] })
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('toast.error'))
+    }
   }
 
   /* ── perform actual scan (after validation passes) ── */
@@ -781,7 +841,7 @@ export default function Escaneo() {
         })}
 
         {/* Add new tab button */}
-        {tabs.length < 4 && (
+        {tabs.length < MAX_ACTIVE_TABS && (
           <button
             onClick={handleRequestAddTab}
             className="flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-sm font-semibold text-success-600 bg-success-50 hover:bg-success-100 border-2 border-transparent transition-all shrink-0"
@@ -1035,6 +1095,16 @@ export default function Escaneo() {
                           <div className={`h-full rounded-full ${pallet.isCurrent ? 'bg-gradient-to-r from-primary-400 to-accent-500' : pallet.estado === 'CANCELADA' ? 'bg-danger-400' : 'bg-success-400'}`}
                             style={{ width: `${(pallet.cantidad_guias / 100) * 100}%` }} />
                         </div>
+                        {pallet.estado === 'EN_PROCESO' && !pallet.isCurrent && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRequestReopenFromPanel(pallet) }}
+                            className="mt-2 w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs rounded-lg border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 transition-all font-semibold"
+                            title={t('scan.reopenFromHistory')}
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            {t('scan.reopenFromHistory')}
+                          </button>
+                        )}
                       </div>
                     ))
                 }
@@ -1347,6 +1417,30 @@ export default function Escaneo() {
         onConfirm={() => handleStartSession(true)}
         isLoading={isStarting} t={t}
       />
+
+      <Modal
+        isOpen={!!reopenConfirmModal}
+        onClose={() => setReopenConfirmModal(null)}
+        title={t('scan.reopenConfirmTitle')}
+        icon={RotateCcw}
+        size="sm"
+        footer={<>
+          <button onClick={() => setReopenConfirmModal(null)} className="btn-ghost">{t('common.cancel')}</button>
+          <button onClick={handleConfirmReopenFromPanel} className="btn-primary inline-flex items-center gap-2">
+            <RotateCcw className="w-4 h-4" /> {t('common.confirm')}
+          </button>
+        </>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-warm-700">{t('scan.reopenConfirmBody')}</p>
+          {reopenConfirmModal?.pallet && (
+            <div className="p-3 rounded-xl bg-warm-50 border border-warm-100">
+              <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-1">{t('history.palletCode')}</p>
+              <p className="text-sm font-mono font-bold text-warm-800">{reopenConfirmModal.pallet.codigo}</p>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -7,6 +7,9 @@ export const startSession = (empresa_id, canal_id, operadorPayload = {}) =>
 export const getActiveSession = () =>
   api.get('/dropscan/sessions/active').then(r => r.data)
 
+export const getAllActiveSessions = () =>
+  api.get('/dropscan/sessions/all-active').then(r => r.data)
+
 export const scanGuia = (sessionId, codigo_guia, tarima_id = null) =>
   api.post(`/dropscan/sessions/${sessionId}/scan`, { codigo_guia, tarima_id }).then(r => r.data)
 
@@ -47,6 +50,9 @@ export const cancelTarima = (id, razon) =>
 
 export const reopenTarima = (id) =>
   api.post(`/dropscan/tarimas/${id}/reopen`).then(r => r.data)
+
+export const adoptTarima = (id) =>
+  api.post(`/dropscan/tarimas/${id}/adopt`).then(r => r.data)
 
 export const deleteTarima = (id) =>
   api.delete(`/dropscan/tarimas/${id}`).then(r => r.data)

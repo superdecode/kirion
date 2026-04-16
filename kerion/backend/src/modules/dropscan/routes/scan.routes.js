@@ -51,14 +51,27 @@ router.post('/sessions/start',
         [userId]
       )
 
+      // Auto-close zombie sessions whose active tarima is no longer EN_PROCESO.
+      // This prevents orphan sessions from blocking new tabs after unexpected crashes.
+      await client.query(
+        `UPDATE sesiones_escaneo s
+         SET activa = false, fecha_fin = CURRENT_TIMESTAMP
+         FROM tarimas t
+         WHERE s.operador_id = $1
+           AND s.activa = true
+           AND s.tarima_actual_id = t.id
+           AND t.estado <> 'EN_PROCESO'`,
+        [userId]
+      )
+
       // Check for existing active sessions (max 3 allowed)
       const existing = await client.query(
         'SELECT id FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true',
         [userId]
       )
-      if (existing.rows.length >= 4) {
+      if (existing.rows.length >= 3) {
         await client.query('ROLLBACK')
-        return res.status(409).json({ error: 'Máximo 4 sesiones activas permitidas', sesion_id: existing.rows[0].id })
+        return res.status(409).json({ error: 'Máximo 3 sesiones activas permitidas', sesion_id: existing.rows[0].id })
       }
 
       // Generate tarima code and create tarima (retry on unique collision)
@@ -165,6 +178,62 @@ router.get('/sessions/active',
     } catch (error) {
       console.error('Get active session error:', error)
       res.status(500).json({ error: 'Error obteniendo sesión activa' })
+    }
+  }
+)
+
+// GET /api/dropscan/sessions/all-active
+// Returns all active sessions for the current operator so frontend can restore all tabs.
+router.get('/sessions/all-active',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const sesionRes = await query(
+        `SELECT s.*, e.nombre as empresa_nombre, c.nombre as canal_nombre
+         FROM sesiones_escaneo s
+         LEFT JOIN configuraciones e ON s.empresa_id = e.id
+         LEFT JOIN configuraciones c ON s.canal_id = c.id
+         WHERE s.operador_id = $1 AND s.activa = true
+         ORDER BY s.fecha_inicio ASC`,
+        [req.user.id]
+      )
+
+      if (sesionRes.rows.length === 0) {
+        return res.json({ sesiones: [] })
+      }
+
+      const sesiones = await Promise.all(sesionRes.rows.map(async (sesion) => {
+        let tarima = null
+        if (sesion.tarima_actual_id) {
+          const tarimaRes = await query(
+            `SELECT * FROM tarimas WHERE id = $1 AND estado = 'EN_PROCESO'`,
+            [sesion.tarima_actual_id]
+          )
+          tarima = tarimaRes.rows[0] || null
+        }
+
+        // Skip sessions that point to invalid/non-active tarimas.
+        if (!tarima) return null
+
+        const guiasRes = await query(
+          `SELECT id, codigo_guia, posicion, timestamp_escaneo
+           FROM guias WHERE tarima_id = $1
+           ORDER BY posicion DESC`,
+          [tarima.id]
+        )
+
+        return {
+          sesion,
+          tarima_actual: tarima,
+          tarimas_activas: [tarima],
+          ultimas_guias: guiasRes.rows
+        }
+      }))
+
+      res.json({ sesiones: sesiones.filter(Boolean) })
+    } catch (error) {
+      console.error('Get all active sessions error:', error)
+      res.status(500).json({ error: 'Error obteniendo sesiones activas' })
     }
   }
 )

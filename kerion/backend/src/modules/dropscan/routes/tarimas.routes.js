@@ -261,6 +261,83 @@ router.post('/:id/reopen',
   }
 )
 
+// POST /api/dropscan/tarimas/:id/adopt
+// Reopen an EN_PROCESO tarima into a new active scan session so operator can continue scanning.
+router.post('/:id/adopt',
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.historial', 'desbloquear'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const userId = req.user.id
+
+      const tarimaRes = await query(
+        `SELECT * FROM tarimas WHERE id = $1 AND estado = 'EN_PROCESO'`,
+        [id]
+      )
+      if (tarimaRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Tarima no encontrada o no está en proceso' })
+      }
+      const tarima = tarimaRes.rows[0]
+
+      const activeCountRes = await query(
+        'SELECT COUNT(*) AS count FROM sesiones_escaneo WHERE operador_id = $1 AND activa = true',
+        [userId]
+      )
+      const activeCount = parseInt(activeCountRes.rows[0].count || 0)
+      if (activeCount >= 3) {
+        return res.status(409).json({ error: 'Máximo 3 sesiones activas permitidas' })
+      }
+
+      const existingSessionRes = await query(
+        `SELECT * FROM sesiones_escaneo
+         WHERE operador_id = $1 AND activa = true AND tarima_actual_id = $2
+         ORDER BY fecha_inicio DESC
+         LIMIT 1`,
+        [userId, tarima.id]
+      )
+
+      let sesion = existingSessionRes.rows[0] || null
+
+      if (!sesion) {
+        const insertRes = await query(
+          `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id, activa)
+           VALUES ($1, $2, $3, $4, true)
+           RETURNING *`,
+          [userId, tarima.empresa_id, tarima.canal_id, tarima.id]
+        )
+        sesion = insertRes.rows[0]
+      } else {
+        await query(
+          `UPDATE sesiones_escaneo
+           SET empresa_id = $1, canal_id = $2, tarima_actual_id = $3
+           WHERE id = $4`,
+          [tarima.empresa_id, tarima.canal_id, tarima.id, sesion.id]
+        )
+      }
+
+      const guiasRes = await query(
+        `SELECT id, codigo_guia, posicion, timestamp_escaneo
+         FROM guias
+         WHERE tarima_id = $1
+         ORDER BY posicion DESC`,
+        [tarima.id]
+      )
+
+      res.json({
+        success: true,
+        sesion,
+        tarima_actual: tarima,
+        tarimas_activas: [tarima],
+        ultimas_guias: guiasRes.rows
+      })
+    } catch (error) {
+      console.error('Adopt tarima error:', error)
+      res.status(500).json({ error: 'Error reabriendo tarima para escaneo' })
+    }
+  }
+)
+
 // GET /api/dropscan/tarimas/:id/duplicados
 router.get('/:id/duplicados',
   authenticateToken, loadFullUser,
