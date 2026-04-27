@@ -21,6 +21,14 @@ import Historial from './modules/dropscan/pages/Historial'
 import Reportes from './modules/dropscan/pages/Reportes'
 import Configuracion from './modules/dropscan/pages/Configuracion'
 
+// Inventory Module
+import InvEscaneo from './modules/inventory/pages/Escaneo'
+import InvHistorial from './modules/inventory/pages/Historial'
+import InvReportes from './modules/inventory/pages/Reportes'
+
+// WMS Hub
+import WmsHub from './pages/WmsHub'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -39,6 +47,10 @@ const MODULE_ROUTES = [
   { module: 'dropscan.historial', path: '/dropscan/historial' },
   { module: 'dropscan.reportes', path: '/dropscan/reportes' },
   { module: 'dropscan.configuracion', path: '/dropscan/configuracion' },
+  { module: 'inventory.escaneo', path: '/inventory/escaneo' },
+  { module: 'inventory.historial', path: '/inventory/historial' },
+  { module: 'inventory.reportes', path: '/inventory/reportes' },
+  { module: 'global.wms', path: '/wms' },
   { module: 'global.administracion', path: '/admin' },
 ]
 
@@ -87,6 +99,22 @@ function AppRoutes() {
         } />
         <Route path="/dropscan/configuracion" element={
           <PermissionRoute module="dropscan.configuracion"><ErrorBoundary><Configuracion /></ErrorBoundary></PermissionRoute>
+        } />
+
+        {/* Inventory Module */}
+        <Route path="/inventory/escaneo" element={
+          <PermissionRoute module="inventory.escaneo"><ErrorBoundary><InvEscaneo /></ErrorBoundary></PermissionRoute>
+        } />
+        <Route path="/inventory/historial" element={
+          <PermissionRoute module="inventory.historial"><ErrorBoundary><InvHistorial /></ErrorBoundary></PermissionRoute>
+        } />
+        <Route path="/inventory/reportes" element={
+          <PermissionRoute module="inventory.reportes"><ErrorBoundary><InvReportes /></ErrorBoundary></PermissionRoute>
+        } />
+
+        {/* WMS Hub */}
+        <Route path="/wms" element={
+          <PermissionRoute module="global.wms"><ErrorBoundary><WmsHub /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* Administration (unified users + roles) */}
