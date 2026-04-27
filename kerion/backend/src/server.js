@@ -20,6 +20,10 @@ import dashboardRoutes from './modules/dropscan/routes/dashboard.routes.js'
 import dropscanConfigRoutes from './modules/dropscan/routes/config.routes.js'
 import operadoresRoutes from './modules/dropscan/routes/operadores.routes.js'
 
+// Inventory module routes
+import invScanRoutes from './modules/inventory/routes/scan.routes.js'
+import invHistoryRoutes from './modules/inventory/routes/history.routes.js'
+
 const app = express()
 
 // Security
@@ -67,6 +71,10 @@ app.use('/api/dropscan/tarimas', tarimasRoutes)
 app.use('/api/dropscan/dashboard', dashboardRoutes)
 app.use('/api/dropscan/config', dropscanConfigRoutes)
 app.use('/api/dropscan/operadores', operadoresRoutes)
+
+// Inventory module routes
+app.use('/api/inventory', invScanRoutes)
+app.use('/api/inventory', invHistoryRoutes)
 
 // Auto-apply pending migrations (idempotent — each step is independent)
 async function runMigrations() {
@@ -158,6 +166,26 @@ async function runMigrations() {
     `CREATE INDEX IF NOT EXISTS idx_inv_scans_barcode ON inventory_scans(barcode)`,
     `CREATE INDEX IF NOT EXISTS idx_inv_scans_created ON inventory_scans(created_at)`,
     `CREATE INDEX IF NOT EXISTS idx_inv_scans_status ON inventory_scans(status)`,
+
+    // ── Backfill existing roles with inventory + wms permissions ──────────
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"total"', true)
+     WHERE nombre = 'Administrador' AND NOT (permisos -> 'global' ? 'wms')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"lectura"', true)
+     WHERE nombre = 'Jefe' AND NOT (permisos -> 'global' ? 'wms')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"sin_acceso"', true)
+     WHERE nombre NOT IN ('Administrador','Jefe') AND NOT (permisos -> 'global' ? 'wms')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
+       '{"escaneo":"total","historial":"total","reportes":"total"}'::jsonb, true)
+     WHERE nombre = 'Administrador' AND NOT (permisos ? 'inventory')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
+       '{"escaneo":"gestion","historial":"gestion","reportes":"escritura"}'::jsonb, true)
+     WHERE nombre = 'Jefe' AND NOT (permisos ? 'inventory')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
+       '{"escaneo":"escritura","historial":"lectura","reportes":"sin_acceso"}'::jsonb, true)
+     WHERE nombre = 'Operador' AND NOT (permisos ? 'inventory')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
+       '{"escaneo":"sin_acceso","historial":"lectura","reportes":"lectura"}'::jsonb, true)
+     WHERE nombre = 'Usuario' AND NOT (permisos ? 'inventory')`,
   ]
   for (const sql of steps) {
     try {

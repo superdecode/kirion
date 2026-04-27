@@ -32,32 +32,36 @@ async function seedDatabase() {
         nombre: 'Administrador',
         descripcion: 'Acceso total al sistema',
         permisos: {
-          global: { inicio: 'total', administracion: 'total' },
-          dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total' }
+          global: { inicio: 'total', administracion: 'total', wms: 'total' },
+          dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total' },
+          inventory: { escaneo: 'total', historial: 'total', reportes: 'total' },
         }
       },
       {
         nombre: 'Jefe',
         descripcion: 'Supervisor de operaciones',
         permisos: {
-          global: { inicio: 'lectura', administracion: 'sin_acceso' },
-          dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' }
+          global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'lectura' },
+          dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' },
+          inventory: { escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' },
         }
       },
       {
         nombre: 'Operador',
         descripcion: 'Operador de escaneo',
         permisos: {
-          global: { inicio: 'lectura', administracion: 'sin_acceso' },
-          dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' }
+          global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
+          dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' },
+          inventory: { escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' },
         }
       },
       {
         nombre: 'Usuario',
         descripcion: 'Solo consulta',
         permisos: {
-          global: { inicio: 'lectura', administracion: 'sin_acceso' },
-          dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' }
+          global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
+          dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
+          inventory: { escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
         }
       }
     ]
