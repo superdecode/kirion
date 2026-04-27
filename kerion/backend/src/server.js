@@ -11,6 +11,7 @@ import usersRoutes from './core/routes/users.routes.js'
 import rolesRoutes from './core/routes/roles.routes.js'
 import configRoutes from './core/routes/config.routes.js'
 import setupRoutes from './core/routes/setup.routes.js'
+import wmsRoutes from './core/routes/wms.routes.js'
 
 // Module routes
 import scanRoutes from './modules/dropscan/routes/scan.routes.js'
@@ -58,6 +59,7 @@ app.use('/api/users', usersRoutes)
 app.use('/api/roles', rolesRoutes)
 app.use('/api/config', configRoutes)
 app.use('/api/setup', setupRoutes)
+app.use('/api/wms', wmsRoutes)
 
 // DropScan module routes
 app.use('/api/dropscan', scanRoutes)
