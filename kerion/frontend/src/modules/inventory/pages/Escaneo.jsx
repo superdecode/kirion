@@ -46,7 +46,7 @@ export default function InvEscaneo() {
   const { t } = useI18nStore()
   const { canWrite } = useAuthStore()
   const canScan = canWrite('inventory.escaneo')
-  const toast = useToastStore.getState()
+  const toast = useToastStore()
   const queryClient = useQueryClient()
   const inputRef = useRef(null)
 
