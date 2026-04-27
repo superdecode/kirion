@@ -105,6 +105,57 @@ async function runMigrations() {
     `ALTER TABLE guias ADD COLUMN IF NOT EXISTS nivel_usuario VARCHAR(30)`,
     `ALTER TABLE guias ADD COLUMN IF NOT EXISTS usuario_interno_id INTEGER REFERENCES usuarios_internos(id)`,
     `CREATE INDEX IF NOT EXISTS idx_guias_usuario_interno ON guias(usuario_interno_id)`,
+
+    // ── WMS credentials ────────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS wms_credentials (
+       id SERIAL PRIMARY KEY,
+       app_key TEXT NOT NULL,
+       app_secret_encrypted TEXT NOT NULL,
+       base_url TEXT NOT NULL DEFAULT 'https://api.xlwms.com/openapi/v1',
+       is_active BOOLEAN DEFAULT true,
+       created_at TIMESTAMPTZ DEFAULT now(),
+       updated_at TIMESTAMPTZ DEFAULT now()
+     )`,
+
+    // ── WMS cache ──────────────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS wms_cache (
+       key TEXT PRIMARY KEY,
+       data JSONB NOT NULL,
+       expires_at TIMESTAMPTZ NOT NULL,
+       created_at TIMESTAMPTZ DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_wms_cache_expires ON wms_cache(expires_at)`,
+
+    // ── Inventory sessions ─────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS inventory_sessions (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       user_id INTEGER REFERENCES usuarios(id) ON DELETE RESTRICT NOT NULL,
+       origin_location TEXT,
+       status TEXT DEFAULT 'active' CHECK (status IN ('active','closed')),
+       started_at TIMESTAMPTZ DEFAULT now(),
+       ended_at TIMESTAMPTZ
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_inv_sessions_user ON inventory_sessions(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_inv_sessions_status ON inventory_sessions(status)`,
+
+    // ── Inventory scans ────────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS inventory_scans (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       session_id UUID REFERENCES inventory_sessions(id) ON DELETE CASCADE NOT NULL,
+       user_id INTEGER REFERENCES usuarios(id) ON DELETE RESTRICT NOT NULL,
+       barcode TEXT NOT NULL,
+       sku TEXT,
+       product_name TEXT,
+       cell_no TEXT,
+       available_stock INTEGER,
+       status TEXT NOT NULL CHECK (status IN ('OK','Bloqueado','NoWMS')),
+       created_at TIMESTAMPTZ DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_inv_scans_session ON inventory_scans(session_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_inv_scans_user ON inventory_scans(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_inv_scans_barcode ON inventory_scans(barcode)`,
+    `CREATE INDEX IF NOT EXISTS idx_inv_scans_created ON inventory_scans(created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_inv_scans_status ON inventory_scans(status)`,
   ]
   for (const sql of steps) {
     try {
