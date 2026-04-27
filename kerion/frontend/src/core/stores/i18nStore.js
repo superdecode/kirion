@@ -622,6 +622,7 @@ const translations = {
     // Permission Modules / 权限模块
     'perm.mod.global': '全局',
     'perm.mod.dropscan': 'DropScan',
+    'perm.mod.inventory': '库存',
 
     // Permission Sub-categories / 权限子类
     'perm.sub.dashboard': '仪表盘',
@@ -630,6 +631,39 @@ const translations = {
     'perm.sub.reportes': '报表',
     'perm.sub.historial': '历史记录',
     'perm.sub.configuracion': '配置',
+    'perm.sub.wms': 'WMS 连接',
+
+    // WMS Hub / WMS 集线器
+    'wms.title': 'WMS Hub',
+    'wms.subtitle': '仓库连接配置',
+    'wms.credentials': 'API 凭证',
+    'wms.baseUrl': '基础 URL',
+    'wms.statusConfigured': 'WMS 已配置',
+    'wms.statusNotConfigured': 'WMS 未配置',
+    'wms.credentialsSaved': '凭证已保存',
+    'wms.saveError': '保存凭证失败',
+    'wms.testConnection': '测试连接',
+    'wms.testOk': '连接成功',
+    'wms.testError': '连接失败',
+    'wms.fieldsRequired': 'App Key 和 App Secret 为必填项',
+
+    // Inventory / 库存
+    'nav.inventory': '库存',
+    'inventory.title': '库存扫描',
+    'inventory.subtitle': '扫描并验证 WMS 库存',
+    'inventory.historial.title': '扫描历史',
+    'inventory.historial.subtitle': '所有扫描记录',
+    'inventory.reportes.title': '库存报表',
+    'inventory.reportes.subtitle': 'KPI 与图表',
+    'inventory.session.start': '开始会话',
+    'inventory.session.close': '结束会话',
+    'inventory.scan.barcode': '条形码',
+    'inventory.scan.ok': '正常',
+    'inventory.scan.blocked': '已锁定',
+    'inventory.scan.noWms': '不在 WMS 中',
+    'inventory.scan.sku': 'SKU',
+    'inventory.scan.location': '位置',
+    'inventory.scan.stock': '可用库存',
 
     // Role Names / 角色名称
     'role.administrador': '管理员',
@@ -1250,6 +1284,7 @@ const translations = {
     // Permission Modules
     'perm.mod.global': 'Global',
     'perm.mod.dropscan': 'DropScan',
+    'perm.mod.inventory': 'Inventario',
 
     // Permission Sub-categories
     'perm.sub.dashboard': 'Dashboard',
@@ -1258,6 +1293,39 @@ const translations = {
     'perm.sub.reportes': 'Reportes',
     'perm.sub.historial': 'Historial',
     'perm.sub.configuracion': 'Configuración',
+    'perm.sub.wms': 'Conexión WMS',
+
+    // WMS Hub
+    'wms.title': 'WMS Hub',
+    'wms.subtitle': 'Configuración de conexión al almacén',
+    'wms.credentials': 'Credenciales API',
+    'wms.baseUrl': 'URL base',
+    'wms.statusConfigured': 'WMS configurado',
+    'wms.statusNotConfigured': 'WMS no configurado',
+    'wms.credentialsSaved': 'Credenciales guardadas',
+    'wms.saveError': 'Error guardando credenciales',
+    'wms.testConnection': 'Probar conexión',
+    'wms.testOk': 'Conexión WMS exitosa',
+    'wms.testError': 'Error de conexión WMS',
+    'wms.fieldsRequired': 'App Key y App Secret son requeridos',
+
+    // Inventory
+    'nav.inventory': 'Inventario',
+    'inventory.title': 'Escaneo de Inventario',
+    'inventory.subtitle': 'Escanea y valida el inventario en WMS',
+    'inventory.historial.title': 'Historial de Escaneos',
+    'inventory.historial.subtitle': 'Registro de todos los escaneos',
+    'inventory.reportes.title': 'Reportes de Inventario',
+    'inventory.reportes.subtitle': 'KPIs y gráficas',
+    'inventory.session.start': 'Iniciar sesión',
+    'inventory.session.close': 'Cerrar sesión',
+    'inventory.scan.barcode': 'Código de barras',
+    'inventory.scan.ok': 'OK',
+    'inventory.scan.blocked': 'Bloqueado',
+    'inventory.scan.noWms': 'No en WMS',
+    'inventory.scan.sku': 'SKU',
+    'inventory.scan.location': 'Ubicación',
+    'inventory.scan.stock': 'Stock disponible',
 
     // Role Names / Nombres de Roles
     'role.administrador': 'Administrador',

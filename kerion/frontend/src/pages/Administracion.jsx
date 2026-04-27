@@ -26,18 +26,24 @@ const MODULE_GROUPS = [
     ]
   },
   {
+    group: 'Inventario',
+    modules: [
+      { key: 'inventory.escaneo', label: 'Escaneo' },
+      { key: 'inventory.historial', label: 'Historial' },
+      { key: 'inventory.reportes', label: 'Reportes' },
+    ]
+  },
+  {
     group: 'Sistema',
     modules: [
       { key: 'global.inicio', label: 'Inicio (Dashboard Global)' },
       { key: 'global.administracion', label: 'Administración' },
+      { key: 'global.wms', label: 'WMS Hub (Conexión)' },
     ]
   },
   {
     group: 'Módulos Futuros',
     modules: [
-      { key: 'inventario.dashboard', label: 'Inventario - Dashboard' },
-      { key: 'inventario.productos', label: 'Inventario - Productos' },
-      { key: 'inventario.movimientos', label: 'Inventario - Movimientos' },
       { key: 'despacho.ordenes', label: 'Despacho - Órdenes' },
       { key: 'despacho.validacion', label: 'Despacho - Validación' },
       { key: 'rastreo.consulta', label: 'Rastreo - Consulta' },
