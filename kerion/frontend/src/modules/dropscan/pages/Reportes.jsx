@@ -30,7 +30,7 @@ const CHART_OPTIONS = [
   { key: 'byEmpresa',   label: 'Por empresa' },
   { key: 'byCanal',     label: 'Por canal' },
   { key: 'byEscaneador', label: 'Por escaneador' },
-  { key: 'fepFolios',   label: 'Folios FEP por día' },
+  { key: 'fepFolios',   label: 'Folios por día' },
 ]
 const CHART_DEFAULTS = {
   dailyGuides: true, avgTime: true, hourlyProd: true,
@@ -165,7 +165,7 @@ export default function Reportes() {
     { icon: Package, value: totales.guias || 0, label: t('dashboard.totalGuides'), gradient: 'from-primary-100 to-primary-50', iconColor: 'text-primary-600' },
     { icon: CheckCircle, value: totales.completadas || 0, label: t('dashboard.completedPallets'), gradient: 'from-success-100 to-success-50', iconColor: 'text-success-600' },
     { icon: TrendingUp, value: totales.tarimas || 0, label: t('reports.totalPallets'), gradient: 'from-warning-100 to-warning-50', iconColor: 'text-warning-600' },
-    { icon: FileText, value: totalFoliosPeriodo, label: 'Folios FEP', gradient: 'from-indigo-100 to-indigo-50', iconColor: 'text-indigo-600' },
+    { icon: FileText, value: totalFoliosPeriodo, label: 'Folios', gradient: 'from-indigo-100 to-indigo-50', iconColor: 'text-indigo-600' },
   ]
 
   return (
@@ -382,7 +382,7 @@ export default function Reportes() {
                         )}
                         {visibleCharts.fepFolios && foliosPorDia.length > 0 && (
                           <div className={`card p-4 ${getColSpan('fepFolios')}`}>
-                            <h3 className="text-xs font-semibold text-warm-600 mb-2">Folios FEP por día</h3>
+                            <h3 className="text-xs font-semibold text-warm-600 mb-2">Folios por día</h3>
                             <ResponsiveContainer width="100%" height={200}>
                               <BarChart data={foliosPorDia} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -460,7 +460,7 @@ export default function Reportes() {
                                 <th className="text-center px-4 py-3 font-bold text-warm-600">{t('dashboard.completedPallets')}</th>
                                 <th className="text-center px-4 py-3 font-bold text-warm-600">{t('dashboard.guides')}</th>
                                 <th className="text-center px-4 py-3 font-bold text-warm-600">{t('reports.avgTime')}</th>
-                                <th className="text-center px-4 py-3 font-bold text-warm-600">Folios FEP</th>
+                                <th className="text-center px-4 py-3 font-bold text-warm-600">Folios</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">

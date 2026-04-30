@@ -13,6 +13,7 @@ import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
 import MultiSelect from '../../../core/components/common/MultiSelect'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { useToastStore } from '../../../core/stores/toastStore'
+import { useI18nStore } from '../../../core/stores/i18nStore'
 import { getEmpresas, getCanales } from '../../dropscan/services/dropscanService'
 import {
   getFolios, getFolioStats, previewTarimas,
@@ -31,7 +32,8 @@ const ESTADO_COLORS = {
 export default function Folios() {
   const qc = useQueryClient()
   const toast = useToastStore.getState()
-  const { canWrite, canDelete, user } = useAuthStore()
+  const { t } = useI18nStore()
+  const { canView, canWrite, canDelete, user } = useAuthStore()
 
   const defaultEnd = getToday()
   const defaultStart = subtractDays(defaultEnd, 30)
@@ -149,7 +151,7 @@ export default function Folios() {
         iframe.contentWindow.print()
         setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url) }, 5000)
       }
-    } catch { toast.error('Error generando PDF') }
+    } catch { toast.error(t('fep.printError')) }
     finally { setPrintingPdf(false) }
   }
 
@@ -173,7 +175,7 @@ export default function Folios() {
       ws['!cols'] = [{ wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 22 }]
       XLSX.utils.book_append_sheet(wb, ws, 'Folio')
       XLSX.writeFile(wb, `${detailFolio.folio_numero}_${getToday()}.xlsx`)
-    } catch { toast.error('Error exportando Excel') }
+    } catch { toast.error(t('fep.excelError')) }
   }
 
   const copyDetailCode = (text, e) => {
@@ -229,7 +231,7 @@ export default function Folios() {
         iframe.contentWindow.print()
         setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url) }, 5000)
       }
-    } catch { toast.error('Error generando PDF') }
+    } catch { toast.error(t('fep.printError')) }
     finally { setDownloadingId(null) }
   }
 
@@ -237,7 +239,7 @@ export default function Folios() {
     if (!cancelTarget) return
     try {
       await cancelarFolio(cancelTarget.id, cancelMotivo)
-      toast.success('Folio cancelado')
+      toast.success(t('fep.cancelSuccess'))
       qc.invalidateQueries({ queryKey: ['fep-folios'] })
       qc.invalidateQueries({ queryKey: ['fep-stats'] })
     } catch (err) {
@@ -251,7 +253,7 @@ export default function Folios() {
     if (!deleteTarget) return
     try {
       await eliminarFolio(deleteTarget.id)
-      toast.success('Folio eliminado')
+      toast.success(t('fep.deleteSuccess'))
       qc.invalidateQueries({ queryKey: ['fep-folios'] })
       qc.invalidateQueries({ queryKey: ['fep-stats'] })
     } catch (err) {
@@ -317,14 +319,19 @@ export default function Folios() {
     })
   }
 
+  const canViewFolios = canView('fep.folios')
   const canManage = canWrite('fep.folios')
   const canDel = canDelete('fep.folios') || ['Administrador', 'Jefe'].includes(user?.rol_nombre)
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Folios" subtitle="Gestión y emisión de folios FEP" showSearch />
+      <Header title={t('fep.title')} subtitle={t('fep.subtitle')} showSearch />
 
       <div className="flex-1 overflow-y-auto">
+        {!canViewFolios && (
+          <div className="p-16 text-center text-sm text-warm-400">Sin acceso a este módulo</div>
+        )}
+        {canViewFolios && <>
         {/* Filter bar */}
         <div className="sticky top-0 z-[5] bg-white/80 backdrop-blur-2xl border-b border-warm-100/60 px-5 py-2.5 space-y-2">
           {/* Row 1: date range + shortcuts + search + Filtros btn + stats + Nuevo btn */}
@@ -354,7 +361,7 @@ export default function Folios() {
               <Search className="w-3.5 h-3.5 text-warm-400 shrink-0" />
               <input type="text" value={folioSearchInput}
                 onChange={e => handleFolioSearch(e.target.value)}
-                placeholder="Buscar folio, empresa..."
+                placeholder={t('fep.searchPlaceholder')}
                 className="text-xs outline-none bg-transparent text-warm-700 flex-1" />
               {folioSearchInput && (
                 <button onClick={() => handleFolioSearch('')} className="text-warm-400 hover:text-warm-600">
@@ -373,7 +380,7 @@ export default function Folios() {
               } ${hasAdvancedFilters ? 'ring-1 ring-primary-400' : ''}`}
             >
               <Filter className="w-3.5 h-3.5" />
-              Filtros
+              {t('history.filters')}
               {hasAdvancedFilters && (
                 <span className="w-4 h-4 rounded-full bg-primary-500 text-white text-[9px] flex items-center justify-center font-bold">
                   {filters.empresa_ids.length + filters.estados.length}
@@ -385,20 +392,20 @@ export default function Folios() {
             <div className="ml-auto flex items-center gap-2">
               {stats && (
                 <>
-                  <span className="badge bg-success-100 text-success-700 text-[10px]">{stats.activos} activos</span>
-                  <span className="badge bg-danger-100 text-danger-700 text-[10px]">{stats.cancelados} cancelados</span>
-                  <span className="badge bg-warm-100 text-warm-500 text-[10px]">{stats.total_tarimas} tarimas hoy</span>
+                  <span className="badge bg-success-100 text-success-700 text-[10px]">{stats.activos} {t('fep.stats.activos')}</span>
+                  <span className="badge bg-danger-100 text-danger-700 text-[10px]">{stats.cancelados} {t('fep.stats.cancelados')}</span>
+                  <span className="badge bg-warm-100 text-warm-500 text-[10px]">{stats.total_tarimas} {t('fep.stats.tarimasHoy')}</span>
                 </>
               )}
               {hasActiveFilters && (
                 <button onClick={clearFilters} className="text-xs text-primary-600 hover:text-primary-700 font-semibold flex items-center gap-1">
-                  <X className="w-3 h-3" />Limpiar
+                  <X className="w-3 h-3" />{t('common.clear')}
                 </button>
               )}
               {canManage && (
                 <button onClick={openWizard}
                   className="btn-primary inline-flex items-center gap-2">
-                  <FilePlus className="w-4 h-4" /> Nuevo Folio
+                  <FilePlus className="w-4 h-4" /> {t('fep.newFolio')}
                 </button>
               )}
             </div>
@@ -451,20 +458,20 @@ export default function Folios() {
             {isLoading ? (
               <LoadingSpinner text="Cargando folios..." />
             ) : folios.length === 0 ? (
-              <div className="p-16 text-center text-sm text-warm-400">No se encontraron folios</div>
+              <div className="p-16 text-center text-sm text-warm-400">{t('fep.noFolios')}</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-warm-50 border-b border-warm-100">
-                      <th className="table-header">Folio</th>
-                      <th className="table-header">Empresa</th>
-                      <th className="table-header text-center">Tarimas</th>
-                      <th className="table-header text-center">Guías</th>
-                      <th className="table-header text-center">Estado</th>
-                      <th className="table-header">Fecha</th>
-                      <th className="table-header">Creado por</th>
-                      <th className="table-header text-center">Acciones</th>
+                      <th className="table-header">{t('fep.folio')}</th>
+                      <th className="table-header">{t('fep.empresa')}</th>
+                      <th className="table-header text-center">{t('fep.col.tarimas')}</th>
+                      <th className="table-header text-center">{t('fep.col.guias')}</th>
+                      <th className="table-header text-center">{t('fep.estado')}</th>
+                      <th className="table-header">{t('fep.col.fecha')}</th>
+                      <th className="table-header">{t('fep.col.creadoPor')}</th>
+                      <th className="table-header text-center">{t('fep.col.acciones')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-warm-50">
@@ -557,15 +564,16 @@ export default function Folios() {
             </div>
           </motion.div>
         </div>
+        </>}
       </div>
 
       {/* Cancel Modal */}
       <Modal isOpen={!!cancelTarget} onClose={() => setCancelTarget(null)}
-        title="Cancelar Folio" icon={XCircle} size="sm"
+        title={t('fep.cancel.title')} icon={XCircle} size="sm"
         footer={<>
-          <button onClick={() => setCancelTarget(null)} className="btn-ghost">Cerrar</button>
+          <button onClick={() => setCancelTarget(null)} className="btn-ghost">{t('common.close')}</button>
           <button onClick={handleCancel} className="btn-danger inline-flex items-center gap-2">
-            <XCircle className="w-4 h-4" /> Cancelar Folio
+            <XCircle className="w-4 h-4" /> {t('fep.cancel.title')}
           </button>
         </>}>
         <div className="space-y-4">
@@ -573,13 +581,13 @@ export default function Folios() {
             <AlertTriangle className="w-5 h-5 text-warning-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-bold text-warning-800">{cancelTarget?.folio_numero}</p>
-              <p className="text-xs text-warning-600 mt-0.5">Esta acción cancelará el folio. Podrá ser eliminado después.</p>
+              <p className="text-xs text-warning-600 mt-0.5">{t('fep.cancel.desc')}</p>
             </div>
           </div>
           <div>
-            <label className="text-xs font-bold text-warm-600 uppercase tracking-wider block mb-1.5">Motivo (opcional)</label>
+            <label className="text-xs font-bold text-warm-600 uppercase tracking-wider block mb-1.5">{t('fep.cancel.motivoLabel')}</label>
             <textarea value={cancelMotivo} onChange={e => setCancelMotivo(e.target.value)} rows={3}
-              placeholder="Descripción del motivo..."
+              placeholder={t('fep.cancel.motivoPlaceholder')}
               className="w-full px-3 py-2 text-sm bg-warm-50 border border-warm-200 rounded-xl outline-none focus:border-primary-400 resize-none" />
           </div>
         </div>
@@ -587,19 +595,19 @@ export default function Folios() {
 
       {/* Delete Modal */}
       <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)}
-        title="Eliminar Folio" icon={Trash2} size="sm"
+        title={t('fep.delete.title')} icon={Trash2} size="sm"
         footer={<>
-          <button onClick={() => setDeleteTarget(null)} className="btn-ghost">Cancelar</button>
+          <button onClick={() => setDeleteTarget(null)} className="btn-ghost">{t('common.cancel')}</button>
           <button onClick={handleDelete} className="btn-danger inline-flex items-center gap-2">
-            <Trash2 className="w-4 h-4" /> Eliminar permanentemente
+            <Trash2 className="w-4 h-4" /> {t('history.deletePermamently')}
           </button>
         </>}>
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-danger-50 border border-danger-200 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-danger-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-bold text-danger-800">Esta acción no se puede revertir</p>
-              <p className="text-xs text-danger-600 mt-1">Se eliminará el folio y su historial de auditoría.</p>
+              <p className="text-sm font-bold text-danger-800">{t('fep.delete.warning')}</p>
+              <p className="text-xs text-danger-600 mt-1">{t('fep.delete.desc')}</p>
             </div>
           </div>
           {deleteTarget && (
@@ -625,27 +633,27 @@ export default function Folios() {
       <Modal
         isOpen={showWizard}
         onClose={() => setShowWizard(false)}
-        title={wizStep === 4 ? 'Folio Creado' : `Nuevo Folio — Paso ${wizStep} de 3`}
+        title={wizStep === 4 ? t('fep.wizard.titleCreated') : `${t('fep.wizard.titleNew')} — ${t('common.page')} ${wizStep} / 3`}
         icon={FilePlus}
         size="xl"
         footer={wizStep < 4 ? (
           <>
-            <button onClick={() => setShowWizard(false)} className="btn-ghost">Cancelar</button>
+            <button onClick={() => setShowWizard(false)} className="btn-ghost">{t('common.cancel')}</button>
             {wizStep > 1 && (
-              <button onClick={() => setWizStep(s => s - 1)} className="btn-ghost">Anterior</button>
+              <button onClick={() => setWizStep(s => s - 1)} className="btn-ghost">{t('fep.wizard.prev')}</button>
             )}
             {wizStep === 1 && (
               <button disabled={!wizParams.empresa_id}
                 onClick={() => { setWizTarimaPage(1); setWizStep(2) }}
                 className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
-                Siguiente <ArrowRight className="w-4 h-4" />
+                {t('fep.wizard.next')} <ArrowRight className="w-4 h-4" />
               </button>
             )}
             {wizStep === 2 && (
               <button disabled={selectedTarimas.length === 0}
                 onClick={() => setWizStep(3)}
                 className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
-                Revisar ({selectedTarimas.length}) <ArrowRight className="w-4 h-4" />
+                {t('fep.wizard.reviewBtn')} ({selectedTarimas.length}) <ArrowRight className="w-4 h-4" />
               </button>
             )}
             {wizStep === 3 && (
@@ -654,17 +662,17 @@ export default function Folios() {
                 {submitting
                   ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   : <CheckCircle className="w-4 h-4" />}
-                Confirmar y Crear
+                {t('fep.wizard.confirm')}
               </button>
             )}
           </>
         ) : (
           <>
-            <button onClick={() => setShowWizard(false)} className="btn-ghost">Cerrar</button>
+            <button onClick={() => setShowWizard(false)} className="btn-ghost">{t('common.close')}</button>
             {createdFolio && (
               <button onClick={() => { setShowWizard(false); openFolioDetail(createdFolio.id) }}
                 className="btn-primary inline-flex items-center gap-2">
-                <Eye className="w-4 h-4" /> Ver Folio
+                <Eye className="w-4 h-4" /> {t('fep.wizard.viewFolio')}
               </button>
             )}
           </>
@@ -706,7 +714,7 @@ export default function Folios() {
               {printingPdf
                 ? <div className="w-3.5 h-3.5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
                 : <Printer className="w-3.5 h-3.5" />}
-              {printingPdf ? 'Generando...' : 'Imprimir'}
+              {printingPdf ? t('fep.detail.generando') : t('fep.detail.imprimir')}
             </button>
           </div>
         )}
@@ -715,28 +723,28 @@ export default function Folios() {
             {canManage && detailFolio.estado === 'ACTIVO' && (
               <button onClick={() => { setCancelTarget(detailFolio); setCancelMotivo('') }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200">
-                <XCircle className="w-4 h-4" /> Cancelar Folio
+                <XCircle className="w-4 h-4" /> {t('fep.detail.cancelarFolio')}
               </button>
             )}
             <button onClick={() => { setSelectedFolioId(null); setExpandedDetailTarima(null) }} className="btn-ghost">
-              Cerrar
+              {t('common.close')}
             </button>
           </>
         )}
       >
         {detailLoading ? (
-          <LoadingSpinner text="Cargando folio..." />
+          <LoadingSpinner text={t('fep.detail.loading')} />
         ) : detailFolio ? (
           <div className="space-y-4">
             {/* Info grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { icon: Building2, l: 'Empresa', v: detailFolio.empresa_nombre },
-                { icon: User, l: 'Creado por', v: detailFolio.creado_por_nombre || '—' },
-                { icon: Package, l: 'Tarimas', v: detailFolio.total_tarimas },
-                { icon: FileText, l: 'Guías', v: detailFolio.total_guias },
-                { icon: Clock, l: 'Creación', v: fmtDateTime(detailFolio.created_at) },
-                { icon: Clock, l: 'Actualización', v: detailFolio.updated_at ? fmtDateTime(detailFolio.updated_at) : '—' },
+                { icon: Building2, l: t('fep.empresa'), v: detailFolio.empresa_nombre },
+                { icon: User, l: t('fep.createdBy'), v: detailFolio.creado_por_nombre || '—' },
+                { icon: Package, l: t('fep.col.tarimas'), v: detailFolio.total_tarimas },
+                { icon: FileText, l: t('fep.col.guias'), v: detailFolio.total_guias },
+                { icon: Clock, l: t('fep.detail.creacion'), v: fmtDateTime(detailFolio.created_at) },
+                { icon: Clock, l: t('fep.detail.actualizacion'), v: detailFolio.updated_at ? fmtDateTime(detailFolio.updated_at) : '—' },
               ].map(f => (
                 <div key={f.l} className="p-3 rounded-xl bg-warm-50 border border-warm-100/50">
                   <p className="text-[10px] text-warm-400 uppercase tracking-wider font-bold mb-0.5 flex items-center gap-1">
@@ -758,9 +766,9 @@ export default function Folios() {
             {/* Tabs */}
             <div className="flex gap-1 border-b border-warm-100">
               {[
-                { id: 'guias', label: `Guías (${detailGuias.length})`, icon: FileText },
-                { id: 'tarimas', label: `Tarimas (${detailTarimas.length})`, icon: Package },
-                { id: 'historial', label: 'Historial', icon: Clock },
+                { id: 'guias', label: `${t('fep.detail.guias')} (${detailGuias.length})`, icon: FileText },
+                { id: 'tarimas', label: `${t('fep.detail.tarimas')} (${detailTarimas.length})`, icon: Package },
+                { id: 'historial', label: t('fep.detail.historial'), icon: Clock },
               ].map(tab => (
                 <button key={tab.id} onClick={() => setFolioDetailTab(tab.id)}
                   className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 -mb-px ${
@@ -777,7 +785,7 @@ export default function Folios() {
             {folioDetailTab === 'guias' && (
               <div>
                 {detailGuias.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-warm-400">Sin guías registradas</div>
+                  <div className="p-10 text-center text-sm text-warm-400">{t('fep.detail.noGuias')}</div>
                 ) : (
                   <>
                     <div className="max-h-80 overflow-y-auto rounded-xl border border-warm-100 scrollbar-thin">
@@ -831,7 +839,7 @@ export default function Folios() {
             {folioDetailTab === 'tarimas' && (
               <div className="max-h-96 overflow-y-auto rounded-xl border border-warm-100 scrollbar-thin">
                 {detailTarimas.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-warm-400">Sin tarimas</div>
+                  <div className="p-10 text-center text-sm text-warm-400">{t('fep.detail.noTarimas')}</div>
                 ) : (
                   <div className="divide-y divide-warm-50">
                     {detailTarimas.map(t => {
@@ -917,7 +925,7 @@ export default function Folios() {
             {folioDetailTab === 'historial' && (
               <div className="space-y-3">
                 {detailLog.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-warm-400">Sin registros de actividad</div>
+                  <div className="p-10 text-center text-sm text-warm-400">{t('fep.detail.noHistorial')}</div>
                 ) : (
                   <div className="space-y-1 max-h-96 overflow-y-auto scrollbar-thin pr-1">
                     {detailLog.map((entry, i) => (
@@ -937,7 +945,11 @@ export default function Folios() {
                             )}
                           </div>
                           {entry.detalle && (
-                            <p className="text-xs text-warm-400 mt-0.5">{entry.detalle}</p>
+                            <p className="text-xs text-warm-400 mt-0.5">
+                              {typeof entry.detalle === 'string'
+                                ? entry.detalle
+                                : Object.values(entry.detalle).filter(Boolean).join(' · ')}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -959,18 +971,20 @@ function WizardContent({
   selected, toggleTarima, toggleAll, expanded, setExpanded,
   createdFolio, onDownloadPdf, downloadingId
 }) {
+  const { t } = useI18nStore()
+
   if (step === 1) {
     return (
       <div className="space-y-5">
         {/* Empresa */}
         <div>
           <label className="block text-sm font-semibold text-warm-700 mb-1.5 flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-warm-400" /> Empresa
+            <Building2 className="w-4 h-4 text-warm-400" /> {t('fep.empresa')}
           </label>
           <select value={params.empresa_id}
             onChange={e => setParams(p => ({ ...p, empresa_id: e.target.value, canales: [] }))}
             className="select-field">
-            <option value="">selecciona una empresa</option>
+            <option value="">{t('fep.wizard.selectEmpresa')}</option>
             {empresasOpts.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
           </select>
         </div>
@@ -979,18 +993,18 @@ function WizardContent({
         {params.empresa_id && (
           <div>
             <label className="block text-sm font-semibold text-warm-700 mb-1.5 flex items-center gap-2">
-              <Radio className="w-4 h-4 text-warm-400" /> Canales
+              <Radio className="w-4 h-4 text-warm-400" /> {t('fep.canales')}
             </label>
             {canalesOpts.length === 0 ? (
               <div className="p-3 rounded-xl bg-warning-50 border border-warning-200 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-warning-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-warning-700 font-medium">
-                  Esta empresa no tiene canales asignados.
+                  {t('fep.wizard.noTarimas')}
                 </p>
               </div>
             ) : (
               <MultiSelect
-                placeholder="elige los canales (vacío = todos)"
+                placeholder={t('fep.canales')}
                 options={canalesOpts}
                 selected={params.canales}
                 onChange={v => setParams(p => ({ ...p, canales: v }))}
@@ -1003,7 +1017,7 @@ function WizardContent({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-warm-700 mb-1.5 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-warm-400" /> Fecha desde
+              <Clock className="w-4 h-4 text-warm-400" /> {t('fep.wizard.fechaDesde')}
             </label>
             <input type="date" value={params.fecha_desde}
               onChange={e => setParams(p => ({ ...p, fecha_desde: e.target.value }))}
@@ -1011,7 +1025,7 @@ function WizardContent({
           </div>
           <div>
             <label className="block text-sm font-semibold text-warm-700 mb-1.5 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-warm-400" /> Fecha hasta
+              <Clock className="w-4 h-4 text-warm-400" /> {t('fep.wizard.fechaHasta')}
             </label>
             <input type="date" value={params.fecha_hasta}
               onChange={e => setParams(p => ({ ...p, fecha_hasta: e.target.value }))}
