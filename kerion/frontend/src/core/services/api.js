@@ -25,8 +25,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('wms-auth')
-      window.location.href = '/login'
+      // Only redirect if this wasn't the login request itself
+      const isLoginRequest = error.config?.url?.includes('/auth/login')
+      if (!isLoginRequest) {
+        localStorage.removeItem('wms-auth')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }

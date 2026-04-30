@@ -5,7 +5,7 @@ import { useI18nStore } from '../../stores/i18nStore'
 import {
   LayoutDashboard, ScanBarcode, History, BarChart3,
   ChevronLeft, ChevronRight,
-  Package, Settings2, Settings, Boxes, Wifi
+  Package, Settings2, Settings, Boxes, Wifi, FileText
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -18,6 +18,7 @@ const getModuleNav = (t) => [
       { path: '/dropscan', label: t('nav.dashboard'), icon: LayoutDashboard, permission: 'dropscan.dashboard' },
       { path: '/dropscan/escaneo', label: t('nav.scanning'), icon: ScanBarcode, permission: 'dropscan.escaneo' },
       { path: '/dropscan/historial', label: t('nav.history'), icon: History, permission: 'dropscan.historial' },
+      { path: '/dropscan/folios', label: 'Folios', icon: FileText, permission: 'fep.folios' },
       { path: '/dropscan/reportes', label: t('nav.reports'), icon: BarChart3, permission: 'dropscan.reportes' },
       { path: '/dropscan/configuracion', label: t('nav.configuration'), icon: Settings, permission: 'dropscan.configuracion' },
     ]

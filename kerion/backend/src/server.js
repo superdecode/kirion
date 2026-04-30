@@ -24,6 +24,9 @@ import operadoresRoutes from './modules/dropscan/routes/operadores.routes.js'
 import invScanRoutes from './modules/inventory/routes/scan.routes.js'
 import invHistoryRoutes from './modules/inventory/routes/history.routes.js'
 
+// FEP module routes
+import fepFoliosRoutes from './modules/fep/routes/folios.routes.js'
+
 const app = express()
 
 // Security
@@ -75,6 +78,9 @@ app.use('/api/dropscan/operadores', operadoresRoutes)
 // Inventory module routes
 app.use('/api/inventory', invScanRoutes)
 app.use('/api/inventory', invHistoryRoutes)
+
+// FEP module routes
+app.use('/api/fep/folios', fepFoliosRoutes)
 
 // Auto-apply pending migrations (idempotent — each step is independent)
 async function runMigrations() {
@@ -186,6 +192,56 @@ async function runMigrations() {
     `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
        '{"escaneo":"sin_acceso","historial":"lectura","reportes":"lectura"}'::jsonb, true)
      WHERE nombre = 'Usuario' AND NOT (permisos ? 'inventory')`,
+
+    // ── FEP — Folios de Entrega Paqueteria ────────────────────────────────
+    `CREATE SEQUENCE IF NOT EXISTS fep_folio_seq START 1`,
+    `CREATE TABLE IF NOT EXISTS folios_entrega (
+       id SERIAL PRIMARY KEY,
+       folio_numero VARCHAR(20) NOT NULL UNIQUE,
+       empresa_id INTEGER NOT NULL REFERENCES configuraciones(id),
+       canales INTEGER[],
+       fecha_tarimas_desde DATE NOT NULL,
+       fecha_tarimas_hasta DATE NOT NULL,
+       estatus_tarima_filtro VARCHAR(20) DEFAULT 'FINALIZADA',
+       estado VARCHAR(20) DEFAULT 'ACTIVO',
+       motivo_cancelacion TEXT,
+       hora_inicio TIMESTAMPTZ DEFAULT now(),
+       hora_fin TIMESTAMPTZ,
+       total_tarimas INTEGER DEFAULT 0,
+       total_guias INTEGER DEFAULT 0,
+       creado_por INTEGER REFERENCES usuarios(id),
+       created_at TIMESTAMPTZ DEFAULT now(),
+       updated_at TIMESTAMPTZ DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_fep_estado ON folios_entrega(estado)`,
+    `CREATE INDEX IF NOT EXISTS idx_fep_empresa ON folios_entrega(empresa_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_fep_created ON folios_entrega(created_at)`,
+    `CREATE TABLE IF NOT EXISTS folios_entrega_tarimas (
+       id SERIAL PRIMARY KEY,
+       folio_id INTEGER REFERENCES folios_entrega(id) ON DELETE CASCADE,
+       tarima_id INTEGER REFERENCES tarimas(id) ON DELETE RESTRICT,
+       agregado_en TIMESTAMPTZ DEFAULT now(),
+       agregado_por INTEGER REFERENCES usuarios(id),
+       eliminado_en TIMESTAMPTZ,
+       eliminado_por INTEGER REFERENCES usuarios(id),
+       UNIQUE (folio_id, tarima_id)
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_fet_folio ON folios_entrega_tarimas(folio_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_fet_tarima ON folios_entrega_tarimas(tarima_id)`,
+    `CREATE TABLE IF NOT EXISTS folios_entrega_log (
+       id SERIAL PRIMARY KEY,
+       folio_id INTEGER REFERENCES folios_entrega(id) ON DELETE CASCADE,
+       accion VARCHAR(30) NOT NULL,
+       detalle JSONB,
+       usuario_id INTEGER REFERENCES usuarios(id),
+       timestamp TIMESTAMPTZ DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_fel_folio ON folios_entrega_log(folio_id)`,
+    // FEP permissions — always set (safe upsert by name+expected level)
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"total"}'::jsonb, true) WHERE nombre = 'Administrador'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"gestion"}'::jsonb, true) WHERE nombre = 'Jefe'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"gestion"}'::jsonb, true) WHERE nombre = 'Operador'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"lectura"}'::jsonb, true) WHERE nombre = 'Usuario'`,
   ]
   for (const sql of steps) {
     try {

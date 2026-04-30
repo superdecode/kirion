@@ -665,6 +665,21 @@ const translations = {
     'inventory.scan.location': '位置',
     'inventory.scan.stock': '可用库存',
 
+    // FEP / 快递面单
+    'fep.title': '快递出货单',
+    'fep.subtitle': '快递公司包裹交接单',
+    'fep.newFolio': '新建面单',
+    'fep.folio': '面单号',
+    'fep.empresa': '快递公司',
+    'fep.canales': '渠道',
+    'fep.tarimas': '托盘数',
+    'fep.guias': '面单数',
+    'fep.estado': '状态',
+    'fep.activo': '有效',
+    'fep.cancelado': '已取消',
+    'fep.completado': '已完成',
+    'nav.fep': '出货单',
+
     // Role Names / 角色名称
     'role.administrador': '管理员',
     'role.supervisor': '主管',
@@ -1326,6 +1341,23 @@ const translations = {
     'inventory.scan.sku': 'SKU',
     'inventory.scan.location': 'Ubicación',
     'inventory.scan.stock': 'Stock disponible',
+
+    // FEP / Folios de Entrega
+    'fep.title': 'Folios de Entrega',
+    'fep.subtitle': 'Trazabilidad de entregas a paqueterias',
+    'fep.newFolio': 'Nuevo Folio',
+    'fep.folio': 'Folio',
+    'fep.empresa': 'Empresa',
+    'fep.canales': 'Canales',
+    'fep.tarimas': 'Tarimas',
+    'fep.guias': 'Guias',
+    'fep.estado': 'Estado',
+    'fep.activo': 'Activo',
+    'fep.cancelado': 'Cancelado',
+    'fep.completado': 'Completado',
+    'nav.fep': 'Folios FEP',
+    'perm.mod.fep': 'FEP',
+    'perm.sub.folios': 'Folios de Entrega',
 
     // Role Names / Nombres de Roles
     'role.administrador': 'Administrador',

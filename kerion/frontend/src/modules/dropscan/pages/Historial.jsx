@@ -14,9 +14,9 @@ import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as ds from '../services/dropscanService'
 import { fmtTime, fmtTimeShort, fmtDate, fmtDateTime, getToday, subtractDays } from '../../../core/utils/dateFormat'
 import {
-  ChevronLeft, ChevronRight, Eye, Trash2, Search, Download,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, Trash2, Search, Download,
   Package, Clock, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, X,
-  RotateCcw, AlertTriangle, Copy, Pencil, Building2, Radio, Lock, Plus, ArrowRight
+  RotateCcw, AlertTriangle, Copy, Pencil, Building2, Radio, Lock, Plus, ArrowRight, Filter
 } from 'lucide-react'
 
 const calcDuration = (tarima) => {
@@ -64,6 +64,7 @@ export default function Historial() {
   const [sortDir, setSortDir] = useState('desc')
   const [detailTab, setDetailTab] = useState('guias')
   const [newGuiaCode, setNewGuiaCode] = useState('')
+  const [showFilters, setShowFilters] = useState(true)
   const { canDelete, canWrite, user } = useAuthStore()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
@@ -268,6 +269,7 @@ export default function Historial() {
     setPage(1)
   }
   const hasActiveFilters = !!(filters.estados.length || filters.empresa_ids.length || filters.canal_ids.length || filters.escaneadores.length || guiaSearch)
+  const advancedFiltersCount = filters.estados.length + filters.empresa_ids.length + filters.canal_ids.length + filters.escaneadores.length
 
   const handleExport = () => {
     try {
@@ -392,79 +394,11 @@ export default function Historial() {
                 setFilters(f => ({ ...f, fecha_inicio: s, fecha_fin: todayNow })); setPage(1)
               }} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-warm-100 text-warm-600 hover:bg-warm-200 transition-colors">{t(k)}</button>
             ))}
-            <div className="ml-auto flex items-center gap-2">
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="text-xs text-primary-600 hover:text-primary-700 font-semibold transition-colors flex items-center gap-1">
-                  <X className="w-3 h-3" />{t('common.clear')}
-                </button>
-              )}
-              <span className="badge bg-primary-100 text-primary-600 text-[10px]">{tarimas.reduce((sum, t) => sum + (t.cantidad_guias || 0), 0)} {t('dashboard.guides')}</span>
-              <span className="badge bg-warm-100 text-warm-500 text-[10px]">{pagination.total} {t('dashboard.pallets')}</span>
-              {canWrite('dropscan.historial') && !selectMode && (
-                <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200">
-                  <Download className="w-3.5 h-3.5" /> {t('common.export')}
-                </button>
-              )}
-              {selectMode && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-primary-600">{selectedIds.size} {t('history.selected')}</span>
-                  <button onClick={toggleSelectAll}
-                    className="px-2.5 py-1 text-[11px] font-semibold bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg transition-colors">
-                    {selectedIds.size === tarimas.length ? t('history.deselectAll') : t('history.selectAll')}
-                  </button>
-                  <button onClick={handleBulkExport} disabled={selectedIds.size === 0 || exportingBulk}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200 disabled:opacity-50">
-                    {exportingBulk ? <div className="w-3 h-3 border-2 border-success-600 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                    {t('common.export')} {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
-                  </button>
-                  <button onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }}
-                    className="p-1 text-warm-400 hover:text-warm-600 transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          {/* Row 2: Multi-select filters + guide search */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <MultiSelect
-              icon={CheckCircle}
-              placeholder={t('filter.status')}
-              options={[
-                { value: 'EN_PROCESO', label: estadoLabels['EN_PROCESO'] },
-                { value: 'FINALIZADA', label: estadoLabels['FINALIZADA'] },
-                { value: 'CANCELADA', label: estadoLabels['CANCELADA'] },
-              ]}
-              selected={filters.estados}
-              onChange={v => { setFilters(f => ({ ...f, estados: v })); setPage(1) }}
-            />
-            <MultiSelect
-              icon={Building2}
-              placeholder={t('history.company')}
-              options={empresasOpts}
-              selected={filters.empresa_ids}
-              onChange={v => { setFilters(f => ({ ...f, empresa_ids: v })); setPage(1) }}
-            />
-            <MultiSelect
-              icon={Radio}
-              placeholder={t('history.channel')}
-              options={canalesOpts}
-              selected={filters.canal_ids}
-              onChange={v => { setFilters(f => ({ ...f, canal_ids: v })); setPage(1) }}
-            />
-            <MultiSelect
-              icon={Search}
-              placeholder={t('filter.scanner')}
-              options={escaneadoresOpts}
-              selected={filters.escaneadores}
-              onChange={v => { setFilters(f => ({ ...f, escaneadores: v })); setPage(1) }}
-            />
-            {/* Guide search bar with dropdown */}
+            {/* Search input — always visible */}
             <div ref={guiaSearchRef} className="relative">
               <form
                 onSubmit={(e) => { e.preventDefault(); const q = guiaSearchInput.trim(); setGuiaSearch(q); setPage(1); if (q) searchGuias(q) }}
-                className={`flex items-center gap-1.5 bg-warm-50 border rounded-xl px-3 py-1.5 min-w-[220px] transition-colors ${guiaSearchOpen ? 'border-primary-400 bg-white' : 'border-warm-200'}`}
+                className={`flex items-center gap-1.5 bg-warm-50 border rounded-xl px-3 py-1.5 min-w-[200px] transition-colors ${guiaSearchOpen ? 'border-primary-400 bg-white' : 'border-warm-200'}`}
               >
                 <Search className="w-3.5 h-3.5 text-warm-400 shrink-0" />
                 <input
@@ -480,7 +414,7 @@ export default function Historial() {
                   onFocus={() => guiaSearchInput.length >= 2 && guiaSearchResults.length > 0 && setGuiaSearchOpen(true)}
                   onKeyDown={e => { if (e.key === 'Enter') { const q = guiaSearchInput.trim(); setGuiaSearch(q); setPage(1); if (q) searchGuias(q) } if (e.key === 'Escape') setGuiaSearchOpen(false) }}
                   placeholder={t('common.searchGuide')}
-                  className="text-xs outline-none bg-transparent text-warm-700 flex-1 min-w-[140px]"
+                  className="text-xs outline-none bg-transparent text-warm-700 flex-1 min-w-[120px]"
                 />
                 {guiaSearchInput && (
                   <button type="button" onClick={() => { setGuiaSearchInput(''); setGuiaSearch(''); setGuiaSearchOpen(false); setGuiaSearchResults([]); setPage(1) }} className="text-warm-400 hover:text-warm-600">
@@ -535,7 +469,108 @@ export default function Historial() {
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Filtros toggle — same position as Folios */}
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg transition-colors border ${
+                showFilters
+                  ? 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
+                  : 'bg-warm-50 text-warm-500 border-warm-200 hover:bg-warm-100'
+              } ${advancedFiltersCount > 0 ? 'ring-1 ring-primary-400' : ''}`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              Filtros
+              {advancedFiltersCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-primary-500 text-white text-[9px] flex items-center justify-center font-bold">
+                  {advancedFiltersCount}
+                </span>
+              )}
+              {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="text-xs text-primary-600 hover:text-primary-700 font-semibold transition-colors flex items-center gap-1">
+                  <X className="w-3 h-3" />{t('common.clear')}
+                </button>
+              )}
+              <span className="badge bg-primary-100 text-primary-600 text-[10px]">{tarimas.reduce((sum, t) => sum + (t.cantidad_guias || 0), 0)} {t('dashboard.guides')}</span>
+              <span className="badge bg-warm-100 text-warm-500 text-[10px]">{pagination.total} {t('dashboard.pallets')}</span>
+              {canWrite('dropscan.historial') && !selectMode && (
+                <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200">
+                  <Download className="w-3.5 h-3.5" /> {t('common.export')}
+                </button>
+              )}
+              {selectMode && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-primary-600">{selectedIds.size} {t('history.selected')}</span>
+                  <button onClick={toggleSelectAll}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg transition-colors">
+                    {selectedIds.size === tarimas.length ? t('history.deselectAll') : t('history.selectAll')}
+                  </button>
+                  <button onClick={handleBulkExport} disabled={selectedIds.size === 0 || exportingBulk}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200 disabled:opacity-50">
+                    {exportingBulk ? <div className="w-3 h-3 border-2 border-success-600 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    {t('common.export')} {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+                  </button>
+                  <button onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }}
+                    className="p-1 text-warm-400 hover:text-warm-600 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+          {/* Row 2: Multi-select filters + guide search — collapsible */}
+          <AnimatePresence initial={false}>
+          {showFilters && (
+          <motion.div
+            key="filters"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+          <div className="flex items-center gap-2 flex-wrap pt-0.5">
+            <MultiSelect
+              icon={CheckCircle}
+              placeholder={t('filter.status')}
+              options={[
+                { value: 'EN_PROCESO', label: estadoLabels['EN_PROCESO'] },
+                { value: 'FINALIZADA', label: estadoLabels['FINALIZADA'] },
+                { value: 'CANCELADA', label: estadoLabels['CANCELADA'] },
+              ]}
+              selected={filters.estados}
+              onChange={v => { setFilters(f => ({ ...f, estados: v })); setPage(1) }}
+            />
+            <MultiSelect
+              icon={Building2}
+              placeholder={t('history.company')}
+              options={empresasOpts}
+              selected={filters.empresa_ids}
+              onChange={v => { setFilters(f => ({ ...f, empresa_ids: v })); setPage(1) }}
+            />
+            <MultiSelect
+              icon={Radio}
+              placeholder={t('history.channel')}
+              options={canalesOpts}
+              selected={filters.canal_ids}
+              onChange={v => { setFilters(f => ({ ...f, canal_ids: v })); setPage(1) }}
+            />
+            <MultiSelect
+              icon={Search}
+              placeholder={t('filter.scanner')}
+              options={escaneadoresOpts}
+              selected={filters.escaneadores}
+              onChange={v => { setFilters(f => ({ ...f, escaneadores: v })); setPage(1) }}
+            />
+          </div>
+          </motion.div>
+          )}
+          </AnimatePresence>
         </div>
 
         <div className="p-4">
@@ -588,7 +623,9 @@ export default function Historial() {
                     </thead>
                     <tbody className="divide-y divide-warm-50">
                       {tarimas.map(row => (
-                        <tr key={row.id} className={`hover:bg-warm-50/50 transition-colors group ${selectMode && selectedIds.has(row.id) ? 'bg-primary-50/40' : ''}`}>
+                        <tr key={row.id}
+                          onClick={() => !selectMode && handleOpenDetail(row.id)}
+                          className={`hover:bg-warm-50/50 transition-colors group ${selectMode ? 'cursor-default' : 'cursor-pointer'} ${selectMode && selectedIds.has(row.id) ? 'bg-primary-50/40' : ''}`}>
                           {selectMode && (
                             <td className="table-cell text-center">
                               <input type="checkbox" checked={selectedIds.has(row.id)}
@@ -596,7 +633,16 @@ export default function Historial() {
                             </td>
                           )}
                           <td className="table-cell">
-                            <span className="font-mono font-semibold text-warm-700">{row.codigo}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-semibold text-warm-700">{row.codigo}</span>
+                              <button
+                                onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(row.codigo) }}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-primary-100 text-warm-400 hover:text-primary-600 transition-all"
+                                title="Copiar código"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                           <td className="table-cell text-warm-600">{row.empresa_nombre}</td>
                           <td className="table-cell text-warm-600">{row.canal_nombre}</td>
@@ -621,7 +667,7 @@ export default function Historial() {
                             {fmtDate(row.fecha_inicio)}
                             <br /><span className="text-warm-400">{fmtTimeShort(row.fecha_inicio)}</span>
                           </td>
-                          <td className="table-cell">
+                          <td className="table-cell" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                               <button onClick={() => handleOpenDetail(row.id)}
                                 className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title="Ver detalle">
