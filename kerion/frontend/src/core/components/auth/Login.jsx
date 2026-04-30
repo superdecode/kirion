@@ -87,7 +87,7 @@ export default function Login() {
                   exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                   className="p-3 rounded-xl bg-danger-50 border border-danger-200 text-danger-700 text-sm"
                 >
-                  {error}
+                  {typeof error === 'object' ? (error.message || JSON.stringify(error)) : error}
                 </motion.div>
               )}
             </AnimatePresence>

@@ -71,10 +71,14 @@ export const useAuthStore = create(
           return { success: true }
         } catch (error) {
           set({ isLoading: false })
-          return { 
-            success: false, 
-            error: error.response?.data?.error || 'Error de conexión' 
+          let errorMsg = 'Error de conexión'
+          if (error.response?.data?.error) {
+            const err = error.response.data.error
+            errorMsg = typeof err === 'object' ? (err.message || JSON.stringify(err)) : err
+          } else if (error.message) {
+            errorMsg = error.message
           }
+          return { success: false, error: errorMsg }
         }
       },
 
