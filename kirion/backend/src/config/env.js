@@ -5,11 +5,11 @@ import { dirname, resolve } from 'path'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const envFile = process.env.NODE_ENV === 'production'
-  ? '.env.production'
-  : '.env.development'
-
-dotenv.config({ path: resolve(__dirname, '../../', envFile) })
+// In production (Vercel), env vars are injected by the platform — don't load a file.
+// In development, load .env.development.
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: resolve(__dirname, '../../', '.env.development') })
+}
 
 const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
