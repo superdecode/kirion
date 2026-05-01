@@ -497,8 +497,8 @@ export default function Historial() {
               )}
               {canWrite('dropscan.historial') && !selectMode && (
                 <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200">
-                  <Download className="w-3.5 h-3.5" /> {t('common.export')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-success-600 text-white hover:bg-success-700 rounded-xl transition-all duration-200 hover:shadow-glow hover:-translate-y-[1px] active:scale-[0.97]">
+                  <Download className="w-4 h-4" /> {t('common.export')}
                 </button>
               )}
               {selectMode && (
@@ -509,7 +509,7 @@ export default function Historial() {
                     {selectedIds.size === tarimas.length ? t('history.deselectAll') : t('history.selectAll')}
                   </button>
                   <button onClick={handleBulkExport} disabled={selectedIds.size === 0 || exportingBulk}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200 disabled:opacity-50">
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-success-600 text-white hover:bg-success-700 rounded-xl transition-all duration-200 hover:shadow-glow hover:-translate-y-[1px] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:translate-y-0">
                     {exportingBulk ? <div className="w-3 h-3 border-2 border-success-600 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                     {t('common.export')} {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
                   </button>
@@ -526,11 +526,10 @@ export default function Historial() {
           {showFilters && (
           <motion.div
             key="filters"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+            animate={{ height: 'auto', opacity: 1, transitionEnd: { overflow: 'visible' } }}
+            exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden"
           >
           <div className="flex items-center gap-2 flex-wrap pt-0.5">
             <MultiSelect

@@ -399,11 +399,10 @@ export default function Folios() {
             {showFilters && (
               <motion.div
                 key="adv-filters"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                animate={{ height: 'auto', opacity: 1, transitionEnd: { overflow: 'visible' } }}
+                exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
                 transition={{ duration: 0.2 }}
-                className="overflow-hidden"
               >
                 <div className="flex items-center gap-2 flex-wrap pt-0.5">
                   <MultiSelect

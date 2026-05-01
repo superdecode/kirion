@@ -40,23 +40,24 @@ export default function Modal({ isOpen, onClose, title, icon: Icon, children, si
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
         >
           {/* Backdrop */}
           <motion.div
-            className="absolute inset-0 bg-warm-900/30 backdrop-blur-sm"
+            className="absolute inset-0 bg-warm-900/40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
           />
 
           {/* Content */}
           <motion.div
-            className={`${sizes[size]} w-full bg-white/95 backdrop-blur-xl rounded-2xl shadow-depth border border-white/60 max-h-[90vh] flex flex-col relative z-10`}
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            className={`${sizes[size]} w-full bg-white rounded-2xl shadow-depth border border-warm-100 max-h-[90vh] flex flex-col relative z-10`}
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 5 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, scale: 0.98, y: 4 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-primary-100/60
                             bg-gradient-to-r from-primary-50/80 via-primary-100/50 to-accent-50/40 rounded-t-2xl">
