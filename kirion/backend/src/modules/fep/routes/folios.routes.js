@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import PDFDocument from 'pdfkit'
 import { query, getClient } from '../../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
@@ -568,6 +567,7 @@ router.get('/:id/pdf',
         client2.release()
       }
 
+      const { default: PDFDocument } = await import('pdfkit')
       const doc = new PDFDocument({ size: 'LETTER', margin: 50, autoFirstPage: true, bufferPages: true })
       res.setHeader('Content-Type', 'application/pdf')
       res.setHeader('Content-Disposition', `inline; filename="${folio.folio_numero}.pdf"`)
