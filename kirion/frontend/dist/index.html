@@ -9,11 +9,20 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6366f1" />
+    <link rel="manifest" href="/manifest.json" />
     <title>Kirion</title>
-    <script type="module" crossorigin src="/assets/index-x_Fjw4wU.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-C9WxVIvJ.css">
+    <script type="module" crossorigin src="/assets/index-DnpA8xOl.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CCp1z7WT.css">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {})
+        })
+      }
+    </script>
   </body>
 </html>
