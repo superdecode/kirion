@@ -35,6 +35,7 @@ async function seedDatabase() {
           global: { inicio: 'total', administracion: 'total', wms: 'total' },
           dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total' },
           inventory: { escaneo: 'total', historial: 'total', reportes: 'total' },
+          fep: { folios: 'total' },
         }
       },
       {
@@ -44,6 +45,7 @@ async function seedDatabase() {
           global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'lectura' },
           dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' },
           inventory: { escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' },
+          fep: { folios: 'gestion' },
         }
       },
       {
@@ -53,6 +55,7 @@ async function seedDatabase() {
           global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' },
           inventory: { escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' },
+          fep: { folios: 'lectura' },
         }
       },
       {
@@ -62,6 +65,7 @@ async function seedDatabase() {
           global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
           inventory: { escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
+          fep: { folios: 'sin_acceso' },
         }
       }
     ]

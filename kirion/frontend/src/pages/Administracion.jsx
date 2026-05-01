@@ -42,6 +42,12 @@ const MODULE_GROUPS = [
     ]
   },
   {
+    group: 'Folios (FEP)',
+    modules: [
+      { key: 'fep.folios', label: 'Folios' },
+    ]
+  },
+  {
     group: 'Módulos Futuros',
     modules: [
       { key: 'despacho.ordenes', label: 'Despacho - Órdenes' },

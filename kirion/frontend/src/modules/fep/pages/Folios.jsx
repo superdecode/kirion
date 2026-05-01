@@ -142,15 +142,9 @@ export default function Folios() {
     try {
       const blob = await downloadPdf(selectedFolioId)
       const url = URL.createObjectURL(blob)
-      const iframe = document.createElement('iframe')
-      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;'
-      document.body.appendChild(iframe)
-      iframe.src = url
-      iframe.onload = () => {
-        iframe.contentWindow.focus()
-        iframe.contentWindow.print()
-        setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url) }, 5000)
-      }
+      const win = window.open(url, '_blank')
+      if (!win) toast.error(t('fep.printError'))
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
     } catch { toast.error(t('fep.printError')) }
     finally { setPrintingPdf(false) }
   }
@@ -222,15 +216,9 @@ export default function Folios() {
     try {
       const blob = await downloadPdf(folio.id)
       const url = URL.createObjectURL(blob)
-      const iframe = document.createElement('iframe')
-      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;'
-      document.body.appendChild(iframe)
-      iframe.src = url
-      iframe.onload = () => {
-        iframe.contentWindow.focus()
-        iframe.contentWindow.print()
-        setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url) }, 5000)
-      }
+      const win = window.open(url, '_blank')
+      if (!win) toast.error(t('fep.printError'))
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
     } catch { toast.error(t('fep.printError')) }
     finally { setDownloadingId(null) }
   }
@@ -392,13 +380,6 @@ export default function Folios() {
             </button>
 
             <div className="ml-auto flex items-center gap-2">
-              {stats && (
-                <>
-                  <span className="badge bg-success-100 text-success-700 text-[10px]">{stats.activos} {t('fep.stats.activos')}</span>
-                  <span className="badge bg-danger-100 text-danger-700 text-[10px]">{stats.cancelados} {t('fep.stats.cancelados')}</span>
-                  <span className="badge bg-warm-100 text-warm-500 text-[10px]">{stats.total_tarimas} {t('fep.stats.tarimasHoy')}</span>
-                </>
-              )}
               {hasActiveFilters && (
                 <button onClick={clearFilters} className="text-xs text-primary-600 hover:text-primary-700 font-semibold flex items-center gap-1">
                   <X className="w-3 h-3" />{t('common.clear')}
@@ -427,23 +408,22 @@ export default function Folios() {
                 <div className="flex items-center gap-2 flex-wrap pt-0.5">
                   <MultiSelect
                     icon={Building2}
-                    placeholder="Empresa"
+                    placeholder={t('fep.empresa')}
                     options={empresasOpts}
                     selected={filters.empresa_ids}
                     onChange={v => { setFilters(f => ({ ...f, empresa_ids: v })); setPage(1) }}
                   />
                   <MultiSelect
                     icon={CheckCircle}
-                    placeholder="Estado"
+                    placeholder={t('fep.estado')}
                     options={[
-                      { value: 'ACTIVO', label: 'Activo' },
-                      { value: 'CANCELADO', label: 'Cancelado' },
-                      { value: 'COMPLETADO', label: 'Completado' },
+                      { value: 'ACTIVO', label: t('fep.activo') },
+                      { value: 'CANCELADO', label: t('fep.cancelado') },
+                      { value: 'COMPLETADO', label: t('fep.completado') },
                     ]}
                     selected={filters.estados}
                     onChange={v => { setFilters(f => ({ ...f, estados: v })); setPage(1) }}
                   />
-                  <span className="badge bg-warm-100 text-warm-500 text-[10px]">{pagination.total} folios</span>
                 </div>
               </motion.div>
             )}
@@ -511,24 +491,24 @@ export default function Folios() {
                         <td className="table-cell" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => openFolioDetail(row.id)}
-                              className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title="Ver detalle">
+                              className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title={t('fep.tooltip.verDetalle')}>
                               <Eye className="w-4 h-4" />
                             </button>
                             <button onClick={() => handleDownloadPdf(row)} disabled={downloadingId === row.id}
-                              className="p-2 rounded-xl hover:bg-success-50 text-warm-400 hover:text-success-600 transition-all disabled:opacity-40" title="Descargar PDF">
+                              className="p-2 rounded-xl hover:bg-success-50 text-warm-400 hover:text-success-600 transition-all disabled:opacity-40" title={t('fep.detail.imprimir')}>
                               {downloadingId === row.id
                                 ? <div className="w-4 h-4 border-2 border-success-500 border-t-transparent rounded-full animate-spin" />
                                 : <Printer className="w-4 h-4" />}
                             </button>
                             {canManage && row.estado === 'ACTIVO' && (
                               <button onClick={() => { setCancelTarget(row); setCancelMotivo('') }}
-                                className="p-2 rounded-xl hover:bg-warning-50 text-warm-400 hover:text-warning-500 transition-all" title="Cancelar folio">
+                                className="p-2 rounded-xl hover:bg-warning-50 text-warm-400 hover:text-warning-500 transition-all" title={t('fep.cancel.title')}>
                                 <XCircle className="w-4 h-4" />
                               </button>
                             )}
                             {canDel && row.estado !== 'COMPLETADO' && (
                               <button onClick={() => setDeleteTarget(row)}
-                                className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title="Eliminar folio">
+                                className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title={t('fep.delete.title')}>
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             )}
@@ -544,7 +524,7 @@ export default function Folios() {
             {/* Pagination */}
             <div className="flex items-center justify-between px-5 py-3 border-t border-warm-100 bg-warm-50/30">
               <p className="text-xs text-warm-400 font-medium">
-                {pagination.pages > 1 ? `Página ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} folios
+                {pagination.pages > 1 ? `${t('common.page')} ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} {t('fep.folio').toLowerCase()}s
               </p>
               {pagination.pages > 1 && (
                 <div className="flex items-center gap-1">
@@ -566,6 +546,29 @@ export default function Folios() {
             </div>
           </motion.div>
         </div>
+
+        {/* Bottom counters */}
+        {stats && (
+          <div className="px-4 pb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="badge bg-success-100 text-success-700 text-[11px] px-3 py-1.5">
+                <span className="font-bold">{stats.activos}</span>&nbsp;{t('fep.stats.activos')}
+              </span>
+              <span className="badge bg-danger-100 text-danger-700 text-[11px] px-3 py-1.5">
+                <span className="font-bold">{stats.cancelados}</span>&nbsp;{t('fep.stats.cancelados')}
+              </span>
+              <span className="badge bg-primary-100 text-primary-700 text-[11px] px-3 py-1.5">
+                <span className="font-bold">{stats.completados || 0}</span>&nbsp;{t('fep.completado').toLowerCase()}s
+              </span>
+              <span className="badge bg-warm-100 text-warm-600 text-[11px] px-3 py-1.5">
+                <span className="font-bold">{Number(stats.total_tarimas).toLocaleString()}</span>&nbsp;{t('fep.tarimas').toLowerCase()}
+              </span>
+              <span className="badge bg-accent-100 text-accent-700 text-[11px] px-3 py-1.5">
+                <span className="font-bold">{Number(stats.total_guias).toLocaleString()}</span>&nbsp;{t('fep.guias').toLowerCase()}
+              </span>
+            </div>
+          </div>
+        )}
         </>}
       </div>
 
@@ -1047,8 +1050,8 @@ function WizardContent({
             <p className="text-xs text-primary-700 font-medium">
               {empresasOpts.find(e => String(e.value) === String(params.empresa_id))?.label}
               {params.canales.length > 0
-                ? ` · ${params.canales.length} canal${params.canales.length !== 1 ? 'es' : ''}`
-                : ' · todos los canales'}
+                ? ` · ${params.canales.length} ${t('fep.canales').toLowerCase()}`
+                : ` · ${t('fep.wizard.allCanales')}`}
             </p>
           </div>
         )}
@@ -1065,8 +1068,8 @@ function WizardContent({
         {/* Select all / deselect all — prominent */}
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-warm-500">
-            Selecciona las tarimas a incluir.{' '}
-            <span className="font-semibold text-primary-600">{selected.length} seleccionadas</span>
+            {t('fep.wizard.selectDesc')}{' '}
+            <span className="font-semibold text-primary-600">{selected.length} {t('fep.wizard.selected')}</span>
           </p>
           {availableOnPage.length > 0 && (
             <button
@@ -1078,15 +1081,15 @@ function WizardContent({
               }`}
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              {allPageSelected ? 'Deseleccionar todas' : 'Seleccionar todas'}
+              {allPageSelected ? t('fep.wizard.deselectAll') : t('fep.wizard.selectAll')}
             </button>
           )}
         </div>
 
         {tarimaLoading ? (
-          <LoadingSpinner text="Cargando tarimas..." />
+          <LoadingSpinner text={t('fep.wizard.noTarimas')} />
         ) : tarimas.length === 0 ? (
-          <div className="p-8 text-center text-sm text-warm-400">No hay tarimas disponibles con esos filtros</div>
+          <div className="p-8 text-center text-sm text-warm-400">{t('fep.wizard.noTarimasPage')}</div>
         ) : (
           <div className="max-h-[380px] overflow-y-auto rounded-xl border border-warm-100 scrollbar-thin">
             {tarimas.map(t => {
@@ -1150,14 +1153,14 @@ function WizardContent({
     const totalGuias = selected.reduce((s, t) => s + (t.cantidad_guias || 0), 0)
     return (
       <div className="space-y-4">
-        <p className="text-sm text-warm-500">Revisa el resumen antes de crear el folio.</p>
+        <p className="text-sm text-warm-500">{t('fep.wizard.reviewDesc')}</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl p-4 bg-primary-50">
-            <p className="text-xs font-bold text-primary-600 uppercase tracking-wider mb-1">Tarimas</p>
+            <p className="text-xs font-bold text-primary-600 uppercase tracking-wider mb-1">{t('fep.tarimas')}</p>
             <p className="text-3xl font-bold text-primary-700">{selected.length}</p>
           </div>
           <div className="rounded-xl p-4 bg-success-50">
-            <p className="text-xs font-bold text-success-600 uppercase tracking-wider mb-1">Guías totales</p>
+            <p className="text-xs font-bold text-success-600 uppercase tracking-wider mb-1">{t('fep.wizard.guiasTotal')}</p>
             <p className="text-3xl font-bold text-success-700">{totalGuias}</p>
           </div>
         </div>

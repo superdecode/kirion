@@ -495,8 +495,6 @@ export default function Historial() {
                   <X className="w-3 h-3" />{t('common.clear')}
                 </button>
               )}
-              <span className="badge bg-primary-100 text-primary-600 text-[10px]">{tarimas.reduce((sum, t) => sum + (t.cantidad_guias || 0), 0)} {t('dashboard.guides')}</span>
-              <span className="badge bg-warm-100 text-warm-500 text-[10px]">{pagination.total} {t('dashboard.pallets')}</span>
               {canWrite('dropscan.historial') && !selectMode && (
                 <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-lg transition-colors border border-success-200">
@@ -698,7 +696,7 @@ export default function Historial() {
               <div className="flex items-center justify-between px-5 py-3 border-t border-warm-100 bg-warm-50/30">
                 <div className="flex items-center gap-3">
                   <p className="text-xs text-warm-400 font-medium">
-                    {pagination.pages > 1 ? `${t('common.page')} ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} registros
+                    {pagination.pages > 1 ? `${t('common.page')} ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} {t('common.records')}
                   </p>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-warm-400">Ver</span>
@@ -729,6 +727,18 @@ export default function Historial() {
                 )}
               </div>
             </motion.div>
+          </div>
+        </div>
+
+        {/* Bottom counters */}
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="badge bg-primary-100 text-primary-700 text-[11px] px-3 py-1.5">
+              <span className="font-bold">{tarimas.reduce((sum, tar) => sum + (tar.cantidad_guias || 0), 0).toLocaleString()}</span>&nbsp;{t('dashboard.guides')}
+            </span>
+            <span className="badge bg-warm-100 text-warm-600 text-[11px] px-3 py-1.5">
+              <span className="font-bold">{pagination.total.toLocaleString()}</span>&nbsp;{t('dashboard.pallets')}
+            </span>
           </div>
         </div>
       </div>
