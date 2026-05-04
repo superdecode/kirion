@@ -741,11 +741,11 @@ export default function Folios() {
                         <thead className="bg-warm-50 sticky top-0">
                           <tr>
                             <th className="text-left px-3 py-2.5 font-bold text-warm-500">#</th>
-                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">Guía</th>
-                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">Tarima</th>
-                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">Canal</th>
-                            <th className="text-center px-3 py-2.5 font-bold text-warm-500">Pos.</th>
-                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">Hora</th>
+                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">{t('fep.detail.guiaCol')}</th>
+                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">{t('fep.detail.tarimaCol')}</th>
+                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">{t('fep.detail.canalCol')}</th>
+                            <th className="text-center px-3 py-2.5 font-bold text-warm-500">{t('fep.detail.posicion')}</th>
+                            <th className="text-left px-3 py-2.5 font-bold text-warm-500">{t('fep.detail.hora')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-warm-50">
@@ -790,43 +790,43 @@ export default function Folios() {
                   <div className="p-10 text-center text-sm text-warm-400">{t('fep.detail.noTarimas')}</div>
                 ) : (
                   <div className="divide-y divide-warm-50">
-                    {detailTarimas.map(t => {
-                      const tGuias = detailGuias.filter(g => g.tarima_codigo === t.codigo)
+                    {detailTarimas.map(tar => {
+                      const tGuias = detailGuias.filter(g => g.tarima_codigo === tar.codigo)
                       return (
-                        <div key={t.id}>
+                        <div key={tar.id}>
                           <button
-                            onClick={() => setExpandedDetailTarima(expandedDetailTarima === t.id ? null : t.id)}
+                            onClick={() => setExpandedDetailTarima(expandedDetailTarima === tar.id ? null : tar.id)}
                             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-warm-50/60 text-left transition-colors group/trow"
                           >
                             <div className="flex-1 grid grid-cols-3 sm:grid-cols-4 gap-3 text-sm min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-mono font-semibold text-primary-700 truncate">{t.codigo}</span>
-                                <button onClick={e => copyDetailCode(t.codigo, e)}
+                                <span className="font-mono font-semibold text-primary-700 truncate">{tar.codigo}</span>
+                                <button onClick={e => copyDetailCode(tar.codigo, e)}
                                   className="opacity-0 group-hover/trow:opacity-100 p-0.5 rounded hover:bg-primary-100 text-warm-400 hover:text-primary-600 transition-all shrink-0"
                                   title="Copiar código">
-                                  {copiedDetailCode === t.codigo
+                                  {copiedDetailCode === tar.codigo
                                     ? <CheckCircle className="w-3.5 h-3.5 text-success-500" />
                                     : <Copy className="w-3.5 h-3.5" />}
                                 </button>
                               </div>
-                              <span className="text-warm-500 truncate">{t.canal_nombre}</span>
-                              <span className="text-warm-400 text-xs">{t.cantidad_guias} guías</span>
-                              <span className="text-warm-400 text-xs hidden sm:block">{fmtDate(t.fecha_inicio)}</span>
+                              <span className="text-warm-500 truncate">{tar.canal_nombre}</span>
+                              <span className="text-warm-400 text-xs">{tar.cantidad_guias} {t('fep.guias').toLowerCase()}</span>
+                              <span className="text-warm-400 text-xs hidden sm:block">{fmtDate(tar.fecha_inicio)}</span>
                             </div>
-                            {expandedDetailTarima === t.id
+                            {expandedDetailTarima === tar.id
                               ? <ChevronUp className="w-4 h-4 text-warm-400 shrink-0" />
                               : <ChevronDown className="w-4 h-4 text-warm-400 shrink-0" />}
                           </button>
                           <AnimatePresence>
-                            {expandedDetailTarima === t.id && (
+                            {expandedDetailTarima === tar.id && (
                               <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
                                 <div className="px-4 pb-3 bg-warm-50/40 space-y-2">
                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
                                     {[
-                                      { icon: Package, l: 'Canal', v: t.canal_nombre },
-                                      { icon: FileText, l: 'Guías', v: t.cantidad_guias },
-                                      { icon: Clock, l: 'Inicio', v: fmtDate(t.fecha_inicio) },
-                                      { icon: Clock, l: 'Cierre', v: t.fecha_cierre ? fmtDate(t.fecha_cierre) : '—' },
+                                      { icon: Package, l: t('fep.detail.canalCol'), v: tar.canal_nombre },
+                                      { icon: FileText, l: t('fep.guias'), v: tar.cantidad_guias },
+                                      { icon: Clock, l: t('fep.detail.inicio'), v: fmtDate(tar.fecha_inicio) },
+                                      { icon: Clock, l: t('fep.detail.cierre'), v: tar.fecha_cierre ? fmtDate(tar.fecha_cierre) : '—' },
                                     ].map(({ icon: Icon, l, v }) => (
                                       <div key={l} className="flex items-start gap-1.5 p-2 rounded-lg bg-white border border-warm-100">
                                         <Icon className="w-3.5 h-3.5 text-warm-400 mt-0.5 shrink-0" />
@@ -842,8 +842,8 @@ export default function Folios() {
                                       <thead>
                                         <tr className="text-warm-400 border-b border-warm-100">
                                           <th className="text-left py-1.5 pr-3 font-semibold">#</th>
-                                          <th className="text-left pr-3 font-semibold">Guía</th>
-                                          <th className="text-left font-semibold">Hora</th>
+                                          <th className="text-left pr-3 font-semibold">{t('fep.detail.guiaCol')}</th>
+                                          <th className="text-left font-semibold">{t('fep.detail.hora')}</th>
                                         </tr>
                                       </thead>
                                       <tbody>
@@ -960,11 +960,11 @@ export default function Folios() {
                 <span className="text-sm font-bold font-mono text-warm-800">{deleteTarget.folio_numero}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-warm-500">Tarimas</span>
+                <span className="text-xs text-warm-500">{t('fep.tarimas')}</span>
                 <span className="text-sm font-semibold text-warm-700">{deleteTarget.total_tarimas}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-warm-500">Guías</span>
+                <span className="text-xs text-warm-500">{t('fep.guias')}</span>
                 <span className="text-sm font-semibold text-warm-700">{deleteTarget.total_guias}</span>
               </div>
             </div>
@@ -1167,17 +1167,17 @@ function WizardContent({
           <table className="w-full text-xs">
             <thead className="bg-warm-50 sticky top-0">
               <tr>
-                <th className="text-left px-3 py-2 font-bold text-warm-500">Código</th>
-                <th className="text-left px-3 py-2 font-bold text-warm-500">Canal</th>
-                <th className="text-right px-3 py-2 font-bold text-warm-500">Guías</th>
+                <th className="text-left px-3 py-2 font-bold text-warm-500">{t('common.code')}</th>
+                <th className="text-left px-3 py-2 font-bold text-warm-500">{t('fep.detail.canalCol')}</th>
+                <th className="text-right px-3 py-2 font-bold text-warm-500">{t('fep.guias')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-warm-50">
-              {selected.map(t => (
-                <tr key={t.id} className="hover:bg-warm-50">
-                  <td className="px-3 py-2 font-mono font-semibold text-warm-700">{t.codigo}</td>
-                  <td className="px-3 py-2 text-warm-500">{t.canal_nombre}</td>
-                  <td className="px-3 py-2 text-right font-bold text-warm-700">{t.cantidad_guias}</td>
+              {selected.map(tar => (
+                <tr key={tar.id} className="hover:bg-warm-50">
+                  <td className="px-3 py-2 font-mono font-semibold text-warm-700">{tar.codigo}</td>
+                  <td className="px-3 py-2 text-warm-500">{tar.canal_nombre}</td>
+                  <td className="px-3 py-2 text-right font-bold text-warm-700">{tar.cantidad_guias}</td>
                 </tr>
               ))}
             </tbody>
@@ -1195,13 +1195,13 @@ function WizardContent({
         </div>
         <div>
           <p className="text-2xl font-bold font-mono text-warm-800">{createdFolio.folio_numero}</p>
-          <p className="text-sm text-warm-500 mt-1">Folio creado correctamente</p>
+          <p className="text-sm text-warm-500 mt-1">{t('fep.wizard.createdOk')}</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Tarimas', value: createdFolio.total_tarimas },
-            { label: 'Guías', value: createdFolio.total_guias },
-            { label: 'Estado', value: createdFolio.estado },
+            { label: t('fep.tarimas'), value: createdFolio.total_tarimas },
+            { label: t('fep.guias'), value: createdFolio.total_guias },
+            { label: t('fep.estado'), value: createdFolio.estado },
           ].map(c => (
             <div key={c.label} className="p-3 rounded-xl bg-warm-50">
               <p className="text-xs text-warm-400 mb-0.5">{c.label}</p>

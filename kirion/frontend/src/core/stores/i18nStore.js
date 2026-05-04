@@ -757,6 +757,26 @@ const translations = {
     'perm.mod.fep': '交接单',
     'perm.sub.folios': '交接单',
 
+    // MultiSelect
+    'multiselect.todos': '全选',
+    'multiselect.limpiar': '清除',
+    'multiselect.buscar': '搜索...',
+    'multiselect.sinResultados': '无结果',
+    'multiselect.seleccionados': '已选',
+
+    // Reports tabs & chart selector
+    'reports.tab.resumen': '汇总',
+    'reports.tab.detalle': '明细',
+    'reports.chartSelector': '图表',
+    'reports.chart.dailyGuides': '每日面单',
+    'reports.chart.avgTime': '平均时间',
+    'reports.chart.hourlyProd': '每小时生产力',
+    'reports.chart.byEmpresa': '按公司',
+    'reports.chart.byCanal': '按渠道',
+    'reports.chart.byEscaneador': '按扫描员',
+    'reports.chart.fepFolios': '每日交接单',
+    'reports.folios': '交接单',
+
     // Role Names / 角色名称
     'role.administrador': '管理员',
     'role.supervisor': '主管',
@@ -1512,6 +1532,26 @@ const translations = {
     'nav.fep': 'Folios',
     'perm.mod.fep': 'Folios',
     'perm.sub.folios': 'Folios',
+
+    // MultiSelect
+    'multiselect.todos': 'Todos',
+    'multiselect.limpiar': 'Limpiar',
+    'multiselect.buscar': 'Buscar...',
+    'multiselect.sinResultados': 'Sin resultados',
+    'multiselect.seleccionados': 'seleccionados',
+
+    // Reports tabs & chart selector
+    'reports.tab.resumen': 'Resumen',
+    'reports.tab.detalle': 'Detalle',
+    'reports.chartSelector': 'Gráficas',
+    'reports.chart.dailyGuides': 'Guías por día',
+    'reports.chart.avgTime': 'Tiempo promedio',
+    'reports.chart.hourlyProd': 'Productividad horaria',
+    'reports.chart.byEmpresa': 'Por empresa',
+    'reports.chart.byCanal': 'Por canal',
+    'reports.chart.byEscaneador': 'Por escaneador',
+    'reports.chart.fepFolios': 'Folios por día',
+    'reports.folios': 'Folios',
 
     // Role Names / Nombres de Roles
     'role.administrador': 'Administrador',

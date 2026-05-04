@@ -23,15 +23,7 @@ import {
 
 const PIE_COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#84cc16']
 
-const CHART_OPTIONS = [
-  { key: 'dailyGuides', label: 'Guías por día' },
-  { key: 'avgTime',     label: 'Tiempo promedio' },
-  { key: 'hourlyProd',  label: 'Productividad horaria' },
-  { key: 'byEmpresa',   label: 'Por empresa' },
-  { key: 'byCanal',     label: 'Por canal' },
-  { key: 'byEscaneador', label: 'Por escaneador' },
-  { key: 'fepFolios',   label: 'Folios por día' },
-]
+const CHART_KEYS = ['dailyGuides', 'avgTime', 'hourlyProd', 'byEmpresa', 'byCanal', 'byEscaneador', 'fepFolios']
 const CHART_DEFAULTS = {
   dailyGuides: true, avgTime: true, hourlyProd: true,
   byEmpresa: true, byCanal: true, byEscaneador: true, fepFolios: true,
@@ -41,6 +33,21 @@ export default function Reportes() {
   const { t } = useI18nStore()
   const { canWrite } = useAuthStore()
   const today = getToday()
+
+  const CHART_OPTIONS = [
+    { key: 'dailyGuides',  label: t('reports.chart.dailyGuides') },
+    { key: 'avgTime',      label: t('reports.chart.avgTime') },
+    { key: 'hourlyProd',   label: t('reports.chart.hourlyProd') },
+    { key: 'byEmpresa',    label: t('reports.chart.byEmpresa') },
+    { key: 'byCanal',      label: t('reports.chart.byCanal') },
+    { key: 'byEscaneador', label: t('reports.chart.byEscaneador') },
+    { key: 'fepFolios',    label: t('reports.chart.fepFolios') },
+  ]
+
+  const TABS = [
+    { id: 'resumen', label: t('reports.tab.resumen'), icon: LayoutDashboard },
+    { id: 'tablas',  label: t('reports.tab.detalle'), icon: Table2 },
+  ]
   const weekAgo = subtractDays(today, 7)
 
   const [fechaInicio, setFechaInicio] = useState(weekAgo)
@@ -156,16 +163,11 @@ export default function Reportes() {
     finally { setIsExporting(false) }
   }
 
-  const TABS = [
-    { id: 'resumen', label: 'Resumen', icon: LayoutDashboard },
-    { id: 'tablas', label: 'Detalle', icon: Table2 },
-  ]
-
   const statCards = [
     { icon: Package, value: totales.guias || 0, label: t('dashboard.totalGuides'), gradient: 'from-primary-100 to-primary-50', iconColor: 'text-primary-600' },
     { icon: CheckCircle, value: totales.completadas || 0, label: t('dashboard.completedPallets'), gradient: 'from-success-100 to-success-50', iconColor: 'text-success-600' },
     { icon: TrendingUp, value: totales.tarimas || 0, label: t('reports.totalPallets'), gradient: 'from-warning-100 to-warning-50', iconColor: 'text-warning-600' },
-    { icon: FileText, value: totalFoliosPeriodo, label: 'Folios', gradient: 'from-indigo-100 to-indigo-50', iconColor: 'text-indigo-600' },
+    { icon: FileText, value: totalFoliosPeriodo, label: t('reports.folios'), gradient: 'from-indigo-100 to-indigo-50', iconColor: 'text-indigo-600' },
   ]
 
   return (
@@ -209,7 +211,7 @@ export default function Reportes() {
                 {reportTab === 'resumen' && (
                   <div className="relative group">
                     <button className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-warm-100 text-warm-700 hover:bg-warm-200 rounded-xl transition-colors border border-warm-200">
-                      <BarChart3 className="w-3.5 h-3.5" /> Gráficas <ChevronDown className="w-3 h-3" />
+                      <BarChart3 className="w-3.5 h-3.5" /> {t('reports.chartSelector')} <ChevronDown className="w-3 h-3" />
                     </button>
                     <div className="absolute right-0 top-full mt-1 z-30 bg-white rounded-xl shadow-depth border border-warm-100 min-w-[200px] overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
                       {CHART_OPTIONS.map(opt => (
@@ -460,7 +462,7 @@ export default function Reportes() {
                                 <th className="text-center px-4 py-3 font-bold text-warm-600">{t('dashboard.completedPallets')}</th>
                                 <th className="text-center px-4 py-3 font-bold text-warm-600">{t('dashboard.guides')}</th>
                                 <th className="text-center px-4 py-3 font-bold text-warm-600">{t('reports.avgTime')}</th>
-                                <th className="text-center px-4 py-3 font-bold text-warm-600">Folios</th>
+                                <th className="text-center px-4 py-3 font-bold text-warm-600">{t('reports.folios')}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">

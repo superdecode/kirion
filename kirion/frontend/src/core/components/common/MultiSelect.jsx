@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, X, Check } from 'lucide-react'
+import { useI18nStore } from '../../stores/i18nStore'
 
 export default function MultiSelect({ options = [], selected = [], onChange, placeholder = 'Seleccionar...', label, icon: Icon }) {
+  const { t } = useI18nStore()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const wrapperRef = useRef(null)
@@ -52,7 +54,7 @@ export default function MultiSelect({ options = [], selected = [], onChange, pla
           ) : selected.length <= 2 ? (
             <span className="text-warm-700">{selectedLabels.join(', ')}</span>
           ) : (
-            <span className="text-warm-700">{selected.length} seleccionados</span>
+            <span className="text-warm-700">{selected.length} {t('multiselect.seleccionados')}</span>
           )}
         </span>
         {selected.length > 0 && (
@@ -79,7 +81,7 @@ export default function MultiSelect({ options = [], selected = [], onChange, pla
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar..."
+                  placeholder={t('multiselect.buscar')}
                   className="w-full px-3 py-1.5 text-xs rounded-lg border border-warm-200 outline-none focus:border-primary-400 bg-warm-50"
                   autoFocus
                 />
@@ -93,21 +95,21 @@ export default function MultiSelect({ options = [], selected = [], onChange, pla
                 onClick={() => onChange(options.map(o => o.value))}
                 className="text-[10px] font-semibold text-primary-600 hover:text-primary-700 transition-colors"
               >
-                Todos
+                {t('multiselect.todos')}
               </button>
               <button
                 type="button"
                 onClick={() => onChange([])}
                 className="text-[10px] font-semibold text-warm-400 hover:text-warm-600 transition-colors"
               >
-                Limpiar
+                {t('multiselect.limpiar')}
               </button>
             </div>
 
             {/* Options */}
             <div className="max-h-52 overflow-y-auto scrollbar-thin">
               {filtered.length === 0 ? (
-                <div className="p-4 text-center text-xs text-warm-400">Sin resultados</div>
+                <div className="p-4 text-center text-xs text-warm-400">{t('multiselect.sinResultados')}</div>
               ) : (
                 filtered.map(option => {
                   const isSelected = selected.includes(option.value)
