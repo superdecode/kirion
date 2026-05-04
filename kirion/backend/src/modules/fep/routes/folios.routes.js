@@ -580,7 +580,21 @@ router.get('/:id/pdf',
       }
 
       const { default: PDFDocument } = await import('pdfkit')
-      const doc = new PDFDocument({ size: 'LETTER', margin: 50, autoFirstPage: true, bufferPages: true })
+
+      // bottom margin intentionally small so pdfkit's maxY (height-20=772)
+      // stays above the footer zone (height-42=750), preventing auto page-creation
+      // when we render the footer with switchToPage().
+      const MARGIN = 50
+      const CONTENT_MAX_Y = 715   // manual content limit — well above footer zone
+      const FOOTER_Y_OFFSET = 42  // from bottom of page
+      const SIG_MIN_SPACE = 80    // points needed for signature block
+
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        margins: { top: MARGIN, bottom: 20, left: MARGIN, right: MARGIN },
+        autoFirstPage: true,
+        bufferPages: true,
+      })
       res.setHeader('Content-Type', 'application/pdf')
       res.setHeader('Content-Disposition', `inline; filename="${folio.folio_numero}.pdf"`)
       doc.pipe(res)
@@ -592,68 +606,102 @@ router.get('/:id/pdf',
       const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('es-MX', { timeZone: TZ }) : '-'
       const generadoEn = fmtDate(new Date())
       const guias = guiasRes.rows
+      const PW = doc.page.width   // 612
+      const PH = doc.page.height  // 792
 
-      // Header — first page only
+      // ── Page 1 header ──────────────────────────────────────────────────────
       doc.fontSize(18).font('Helvetica-Bold').text('FOLIO DE ENTREGA', { align: 'center' })
       doc.fontSize(14).text(folio.folio_numero, { align: 'center' })
       doc.moveDown(0.5)
       doc.fontSize(10).font('Helvetica')
       doc.text(`Empresa: ${folio.empresa_nombre}   |   Estado: ${folio.estado}`, { align: 'center' })
-      doc.text(`Fecha: ${fmtDate(folio.created_at)}   |   Inicio: ${fmtDate(folio.hora_inicio)}`, { align: 'center' })
-      if (folio.hora_fin) doc.text(`Fin: ${fmtDate(folio.hora_fin)}`, { align: 'center' })
+      doc.text(`Fecha: ${fmtDate(folio.created_at)}`, { align: 'center' })
+      if (folio.hora_fin) doc.text(`Cierre: ${fmtDate(folio.hora_fin)}`, { align: 'center' })
       doc.moveDown()
-      doc.font('Helvetica-Bold').text(`Total Tarimas: ${tarimasRes.rows[0].total}   Total Guias: ${guias.length}`)
+      doc.font('Helvetica-Bold').text(`Total Tarimas: ${tarimasRes.rows[0].total}     Total Guias: ${guias.length}`)
       doc.moveDown()
 
-      // Table header
+      // ── Table header ────────────────────────────────────────────────────────
       const tableTop = doc.y
-      const cols = { n: 40, fecha: 120, guia: 160, tarima: 100, canal: 90 }
-      let x = 50
+      const cols = { n: 35, fecha: 115, guia: 165, tarima: 100, canal: 90 }
+      let x = MARGIN
       doc.font('Helvetica-Bold').fontSize(8)
-      doc.text('#', x, tableTop); x += cols.n
-      doc.text('Fecha y Hora', x, tableTop); x += cols.fecha
-      doc.text('No. Guia', x, tableTop); x += cols.guia
-      doc.text('Tarima', x, tableTop); x += cols.tarima
-      doc.text('Canal', x, tableTop)
+      doc.rect(MARGIN, tableTop - 2, PW - MARGIN * 2, 14).fill('#f1f5f9').stroke('#e2e8f0')
+      doc.fillColor('#374151')
+      doc.text('#', x, tableTop, { width: cols.n - 4 }); x += cols.n
+      doc.text('Fecha y Hora', x, tableTop, { width: cols.fecha - 5 }); x += cols.fecha
+      doc.text('No. Guia', x, tableTop, { width: cols.guia - 5 }); x += cols.guia
+      doc.text('Tarima', x, tableTop, { width: cols.tarima - 5 }); x += cols.tarima
+      doc.text('Canal', x, tableTop, { width: cols.canal })
 
       let y = tableTop + 14
-      doc.moveTo(50, y).lineTo(560, y).stroke()
-      y += 2
-      doc.font('Helvetica').fontSize(8)
+      doc.moveTo(MARGIN, y).lineTo(PW - MARGIN, y).strokeColor('#cbd5e1').stroke()
+      y += 3
+      doc.font('Helvetica').fontSize(8).fillColor('#111827')
+
+      // ── Guide rows ──────────────────────────────────────────────────────────
+      const addTableHeader = (startY) => {
+        doc.font('Helvetica-Bold').fontSize(8)
+        doc.rect(MARGIN, startY - 2, PW - MARGIN * 2, 14).fill('#f1f5f9').stroke('#e2e8f0')
+        doc.fillColor('#374151')
+        let hx = MARGIN
+        doc.text('#', hx, startY, { width: cols.n - 4 }); hx += cols.n
+        doc.text('Fecha y Hora', hx, startY, { width: cols.fecha - 5 }); hx += cols.fecha
+        doc.text('No. Guia', hx, startY, { width: cols.guia - 5 }); hx += cols.guia
+        doc.text('Tarima', hx, startY, { width: cols.tarima - 5 }); hx += cols.tarima
+        doc.text('Canal', hx, startY, { width: cols.canal })
+        doc.font('Helvetica').fontSize(8).fillColor('#111827')
+        const lineY = startY + 14
+        doc.moveTo(MARGIN, lineY).lineTo(PW - MARGIN, lineY).strokeColor('#cbd5e1').stroke()
+        return lineY + 3
+      }
 
       guias.forEach((g, i) => {
-        if (y > 700) { doc.addPage(); y = 50 }
-        x = 50
+        if (y > CONTENT_MAX_Y) {
+          doc.addPage()
+          y = MARGIN
+          y = addTableHeader(y)
+        }
+        x = MARGIN
+        if (i % 2 === 0) {
+          doc.rect(MARGIN, y - 1, PW - MARGIN * 2, 12).fill('#f8fafc').stroke()
+        }
+        doc.fillColor('#111827')
         doc.text(String(i + 1), x, y, { width: cols.n - 4 }); x += cols.n
-        doc.text(fmtDate(g.timestamp_escaneo), x, y, { width: cols.fecha - 5 }); x += cols.fecha
-        doc.text(g.codigo_guia, x, y, { width: cols.guia - 5 }); x += cols.guia
-        doc.text(g.tarima_codigo || '-', x, y, { width: cols.tarima - 5 }); x += cols.tarima
-        doc.text(g.canal_nombre || '-', x, y, { width: cols.canal })
-        y += 12
+        doc.text(fmtDate(g.timestamp_escaneo), x, y, { width: cols.fecha - 5, lineBreak: false }); x += cols.fecha
+        doc.text(g.codigo_guia, x, y, { width: cols.guia - 5, lineBreak: false }); x += cols.guia
+        doc.text(g.tarima_codigo || '-', x, y, { width: cols.tarima - 5, lineBreak: false }); x += cols.tarima
+        doc.text(g.canal_nombre || '-', x, y, { width: cols.canal, lineBreak: false })
+        y += 13
       })
 
-      // Signature section
-      if (y > 620) { doc.addPage(); y = 50 }
+      // ── Signature block ──────────────────────────────────────────────────────
+      if (y > CONTENT_MAX_Y - SIG_MIN_SPACE) { doc.addPage(); y = MARGIN }
       y += 20
-      doc.moveTo(50, y).lineTo(560, y).stroke(); y += 20
-      doc.font('Helvetica-Bold').fontSize(9)
-      doc.text('Firma Responsable de Entrega:', 50, y)
+      doc.moveTo(MARGIN, y).lineTo(PW - MARGIN, y).strokeColor('#94a3b8').stroke()
+      y += 18
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#374151')
+      doc.text('Firma Responsable de Entrega:', MARGIN, y)
       doc.text('Firma Receptor Paqueteria:', 320, y)
-      y += 40
-      doc.moveTo(50, y).lineTo(250, y).stroke()
+      y += 45
+      doc.moveTo(MARGIN, y).lineTo(250, y).strokeColor('#374151').stroke()
       doc.moveTo(320, y).lineTo(520, y).stroke()
+      y += 6
+      doc.font('Helvetica').fontSize(8).fillColor('#6b7280')
+      doc.text('Nombre y Cargo', MARGIN, y, { width: 200, align: 'center' })
+      doc.text('Nombre y Cargo', 320, y, { width: 200, align: 'center' })
 
-      // Footer - add to all pages at the end
+      // ── Footer on every page ─────────────────────────────────────────────────
       const range = doc.bufferedPageRange()
-      for (let i = range.start; i < range.start + range.count; i++) {
-        doc.switchToPage(i)
-        const bottom = doc.page.height - 35
+      const footerText = `${folio.folio_numero}  |  ${folio.empresa_nombre}  |  Generado: ${generadoEn}`
+      for (let pi = range.start; pi < range.start + range.count; pi++) {
+        doc.switchToPage(pi)
+        const fy = PH - FOOTER_Y_OFFSET
         doc.save()
-        doc.fontSize(7).font('Helvetica').fillColor('#6b7280')
-        doc.text(
-          `Folio: ${folio.folio_numero}  |  Empresa: ${folio.empresa_nombre}  |  Fecha: ${fmtDate(folio.created_at)}  |  Imp: ${generadoEn}  |  Página ${i + 1} de ${range.count}`,
-          50, bottom, { width: 512, align: 'center' }
-        )
+        doc.moveTo(MARGIN, fy - 6).lineTo(PW - MARGIN, fy - 6).strokeColor('#e2e8f0').lineWidth(0.5).stroke()
+        doc.fontSize(7).font('Helvetica').fillColor('#9ca3af')
+        doc.text(footerText, MARGIN, fy, { width: PW - MARGIN * 2, align: 'left', lineBreak: false })
+        doc.text(`Pág. ${pi + 1} / ${range.count}`, MARGIN, fy, { width: PW - MARGIN * 2, align: 'right', lineBreak: false })
         doc.restore()
       }
 

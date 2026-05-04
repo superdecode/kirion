@@ -10,7 +10,7 @@ import { useI18nStore } from '../core/stores/i18nStore'
 import api from '../core/services/api'
 import {
   Users, Shield, Plus, Search, Edit3, Trash2, ToggleLeft, ToggleRight,
-  Key, Copy, ChevronDown, CheckCircle, XCircle, Settings2
+  Key, Copy, ChevronDown, CheckCircle, XCircle, Settings2, Check
 } from 'lucide-react'
 
 // Module definitions for scalable permission system
@@ -65,6 +65,15 @@ const PERM_LEVELS = [
   { value: 'escritura', label: 'Lectura/Escritura', color: 'bg-success-100 text-success-700' },
   { value: 'gestion', label: 'Gestión', color: 'bg-accent-100 text-accent-700' },
   { value: 'total', label: 'Administrador', color: 'bg-primary-100 text-primary-700' },
+]
+
+const LEVEL_ORDER = ['sin_acceso', 'lectura', 'escritura', 'gestion', 'total']
+
+const COL_DEFS = [
+  { key: 'ver', label: 'Ver', level: 'lectura' },
+  { key: 'crear', label: 'Crear', level: 'escritura' },
+  { key: 'actualizar', label: 'Actualizar', level: 'gestion' },
+  { key: 'eliminar', label: 'Eliminar', level: 'total' },
 ]
 
 // API helpers
@@ -507,6 +516,22 @@ function RolesTab({ canEdit, canDel }) {
   )
 }
 
+function PermCheckbox({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all duration-150 mx-auto
+        ${checked
+          ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
+          : 'bg-white border-warm-300 hover:border-slate-500'
+        }`}
+    >
+      {checked && <Check className="w-3 h-3" strokeWidth={3} />}
+    </button>
+  )
+}
+
 function RoleFormModal({ isOpen, onClose, role }) {
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
@@ -581,37 +606,64 @@ function RoleFormModal({ isOpen, onClose, role }) {
         {/* Permission matrix */}
         <div>
           <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-3">Permisos por Módulo</h4>
-          <div className="space-y-4">
-            {MODULE_GROUPS.map(g => (
-              <div key={g.group} className="rounded-xl border border-warm-100 overflow-hidden">
-                <div className="px-4 py-2.5 bg-warm-50 border-b border-warm-100">
-                  <h5 className="text-xs font-bold text-warm-600 uppercase tracking-wider">{g.group}</h5>
-                </div>
-                <div className="divide-y divide-warm-50">
-                  {g.modules.map(m => {
-                    const current = getPermLevel(m.key)
-                    return (
-                      <div key={m.key} className="flex items-center gap-3 px-4 py-3">
-                        <span className="text-sm text-warm-700 font-medium flex-1 min-w-[140px]">{m.label}</span>
-                        <div className="flex gap-1.5">
-                          {PERM_LEVELS.map(pl => (
-                            <button key={pl.value} onClick={() => setPermLevel(m.key, pl.value)}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all
-                                ${current === pl.value
-                                  ? `${pl.color} ring-1 ring-current/20 shadow-sm`
-                                  : 'bg-warm-50 text-warm-400 hover:bg-warm-100 hover:text-warm-600'
-                                }`}
-                              title={pl.label}>
-                              {pl.label.split(' ')[0]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+          <div className="rounded-xl border border-warm-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-800 text-white">
+                  <th className="text-left px-4 py-3 font-semibold w-[46%]">Módulo</th>
+                  {COL_DEFS.map(col => (
+                    <th key={col.key} className="text-center px-3 py-3 font-semibold">{col.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {MODULE_GROUPS.map(g => (
+                  <>
+                    <tr key={`g-${g.group}`} className="bg-slate-700">
+                      <td colSpan={5} className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-200">
+                        {g.group}
+                      </td>
+                    </tr>
+                    {g.modules.map((m, i) => {
+                      const current = getPermLevel(m.key)
+                      const enabled = current !== 'sin_acceso'
+                      return (
+                        <tr key={m.key} className={`border-b border-warm-100 transition-colors hover:bg-primary-50/30 ${i % 2 === 0 ? 'bg-white' : 'bg-warm-50/40'}`}>
+                          <td className="px-4 py-3">
+                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                              <PermCheckbox
+                                checked={enabled}
+                                onChange={() => setPermLevel(m.key, enabled ? 'sin_acceso' : 'lectura')}
+                              />
+                              <span className={`font-medium transition-colors ${enabled ? 'text-warm-800' : 'text-warm-400'}`}>{m.label}</span>
+                            </label>
+                          </td>
+                          {COL_DEFS.map(col => {
+                            const colIdx = LEVEL_ORDER.indexOf(col.level)
+                            const curIdx = LEVEL_ORDER.indexOf(current)
+                            const checked = curIdx >= colIdx
+                            return (
+                              <td key={col.key} className="text-center px-3 py-3">
+                                <PermCheckbox
+                                  checked={checked}
+                                  onChange={() => {
+                                    if (curIdx >= colIdx) {
+                                      setPermLevel(m.key, LEVEL_ORDER[colIdx - 1])
+                                    } else {
+                                      setPermLevel(m.key, col.level)
+                                    }
+                                  }}
+                                />
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
