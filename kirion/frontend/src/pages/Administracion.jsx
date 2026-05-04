@@ -19,47 +19,41 @@ const MODULE_GROUPS = [
     group: 'DropScan',
     groupKey: 'admin.group.dropscan',
     modules: [
-      { key: 'dropscan.dashboard', label: 'Dashboard' },
-      { key: 'dropscan.escaneo', label: 'Escaneo' },
-      { key: 'dropscan.historial', label: 'Historial' },
-      { key: 'dropscan.reportes', label: 'Reportes' },
-      { key: 'dropscan.configuracion', label: 'Configuración' },
+      { key: 'dropscan.dashboard',    label: 'Dashboard',     labelKey: 'perm.sub.dashboard' },
+      { key: 'dropscan.escaneo',      label: 'Escaneo',       labelKey: 'perm.sub.escaneo' },
+      { key: 'dropscan.historial',    label: 'Historial',     labelKey: 'perm.sub.historial' },
+      { key: 'fep.folios',            label: 'Folios',        labelKey: 'perm.sub.folios' },
+      { key: 'dropscan.reportes',     label: 'Reportes',      labelKey: 'perm.sub.reportes' },
+      { key: 'dropscan.configuracion',label: 'Configuración', labelKey: 'perm.sub.configuracion' },
     ]
   },
   {
     group: 'Inventario',
     groupKey: 'admin.group.inventory',
     modules: [
-      { key: 'inventory.escaneo', label: 'Escaneo' },
-      { key: 'inventory.historial', label: 'Historial' },
-      { key: 'inventory.reportes', label: 'Reportes' },
+      { key: 'inventory.escaneo',  label: 'Escaneo',  labelKey: 'perm.sub.escaneo' },
+      { key: 'inventory.historial',label: 'Historial',labelKey: 'perm.sub.historial' },
+      { key: 'inventory.reportes', label: 'Reportes', labelKey: 'perm.sub.reportes' },
     ]
   },
   {
     group: 'Sistema',
     groupKey: 'admin.group.sistema',
     modules: [
-      { key: 'global.inicio', label: 'Inicio (Dashboard Global)' },
-      { key: 'global.administracion', label: 'Administración' },
-      { key: 'global.wms', label: 'WMS Hub (Conexión)' },
-    ]
-  },
-  {
-    group: 'Folios (FEP)',
-    groupKey: 'admin.group.fep',
-    modules: [
-      { key: 'fep.folios', label: 'Folios' },
+      { key: 'global.inicio',        label: 'Inicio',          labelKey: 'perm.sub.inicio' },
+      { key: 'global.administracion',label: 'Administración',  labelKey: 'perm.sub.administracion' },
+      { key: 'global.wms',           label: 'WMS Hub',         labelKey: 'perm.sub.wms' },
     ]
   },
   {
     group: 'Módulos Futuros',
     groupKey: 'admin.group.future',
     modules: [
-      { key: 'despacho.ordenes', label: 'Despacho - Órdenes' },
-      { key: 'despacho.validacion', label: 'Despacho - Validación' },
-      { key: 'rastreo.consulta', label: 'Rastreo - Consulta' },
-      { key: 'integraciones.config', label: 'Integraciones' },
-      { key: 'reportes.global', label: 'Reportes Globales' },
+      { key: 'despacho.ordenes',    label: 'Despacho - Órdenes',    labelKey: 'perm.sub.despacho.ordenes' },
+      { key: 'despacho.validacion', label: 'Despacho - Validación', labelKey: 'perm.sub.despacho.validacion' },
+      { key: 'rastreo.consulta',    label: 'Rastreo - Consulta',    labelKey: 'perm.sub.rastreo.consulta' },
+      { key: 'integraciones.config',label: 'Integraciones',         labelKey: 'perm.sub.integraciones' },
+      { key: 'reportes.global',     label: 'Reportes Globales',     labelKey: 'perm.sub.reportes.global' },
     ]
   },
 ]
@@ -138,6 +132,7 @@ function PasswordResetModal({ isOpen, onClose, user }) {
   const [password, setPassword] = useState('')
   const toast = useToastStore.getState()
   const qc = useQueryClient()
+  const { t } = useI18nStore()
 
   useEffect(() => {
     if (isOpen) setPassword('')
@@ -145,29 +140,29 @@ function PasswordResetModal({ isOpen, onClose, user }) {
 
   const mutation = useMutation({
     mutationFn: (data) => api.post(`/users/${user.id}/reset-password`, data),
-    onSuccess: () => { toast.success('Contraseña restablecida exitosamente'); qc.invalidateQueries({ queryKey: ['admin-users'] }); onClose() },
-    onError: (e) => toast.error(e.response?.data?.error || 'Error restableciendo contraseña')
+    onSuccess: () => { toast.success(t('admin.passwordReset')); qc.invalidateQueries({ queryKey: ['admin-users'] }); onClose() },
+    onError: (e) => toast.error(e.response?.data?.error || t('toast.error'))
   })
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!password.trim()) { toast.warning('La contraseña es requerida'); return }
+    if (!password.trim()) { toast.warning(t('admin.passwordCreate')); return }
     mutation.mutate({ password })
   }
 
   if (!user) return null
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Resetear contraseña: ${user.nombre_completo}`} icon={Key} size="sm"
+    <Modal isOpen={isOpen} onClose={onClose} title={`${t('admin.resetPasswordTitle')}: ${user.nombre_completo}`} icon={Key} size="sm"
       footer={<>
-        <button onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button onClick={onClose} className="btn-ghost">{t('common.cancel')}</button>
         <button onClick={handleSubmit} disabled={mutation.isPending} className="btn-primary">
-          {mutation.isPending ? 'Guardando...' : 'Resetear Contraseña'}
+          {mutation.isPending ? t('admin.saving') : t('admin.resetPasswordTitle')}
         </button>
       </>}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-semibold text-warm-700 mb-1.5">Nueva contraseña</label>
+          <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('admin.newPassword')}</label>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)}
             className="input-field" required autoFocus />
         </div>
@@ -184,6 +179,7 @@ function UsersTab({ canEdit, canDel }) {
   const [resetUser, setResetUser] = useState(null)
   const toast = useToastStore.getState()
   const qc = useQueryClient()
+  const { t } = useI18nStore()
 
   const { data, isLoading, isError: usersError } = useQuery({ queryKey: ['admin-users'], queryFn: getUsers, retry: 1 })
   const { data: rolesData } = useQuery({ queryKey: ['admin-roles'], queryFn: getRoles, retry: 1 })
@@ -195,15 +191,20 @@ function UsersTab({ canEdit, canDel }) {
     : users
 
   const toggleMutation = useMutation({
-    mutationFn: (user) => api.put(`/users/${user.id}`, { estado: isActive(user) ? 'INACTIVO' : 'ACTIVO' }),
-    onSuccess: () => { toast.success('Estado actualizado'); qc.invalidateQueries({ queryKey: ['admin-users'] }) },
-    onError: () => toast.error('Error actualizando estado')
+    mutationFn: (user) => api.put(`/users/${user.id}`, {
+      nombre_completo: user.nombre_completo,
+      email: user.email,
+      rol_id: user.rol_id,
+      estado: isActive(user) ? 'INACTIVO' : 'ACTIVO',
+    }),
+    onSuccess: () => { toast.success(t('common.status')); qc.invalidateQueries({ queryKey: ['admin-users'] }) },
+    onError: () => toast.error(t('toast.error'))
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/users/${id}`),
-    onSuccess: () => { toast.success('Usuario eliminado'); qc.invalidateQueries({ queryKey: ['admin-users'] }) },
-    onError: (e) => toast.error(e.response?.data?.error || 'Error eliminando')
+    onSuccess: () => { toast.success(t('admin.userDeleted')); qc.invalidateQueries({ queryKey: ['admin-users'] }) },
+    onError: (e) => toast.error(e.response?.data?.error || t('toast.error'))
   })
 
   return (
@@ -212,32 +213,32 @@ function UsersTab({ canEdit, canDel }) {
       <div className="flex items-center gap-3 mb-5">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar usuarios..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('admin.searchUsers')}
             className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-warm-200 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100" />
         </div>
-        <span className="badge bg-warm-100 text-warm-500">{filtered.length} usuarios</span>
+        <span className="badge bg-warm-100 text-warm-500">{filtered.length} {t('admin.users')}</span>
         {canEdit && (
           <button onClick={() => setShowCreate(true)} className="btn-primary inline-flex items-center gap-2 ml-auto">
-            <Plus className="w-4 h-4" /> Nuevo Usuario
+            <Plus className="w-4 h-4" /> {t('admin.newUser')}
           </button>
         )}
       </div>
 
       {/* Users table */}
-      {isLoading ? <LoadingSpinner text="Cargando usuarios..." /> : usersError ? (
-        <div className="card p-6 text-center text-warm-500">Error cargando usuarios. Verifica tu sesión e intenta de nuevo.</div>
+      {isLoading ? <LoadingSpinner text={t('admin.loadingUsers')} /> : usersError ? (
+        <div className="card p-6 text-center text-warm-500">{t('admin.errorUsers')}</div>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gradient-to-r from-warm-50 to-purple-50 border-b border-warm-200">
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Usuario</th>
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Email</th>
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Código</th>
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Rol</th>
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Estado</th>
-                  {canEdit && <th className="text-right px-4 py-3 font-bold text-warm-600">Acciones</th>}
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.userName')}</th>
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.email')}</th>
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.userCode')}</th>
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.role')}</th>
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('common.status')}</th>
+                  {canEdit && <th className="text-right px-4 py-3 font-bold text-warm-600">{t('common.actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-warm-100">
@@ -257,29 +258,29 @@ function UsersTab({ canEdit, canDel }) {
                       <td className="px-4 py-3 text-warm-600">{u.email}</td>
                       <td className="px-4 py-3 font-mono text-warm-500">{u.codigo}</td>
                       <td className="px-4 py-3">
-                        <span className="badge bg-primary-100 text-primary-700">{role?.nombre || u.rol_nombre || 'Sin rol'}</span>
+                        <span className="badge bg-primary-100 text-primary-700">{role?.nombre || u.rol_nombre || t('admin.sinRol')}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`badge ${isActive(u) ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'}`}>
-                          {isActive(u) ? 'Activo' : 'Inactivo'}
+                          {isActive(u) ? t('common.active') : t('common.inactive')}
                         </span>
                       </td>
                       {canEdit && (
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setEditUser(u)} className="p-2 rounded-lg hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title="Editar">
+                            <button onClick={() => setEditUser(u)} className="p-2 rounded-lg hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title={t('common.edit')}>
                               <Edit3 className="w-4 h-4" />
                             </button>
                             <button onClick={() => toggleMutation.mutate(u)}
-                              className="p-2 rounded-lg hover:bg-warm-100 text-warm-400 hover:text-warm-600 transition-all" title={isActive(u) ? 'Desactivar' : 'Activar'}>
+                              className="p-2 rounded-lg hover:bg-warm-100 text-warm-400 hover:text-warm-600 transition-all" title={isActive(u) ? t('admin.deactivate') : t('admin.activate')}>
                               {isActive(u) ? <ToggleRight className="w-4 h-4 text-success-500" /> : <ToggleLeft className="w-4 h-4 text-warm-400" />}
                             </button>
-                            <button onClick={() => setResetUser(u)} className="p-2 rounded-lg hover:bg-warning-50 text-warm-400 hover:text-warning-600 transition-all" title="Resetear contraseña">
+                            <button onClick={() => setResetUser(u)} className="p-2 rounded-lg hover:bg-warning-50 text-warm-400 hover:text-warning-600 transition-all" title={t('admin.resetPassword')}>
                               <Key className="w-4 h-4" />
                             </button>
                             {canDel && (
-                              <button onClick={() => { if (confirm(`¿Eliminar usuario ${u.nombre_completo}?`)) deleteMutation.mutate(u.id) }}
-                                className="p-2 rounded-lg hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title="Eliminar">
+                              <button onClick={() => { if (confirm(`${t('admin.confirmDeleteUser')}`)) deleteMutation.mutate(u.id) }}
+                                className="p-2 rounded-lg hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title={t('common.delete')}>
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             )}
@@ -309,8 +310,8 @@ function UserFormModal({ isOpen, onClose, user, roles }) {
   const [form, setForm] = useState({ nombre_completo: '', email: '', codigo: '', password: '', rol_id: '', estado: 'ACTIVO' })
   const toast = useToastStore.getState()
   const qc = useQueryClient()
+  const { t } = useI18nStore()
 
-  // Populate on open
   useEffect(() => {
     if (user) {
       setForm({
@@ -328,60 +329,60 @@ function UserFormModal({ isOpen, onClose, user, roles }) {
 
   const mutation = useMutation({
     mutationFn: (data) => user ? api.put(`/users/${user.id}`, data) : api.post('/users', data),
-    onSuccess: () => { toast.success(user ? 'Usuario actualizado' : 'Usuario creado'); qc.invalidateQueries({ queryKey: ['admin-users'] }); onClose() },
-    onError: (e) => toast.error(e.response?.data?.error || 'Error guardando usuario')
+    onSuccess: () => { toast.success(user ? t('admin.userUpdated') : t('admin.userCreated')); qc.invalidateQueries({ queryKey: ['admin-users'] }); onClose() },
+    onError: (e) => toast.error(e.response?.data?.error || t('toast.error'))
   })
 
   const handleSubmit = (e) => {
     e.preventDefault()
     const payload = { ...form, rol_id: parseInt(form.rol_id) || undefined }
-    if (!user && !payload.password) { toast.warning('La contraseña es requerida'); return }
+    if (!user && !payload.password) { toast.warning(t('admin.passwordCreate')); return }
     if (user && !payload.password) delete payload.password
     mutation.mutate(payload)
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={user ? 'Editar Usuario' : 'Nuevo Usuario'} icon={Users} size="md"
+    <Modal isOpen={isOpen} onClose={onClose} title={user ? t('admin.editUser') : t('admin.newUser')} icon={Users} size="md"
       footer={<>
-        <button onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button onClick={onClose} className="btn-ghost">{t('common.cancel')}</button>
         <button onClick={handleSubmit} disabled={mutation.isPending} className="btn-primary">
-          {mutation.isPending ? 'Guardando...' : user ? 'Actualizar' : 'Crear Usuario'}
+          {mutation.isPending ? t('admin.saving') : user ? t('admin.update') : t('admin.newUser')}
         </button>
       </>}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-semibold text-warm-700 mb-1.5">Nombre completo</label>
+          <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('admin.fullName')}</label>
           <input value={form.nombre_completo} onChange={e => setForm(f => ({ ...f, nombre_completo: e.target.value }))}
             className="input-field" required />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-warm-700 mb-1.5">Email</label>
+            <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('admin.email')}</label>
             <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               className="input-field" required />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-warm-700 mb-1.5">Código</label>
+            <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('admin.userCode')}</label>
             <input value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value.toUpperCase() }))}
               className="input-field" />
           </div>
         </div>
         <div>
           <label className="block text-sm font-semibold text-warm-700 mb-1.5">
-            {user ? 'Nueva contraseña (dejar vacío para mantener)' : 'Contraseña'}
+            {user ? t('admin.passwordNew') : t('admin.passwordCreate')}
           </label>
           <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
             className="input-field" {...(!user ? { required: true } : {})} />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-warm-700 mb-1.5">Rol</label>
+          <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('admin.role')}</label>
           <select value={form.rol_id} onChange={e => setForm(f => ({ ...f, rol_id: e.target.value }))} className="select-field" required>
-            <option value="">Seleccionar rol...</option>
-            {roles.map(r => <option key={r.id} value={r.id}>{r.nombre} — {r.descripcion}</option>)}
+            <option value="">{t('admin.selectRole')}</option>
+            {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}{r.descripcion ? ` — ${r.descripcion}` : ''}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-semibold text-warm-700 mb-1.5">Estado</label>
+          <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('common.status')}</label>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -392,7 +393,7 @@ function UserFormModal({ isOpen, onClose, user, roles }) {
                   : 'bg-danger-100 text-danger-700 ring-1 ring-danger-200'
               }`}>
               {form.estado === 'ACTIVO' ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-              {form.estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
+              {form.estado === 'ACTIVO' ? t('common.active') : t('common.inactive')}
             </button>
           </div>
         </div>
@@ -429,27 +430,27 @@ function RolesTab({ canEdit, canDel }) {
   return (
     <div>
       <div className="flex items-center gap-3 mb-5">
-        <span className="badge bg-warm-100 text-warm-500">{roles.length} roles</span>
+        <span className="badge bg-warm-100 text-warm-500">{roles.length} {t('admin.rolesLabel')}</span>
         {canEdit && (
           <button onClick={() => setShowCreate(true)} className="btn-primary inline-flex items-center gap-2 ml-auto">
-            <Plus className="w-4 h-4" /> Nuevo Rol
+            <Plus className="w-4 h-4" /> {t('admin.newRole')}
           </button>
         )}
       </div>
 
-      {isLoading ? <LoadingSpinner text="Cargando roles..." /> : rolesError ? (
-        <div className="card p-6 text-center text-warm-500">Error cargando roles. Verifica tu sesión e intenta de nuevo.</div>
+      {isLoading ? <LoadingSpinner text={t('admin.loadingRoles')} /> : rolesError ? (
+        <div className="card p-6 text-center text-warm-500">{t('admin.errorRoles')}</div>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gradient-to-r from-warm-50 to-purple-50 border-b border-warm-200">
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Rol</th>
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Descripción</th>
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Usuarios</th>
-                  <th className="text-left px-4 py-3 font-bold text-warm-600">Permisos</th>
-                  {canEdit && <th className="text-right px-4 py-3 font-bold text-warm-600">Acciones</th>}
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.roles')}</th>
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.description')}</th>
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.users')}</th>
+                  <th className="text-left px-4 py-3 font-bold text-warm-600">{t('admin.permissions')}</th>
+                  {canEdit && <th className="text-right px-4 py-3 font-bold text-warm-600">{t('common.actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-warm-100">
@@ -465,7 +466,7 @@ function RolesTab({ canEdit, canDel }) {
                           <span className="font-semibold text-warm-800">{r.nombre}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-warm-600">{r.descripcion || 'Sin descripción'}</td>
+                      <td className="px-4 py-3 text-warm-600">{r.descripcion || t('admin.sinDescripcion')}</td>
                       <td className="px-4 py-3">
                         <span className="badge bg-warm-100 text-warm-500">{userCount}</span>
                       </td>
@@ -480,7 +481,7 @@ function RolesTab({ canEdit, canDel }) {
                                   const level = parts.length === 2
                                     ? r.permisos[parts[0]]?.[parts[1]]
                                     : r.permisos[parts[0]]
-                                  if (level && level !== 'sin_acceso') accessible.push(m.label)
+                                  if (level && level !== 'sin_acceso') accessible.push(t(m.labelKey) || m.label)
                                 })
                               })
                             }
@@ -489,8 +490,8 @@ function RolesTab({ canEdit, canDel }) {
                             }
                             return (
                               <>
-                                {accessible.slice(0, 6).map(label => (
-                                  <span key={label} className="badge bg-primary-100 text-primary-700 text-[10px]">{label}</span>
+                                {accessible.slice(0, 6).map((label, i) => (
+                                  <span key={i} className="badge bg-primary-100 text-primary-700 text-[10px]">{label}</span>
                                 ))}
                                 {accessible.length > 6 && (
                                   <span className="badge bg-warm-100 text-warm-400 text-[10px]">+{accessible.length - 6}</span>
@@ -503,15 +504,15 @@ function RolesTab({ canEdit, canDel }) {
                       {canEdit && (
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setEditRole(r)} className="p-2 rounded-lg hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title="Editar permisos">
+                            <button onClick={() => setEditRole(r)} className="p-2 rounded-lg hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title={t('admin.editPerms')}>
                               <Edit3 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => duplicateMutation.mutate(r)} className="p-2 rounded-lg hover:bg-warm-100 text-warm-400 hover:text-warm-600 transition-all" title="Duplicar rol">
+                            <button onClick={() => duplicateMutation.mutate(r)} className="p-2 rounded-lg hover:bg-warm-100 text-warm-400 hover:text-warm-600 transition-all" title={t('admin.duplicateRole')}>
                               <Copy className="w-4 h-4" />
                             </button>
                             {canDel && userCount === 0 && (
-                              <button onClick={() => { if (confirm(`¿Eliminar rol ${r.nombre}?`)) deleteMutation.mutate(r.id) }}
-                                className="p-2 rounded-lg hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title="Eliminar">
+                              <button onClick={() => { if (confirm(`${t('admin.confirmDeleteRole')}`)) deleteMutation.mutate(r.id) }}
+                                className="p-2 rounded-lg hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title={t('common.delete')}>
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             )}
@@ -532,18 +533,22 @@ function RolesTab({ canEdit, canDel }) {
   )
 }
 
-function PermCheckbox({ checked, onChange }) {
+function PermCheckbox({ checked, onChange, variant = 'perm' }) {
+  const isModule = variant === 'module'
   return (
     <button
       type="button"
       onClick={onChange}
-      className={`w-[18px] h-[18px] rounded flex items-center justify-center border-2 transition-all duration-150 mx-auto shrink-0
+      className={`rounded-full flex items-center justify-center border-2 transition-all duration-150 shrink-0
+        ${isModule ? 'w-5 h-5' : 'w-[17px] h-[17px] mx-auto'}
         ${checked
-          ? 'bg-primary-600 border-primary-600 text-white shadow-sm shadow-primary-200/60'
+          ? isModule
+            ? 'bg-primary-600 border-primary-600 text-white shadow-sm'
+            : 'bg-primary-300 border-primary-300 text-white'
           : 'bg-white border-warm-300 hover:border-primary-400 hover:bg-primary-50'
         }`}
     >
-      {checked && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
+      {checked && <Check className={isModule ? 'w-2.5 h-2.5' : 'w-2 h-2'} strokeWidth={3} />}
     </button>
   )
 }
@@ -609,19 +614,19 @@ function RoleFormModal({ isOpen, onClose, role }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={role ? `Editar: ${role.nombre}` : 'Nuevo Rol'} icon={Shield} size="xl"
       footer={<>
-        <button onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button onClick={onClose} className="btn-ghost">{t('common.cancel')}</button>
         <button onClick={handleSubmit} disabled={mutation.isPending} className="btn-primary">
-          {mutation.isPending ? 'Guardando...' : role ? 'Actualizar Rol' : 'Crear Rol'}
+          {mutation.isPending ? t('admin.saving') : role ? t('admin.editRole') : t('admin.addRole')}
         </button>
       </>}>
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-warm-700 mb-1.5">Nombre del Rol</label>
+            <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('admin.roleName')}</label>
             <input value={nombre} onChange={e => setNombre(e.target.value)} className="input-field" required />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-warm-700 mb-1.5">Descripción</label>
+            <label className="block text-sm font-semibold text-warm-700 mb-1.5">{t('admin.description')}</label>
             <input value={descripcion} onChange={e => setDescripcion(e.target.value)} className="input-field" />
           </div>
         </div>
@@ -653,12 +658,13 @@ function RoleFormModal({ isOpen, onClose, role }) {
                       return (
                         <tr key={m.key} className={`border-b border-warm-100 transition-colors hover:bg-primary-50/40 ${i % 2 === 0 ? 'bg-white' : 'bg-warm-50/30'}`}>
                           <td className="px-4 py-2.5">
-                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none w-full">
                               <PermCheckbox
                                 checked={enabled}
-                                onChange={() => setPermLevel(m.key, enabled ? 'sin_acceso' : 'lectura')}
+                                onChange={() => setPermLevel(m.key, enabled ? 'sin_acceso' : 'total')}
+                                variant="module"
                               />
-                              <span className={`text-sm font-medium leading-snug ${enabled ? 'text-warm-800' : 'text-warm-400'}`}>{m.label}</span>
+                              <span className={`text-sm font-medium leading-snug ${enabled ? 'text-warm-800' : 'text-warm-400'}`}>{t(m.labelKey) || m.label}</span>
                             </label>
                           </td>
                           {colLabels.map(col => {
