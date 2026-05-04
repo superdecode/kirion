@@ -11,6 +11,7 @@ import {
 import Header from '../../../core/components/layout/Header'
 import LoadingSpinner from '../../../core/components/common/LoadingSpinner'
 import { useToastStore } from '../../../core/stores/toastStore'
+import { useAuthStore } from '../../../core/stores/authStore'
 import { getFolio, getFolioLog, downloadPdf } from '../services/fepService'
 import { fmtDate, fmtDateTime, getToday } from '../../../core/utils/dateFormat'
 
@@ -32,12 +33,16 @@ export default function FolioDetalle() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToastStore.getState()
+  const { getPermissionLevel } = useAuthStore()
 
   const [activeTab, setActiveTab] = useState('guias')
   const [expandedTarima, setExpandedTarima] = useState(null)
   const [guiaPage, setGuiaPage] = useState(1)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [copiedCode, setCopiedCode] = useState(null)
+  const foliosLevel = getPermissionLevel('fep.folios')
+  const canPrintFolios = ['escritura', 'gestion', 'total'].includes(foliosLevel)
+  const canExportFolios = ['gestion', 'total'].includes(foliosLevel)
 
   const { data: detailData, isLoading } = useQuery({
     queryKey: ['fep-folio-detail', id],
@@ -58,7 +63,7 @@ export default function FolioDetalle() {
   const guiasPage = guias.slice((guiaPage - 1) * GUIAS_PER_PAGE, guiaPage * GUIAS_PER_PAGE)
 
   const handlePrint = async () => {
-    if (!folio) return
+    if (!folio || !canPrintFolios) return
     setDownloadingPdf(true)
     try {
       const blob = await downloadPdf(id)
@@ -90,7 +95,7 @@ export default function FolioDetalle() {
   }
 
   const handleExcelExport = () => {
-    if (!folio) return
+    if (!folio || !canExportFolios) return
     try {
       const wb = XLSX.utils.book_new()
       const wsData = [
@@ -163,18 +168,22 @@ export default function FolioDetalle() {
         subtitle={`${folio.empresa_nombre} · ${folio.creado_por_nombre || ''}`}
         actions={
           <div className="flex items-center gap-2">
-            <button onClick={handleExcelExport}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-success-50 text-success-700 border border-success-200 rounded-xl hover:bg-success-100 transition-colors">
-              <Download className="w-4 h-4" />
-              Exportar Excel
-            </button>
-            <button onClick={handlePrint} disabled={downloadingPdf}
-              className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
-              {downloadingPdf
-                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : <Printer className="w-4 h-4" />}
-              {downloadingPdf ? 'Generando...' : 'Imprimir'}
-            </button>
+            {canExportFolios && (
+              <button onClick={handleExcelExport}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-success-50 text-success-700 border border-success-200 rounded-xl hover:bg-success-100 transition-colors">
+                <Download className="w-4 h-4" />
+                Exportar Excel
+              </button>
+            )}
+            {canPrintFolios && (
+              <button onClick={handlePrint} disabled={downloadingPdf}
+                className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
+                {downloadingPdf
+                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Printer className="w-4 h-4" />}
+                {downloadingPdf ? 'Generando...' : 'Imprimir'}
+              </button>
+            )}
           </div>
         }
       />

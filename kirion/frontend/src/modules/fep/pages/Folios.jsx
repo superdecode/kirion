@@ -33,7 +33,7 @@ export default function Folios() {
   const qc = useQueryClient()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
-  const { canView, canWrite, canDelete, user } = useAuthStore()
+  const { canView, canDelete, getPermissionLevel, user } = useAuthStore()
 
   const defaultEnd = getToday()
   const defaultStart = subtractDays(defaultEnd, 30)
@@ -148,7 +148,7 @@ export default function Folios() {
   }
 
   const handlePrint = async () => {
-    if (!detailFolio) return
+    if (!detailFolio || !canPrintFolios) return
     setPrintingPdf(true)
     try {
       const blob = await downloadPdf(selectedFolioId)
@@ -161,7 +161,7 @@ export default function Folios() {
   }
 
   const handleDetailExcel = () => {
-    if (!detailFolio) return
+    if (!detailFolio || !canExportFolios) return
     try {
       const wb = XLSX.utils.book_new()
       const wsData = [
@@ -223,6 +223,7 @@ export default function Folios() {
   }, [])
 
   const handleDownloadPdf = async (folio) => {
+    if (!canPrintFolios) return
     setDownloadingId(folio.id)
     try {
       const blob = await downloadPdf(folio.id)
@@ -334,8 +335,12 @@ export default function Folios() {
     </th>
   )
 
+  const foliosLevel = getPermissionLevel('fep.folios')
   const canViewFolios = canView('fep.folios')
-  const canManage = canWrite('fep.folios')
+  const canCreateFolios = ['escritura', 'gestion', 'total'].includes(foliosLevel)
+  const canUpdateFolios = ['gestion', 'total'].includes(foliosLevel)
+  const canExportFolios = ['gestion', 'total'].includes(foliosLevel)
+  const canPrintFolios = ['escritura', 'gestion', 'total'].includes(foliosLevel)
   const canDel = canDelete('fep.folios')
 
   return (
@@ -410,7 +415,7 @@ export default function Folios() {
                   <X className="w-3 h-3" />{t('common.clear')}
                 </button>
               )}
-              {canManage && (
+              {canCreateFolios && (
                 <button onClick={openWizard}
                   className="btn-primary inline-flex items-center gap-2">
                   <FilePlus className="w-4 h-4" /> {t('fep.newFolio')}
@@ -518,13 +523,15 @@ export default function Folios() {
                               className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title={t('fep.tooltip.verDetalle')}>
                               <Eye className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDownloadPdf(row)} disabled={downloadingId === row.id}
+                            {canPrintFolios && (
+                              <button onClick={() => handleDownloadPdf(row)} disabled={downloadingId === row.id}
                               className="p-2 rounded-xl hover:bg-success-50 text-warm-400 hover:text-success-600 transition-all disabled:opacity-40" title={t('fep.detail.imprimir')}>
                               {downloadingId === row.id
                                 ? <div className="w-4 h-4 border-2 border-success-500 border-t-transparent rounded-full animate-spin" />
                                 : <Printer className="w-4 h-4" />}
-                            </button>
-                            {canManage && row.estado === 'ACTIVO' && (
+                              </button>
+                            )}
+                            {canUpdateFolios && row.estado === 'ACTIVO' && (
                               <button onClick={() => { setCancelTarget(row); setCancelMotivo('') }}
                                 className="p-2 rounded-xl hover:bg-warning-50 text-warm-400 hover:text-warning-500 transition-all" title={t('fep.cancel.title')}>
                                 <XCircle className="w-4 h-4" />
@@ -668,22 +675,26 @@ export default function Folios() {
         }
         headerAction={detailFolio && (
           <div className="flex items-center gap-2">
-            <button onClick={handleDetailExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-success-50 text-success-700 border border-success-200 rounded-lg hover:bg-success-100 transition-colors">
-              <Download className="w-3.5 h-3.5" /> {t('reports.exportExcel')}
-            </button>
-            <button onClick={handlePrint} disabled={printingPdf}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50">
-              {printingPdf
-                ? <div className="w-3.5 h-3.5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                : <Printer className="w-3.5 h-3.5" />}
-              {printingPdf ? t('fep.detail.generando') : t('fep.detail.imprimir')}
-            </button>
+            {canExportFolios && (
+              <button onClick={handleDetailExcel}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-success-50 text-success-700 border border-success-200 rounded-lg hover:bg-success-100 transition-colors">
+                <Download className="w-3.5 h-3.5" /> {t('reports.exportExcel')}
+              </button>
+            )}
+            {canPrintFolios && (
+              <button onClick={handlePrint} disabled={printingPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50">
+                {printingPdf
+                  ? <div className="w-3.5 h-3.5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  : <Printer className="w-3.5 h-3.5" />}
+                {printingPdf ? t('fep.detail.generando') : t('fep.detail.imprimir')}
+              </button>
+            )}
           </div>
         )}
         footer={detailFolio && (
           <>
-            {canManage && detailFolio.estado === 'ACTIVO' && (
+            {canUpdateFolios && detailFolio.estado === 'ACTIVO' && (
               <button onClick={() => { setCancelTarget(detailFolio); setCancelMotivo('') }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200">
                 <XCircle className="w-4 h-4" /> {t('fep.detail.cancelarFolio')}

@@ -239,9 +239,9 @@ async function runMigrations() {
     `CREATE INDEX IF NOT EXISTS idx_fel_folio ON folios_entrega_log(folio_id)`,
     // FEP permissions — always set (safe upsert by name+expected level)
     `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"total"}'::jsonb, true) WHERE nombre = 'Administrador'`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"gestion"}'::jsonb, true) WHERE nombre = 'Jefe'`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"lectura"}'::jsonb, true) WHERE nombre = 'Operador'`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"gestion"}'::jsonb, true) WHERE nombre = 'Usuario'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"gestion"}'::jsonb, true) WHERE nombre IN ('Jefe', 'Supervisor')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"escritura"}'::jsonb, true) WHERE nombre = 'Operador'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"lectura"}'::jsonb, true) WHERE nombre = 'Usuario'`,
   ]
   for (const sql of steps) {
     try {

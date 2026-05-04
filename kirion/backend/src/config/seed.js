@@ -55,7 +55,7 @@ async function seedDatabase() {
           global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' },
           inventory: { escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' },
-          fep: { folios: 'lectura' },
+          fep: { folios: 'escritura' },
         }
       },
       {
@@ -65,7 +65,7 @@ async function seedDatabase() {
           global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
           inventory: { escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
-          fep: { folios: 'gestion' },
+          fep: { folios: 'lectura' },
         }
       }
     ]

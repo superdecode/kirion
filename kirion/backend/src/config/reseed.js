@@ -48,7 +48,7 @@ async function reseedDatabase() {
         permisos: {
           global: { dashboard: 'lectura', administracion: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
-          fep: { folios: 'lectura' },
+          fep: { folios: 'escritura' },
         }
       },
       {
@@ -57,7 +57,7 @@ async function reseedDatabase() {
         permisos: {
           global: { dashboard: 'lectura', administracion: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura', configuracion: 'sin_acceso' },
-          fep: { folios: 'gestion' },
+          fep: { folios: 'lectura' },
         }
       }
     ]

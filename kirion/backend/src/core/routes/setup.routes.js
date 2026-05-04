@@ -15,7 +15,7 @@ const DEFAULT_ROLES = [
     }
   },
   {
-    nombre: 'Supervisor',
+    nombre: 'Jefe',
     descripcion: 'Supervisor de operaciones',
     permisos: {
       global: { dashboard: 'lectura', administracion: 'sin_acceso' },
@@ -29,7 +29,7 @@ const DEFAULT_ROLES = [
     permisos: {
       global: { dashboard: 'lectura', administracion: 'sin_acceso' },
       dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
-      fep: { folios: 'lectura' },
+      fep: { folios: 'escritura' },
     }
   },
   {
@@ -38,7 +38,7 @@ const DEFAULT_ROLES = [
     permisos: {
       global: { dashboard: 'lectura', administracion: 'sin_acceso' },
       dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura', configuracion: 'sin_acceso' },
-      fep: { folios: 'gestion' },
+      fep: { folios: 'lectura' },
     }
   }
 ]

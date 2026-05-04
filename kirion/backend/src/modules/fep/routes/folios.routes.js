@@ -533,7 +533,7 @@ router.get('/:id/log',
 // ─── GET /api/fep/folios/:id/pdf ─────────────────────────────────────────────
 router.get('/:id/pdf',
   authenticateToken, loadFullUser,
-  requirePermission('fep.folios', 'ver'),
+  requirePermission('fep.folios', 'imprimir'),
   async (req, res) => {
     try {
       const { id } = req.params
