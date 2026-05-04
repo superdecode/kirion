@@ -698,7 +698,7 @@ export default function Historial() {
                     {pagination.pages > 1 ? `${t('common.page')} ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} {t('common.records')}
                   </p>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-warm-400">Ver</span>
+                    <span className="text-[10px] text-warm-400">{t('common.show')}</span>
                     <select value={pageLimit} onChange={e => { setPageLimit(parseInt(e.target.value)); setPage(1) }}
                       className="px-2 py-1 rounded-lg border border-warm-200 text-xs text-warm-700 outline-none focus:border-primary-400 bg-white cursor-pointer">
                       <option value={100}>100</option>
@@ -729,17 +729,6 @@ export default function Historial() {
           </div>
         </div>
 
-        {/* Bottom counters */}
-        <div className="px-4 pb-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="badge bg-primary-100 text-primary-700 text-[11px] px-3 py-1.5">
-              <span className="font-bold">{tarimas.reduce((sum, tar) => sum + (tar.cantidad_guias || 0), 0).toLocaleString()}</span>&nbsp;{t('dashboard.guides')}
-            </span>
-            <span className="badge bg-warm-100 text-warm-600 text-[11px] px-3 py-1.5">
-              <span className="font-bold">{pagination.total.toLocaleString()}</span>&nbsp;{t('dashboard.pallets')}
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Detail Modal */}

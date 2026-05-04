@@ -143,10 +143,17 @@ router.get('/',
   requirePermission('fep.folios', 'ver'),
   async (req, res) => {
     try {
-      const { empresa_id, estado, canal_id, fecha_desde, fecha_hasta, folio, codigo_guia, page = 1, limit = 20 } = req.query
+      const { empresa_id, estado, canal_id, fecha_desde, fecha_hasta, q, sort_by, sort_dir, page = 1, limit = 20 } = req.query
       const safePage = Math.max(1, parseInt(page) || 1)
       const safeLimit = Math.min(500, Math.max(1, parseInt(limit) || 20))
       const offset = (safePage - 1) * safeLimit
+
+      const SORT_COLS = {
+        folio_numero: 'fe.folio_numero', empresa: 'e.nombre', estado: 'fe.estado',
+        created_at: 'fe.created_at', total_tarimas: 'fe.total_tarimas', total_guias: 'fe.total_guias',
+      }
+      const sortCol = SORT_COLS[sort_by] || 'fe.created_at'
+      const sortOrder = sort_dir === 'asc' ? 'ASC' : 'DESC'
 
       const params = []
       const where = []
@@ -160,21 +167,26 @@ router.get('/',
       if (fecha_desde) { pc++; where.push(`${tzExpr} >= $${pc}::date`); params.push(fecha_desde) }
       if (fecha_hasta) { pc++; where.push(`${tzExpr} <= $${pc}::date`); params.push(fecha_hasta) }
 
-      if (folio?.trim()) { pc++; where.push(`fe.folio_numero ILIKE $${pc}`); params.push(`%${folio.trim()}%`) }
-
-      if (codigo_guia?.trim()) {
+      if (q?.trim()) {
         pc++
-        where.push(`EXISTS (
-          SELECT 1 FROM folios_entrega_tarimas fet
-          JOIN guias g ON g.tarima_id = fet.tarima_id
-          WHERE fet.folio_id = fe.id AND fet.eliminado_en IS NULL AND g.codigo_guia ILIKE $${pc}
+        where.push(`(
+          fe.folio_numero ILIKE $${pc}
+          OR e.nombre ILIKE $${pc}
+          OR EXISTS (
+            SELECT 1 FROM folios_entrega_tarimas fet
+            JOIN guias g ON g.tarima_id = fet.tarima_id
+            WHERE fet.folio_id = fe.id AND fet.eliminado_en IS NULL AND g.codigo_guia ILIKE $${pc}
+          )
         )`)
-        params.push(`%${codigo_guia.trim()}%`)
+        params.push(`%${q.trim()}%`)
       }
 
       const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : ''
 
-      const countRes = await query(`SELECT COUNT(*) FROM folios_entrega fe ${whereClause}`, params)
+      const countRes = await query(
+        `SELECT COUNT(*) FROM folios_entrega fe JOIN configuraciones e ON e.id = fe.empresa_id ${whereClause}`,
+        params
+      )
       const total = parseInt(countRes.rows[0].count)
 
       pc++; params.push(safeLimit)
@@ -190,7 +202,7 @@ router.get('/',
          JOIN configuraciones e ON e.id = fe.empresa_id
          JOIN usuarios u ON u.id = fe.creado_por
          ${whereClause}
-         ORDER BY fe.created_at DESC
+         ORDER BY ${sortCol} ${sortOrder}
          LIMIT $${pc-1} OFFSET $${pc}`,
         params
       )

@@ -39,6 +39,9 @@ export default function Folios() {
   const defaultStart = subtractDays(defaultEnd, 30)
 
   const [page, setPage] = useState(1)
+  const [pageLimit, setPageLimit] = useState(20)
+  const [sortBy, setSortBy] = useState('created_at')
+  const [sortDir, setSortDir] = useState('desc')
   const [filters, setFilters] = useState({
     empresa_ids: [],
     estados: [],
@@ -89,15 +92,23 @@ export default function Folios() {
   ).map(c => ({ value: c.id, label: c.nombre }))
 
   // Main list
+  const toggleSort = (col) => {
+    if (sortBy === col) { setSortDir(d => d === 'asc' ? 'desc' : 'asc') }
+    else { setSortBy(col); setSortDir('asc') }
+    setPage(1)
+  }
+
   const { data, isLoading } = useQuery({
-    queryKey: ['fep-folios', page, filters, folioSearch],
+    queryKey: ['fep-folios', page, pageLimit, filters, folioSearch, sortBy, sortDir],
     queryFn: () => getFolios({
       empresa_id: filters.empresa_ids[0] || undefined,
       estado: filters.estados[0] || undefined,
       fecha_desde: filters.fecha_desde || undefined,
       fecha_hasta: filters.fecha_fin || undefined,
-      folio: folioSearch || undefined,
-      page, limit: 20,
+      q: folioSearch || undefined,
+      sort_by: sortBy,
+      sort_dir: sortDir,
+      page, limit: pageLimit,
     }),
   })
   const folios = data?.folios || []
@@ -199,7 +210,7 @@ export default function Folios() {
 
   const clearFilters = () => {
     setFilters({ empresa_ids: [], estados: [], fecha_desde: defaultStart, fecha_fin: defaultEnd })
-    setFolioSearch(''); setFolioSearchInput(''); setPage(1)
+    setFolioSearch(''); setFolioSearchInput(''); setPage(1); setSortBy('created_at'); setSortDir('desc')
   }
   const hasActiveFilters = !!(filters.empresa_ids.length || filters.estados.length || folioSearch)
   const hasAdvancedFilters = !!(filters.empresa_ids.length || filters.estados.length)
@@ -309,6 +320,20 @@ export default function Folios() {
     })
   }
 
+  const SortTh = ({ col, children, className = '' }) => (
+    <th
+      className={`table-header cursor-pointer select-none hover:bg-warm-100 transition-colors ${className}`}
+      onClick={() => toggleSort(col)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {children}
+        {sortBy === col
+          ? sortDir === 'asc' ? <ChevronUp className="w-3 h-3 text-primary-500" /> : <ChevronDown className="w-3 h-3 text-primary-500" />
+          : <span className="w-3 h-3 inline-block opacity-20"><ChevronDown className="w-3 h-3" /></span>}
+      </span>
+    </th>
+  )
+
   const canViewFolios = canView('fep.folios')
   const canManage = canWrite('fep.folios')
   const canDel = canDelete('fep.folios') || ['Administrador', 'Jefe'].includes(user?.rol_nombre)
@@ -336,7 +361,7 @@ export default function Folios() {
                 onChange={e => { setFilters(f => ({ ...f, fecha_fin: e.target.value })); setPage(1) }}
                 className="text-xs outline-none bg-transparent text-warm-700 w-[110px]" />
             </div>
-            {[{ label: 'Hoy', d: 0 }, { label: '7 días', d: 7 }, { label: '30 días', d: 30 }].map(({ label, d }) => (
+            {[{ label: t('shortcut.today'), d: 0 }, { label: t('shortcut.7days'), d: 7 }, { label: t('shortcut.30days'), d: 30 }].map(({ label, d }) => (
               <button key={label} onClick={() => {
                 const today = getToday()
                 setFilters(f => ({ ...f, fecha_desde: d === 0 ? today : subtractDays(today, d), fecha_fin: today }))
@@ -437,7 +462,7 @@ export default function Folios() {
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           >
             {isLoading ? (
-              <LoadingSpinner text="Cargando folios..." />
+              <LoadingSpinner text={t('common.loading')} />
             ) : folios.length === 0 ? (
               <div className="p-16 text-center text-sm text-warm-400">{t('fep.noFolios')}</div>
             ) : (
@@ -445,12 +470,12 @@ export default function Folios() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-warm-50 border-b border-warm-100">
-                      <th className="table-header">{t('fep.folio')}</th>
-                      <th className="table-header">{t('fep.empresa')}</th>
-                      <th className="table-header text-center">{t('fep.col.tarimas')}</th>
-                      <th className="table-header text-center">{t('fep.col.guias')}</th>
-                      <th className="table-header text-center">{t('fep.estado')}</th>
-                      <th className="table-header">{t('fep.col.fecha')}</th>
+                      <SortTh col="folio_numero">{t('fep.folio')}</SortTh>
+                      <SortTh col="empresa">{t('fep.empresa')}</SortTh>
+                      <SortTh col="total_tarimas" className="text-center">{t('fep.col.tarimas')}</SortTh>
+                      <SortTh col="total_guias" className="text-center">{t('fep.col.guias')}</SortTh>
+                      <SortTh col="estado" className="text-center">{t('fep.estado')}</SortTh>
+                      <SortTh col="created_at">{t('fep.col.fecha')}</SortTh>
                       <th className="table-header">{t('fep.col.creadoPor')}</th>
                       <th className="table-header text-center">{t('fep.col.acciones')}</th>
                     </tr>
@@ -479,7 +504,7 @@ export default function Folios() {
                         <td className="table-cell text-center font-bold text-warm-700">{row.total_guias}</td>
                         <td className="table-cell text-center">
                           <span className={`badge text-[10px] ${ESTADO_COLORS[row.estado] || 'bg-warm-100 text-warm-600'}`}>
-                            {row.estado}
+                            {t(`fep.${row.estado.toLowerCase()}`)}
                           </span>
                         </td>
                         <td className="table-cell text-warm-500 text-xs">
@@ -522,9 +547,21 @@ export default function Folios() {
 
             {/* Pagination */}
             <div className="flex items-center justify-between px-5 py-3 border-t border-warm-100 bg-warm-50/30">
-              <p className="text-xs text-warm-400 font-medium">
-                {pagination.pages > 1 ? `${t('common.page')} ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} {t('fep.folio').toLowerCase()}s
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-warm-400 font-medium">
+                  {pagination.pages > 1 ? `${t('common.page')} ${pagination.page}/${pagination.pages} · ` : ''}{pagination.total} {t('common.records')}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-warm-400">{t('common.show')}</span>
+                  <select value={pageLimit} onChange={e => { setPageLimit(parseInt(e.target.value)); setPage(1) }}
+                    className="px-2 py-1 rounded-lg border border-warm-200 text-xs text-warm-700 outline-none focus:border-primary-400 bg-white cursor-pointer">
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                </div>
+              </div>
               {pagination.pages > 1 && (
                 <div className="flex items-center gap-1">
                   <button onClick={() => setPage(1)} disabled={page === 1}
@@ -546,28 +583,6 @@ export default function Folios() {
           </motion.div>
         </div>
 
-        {/* Bottom counters */}
-        {stats && (
-          <div className="px-4 pb-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="badge bg-success-100 text-success-700 text-[11px] px-3 py-1.5">
-                <span className="font-bold">{stats.activos}</span>&nbsp;{t('fep.stats.activos')}
-              </span>
-              <span className="badge bg-danger-100 text-danger-700 text-[11px] px-3 py-1.5">
-                <span className="font-bold">{stats.cancelados}</span>&nbsp;{t('fep.stats.cancelados')}
-              </span>
-              <span className="badge bg-primary-100 text-primary-700 text-[11px] px-3 py-1.5">
-                <span className="font-bold">{stats.completados || 0}</span>&nbsp;{t('fep.completado').toLowerCase()}s
-              </span>
-              <span className="badge bg-warm-100 text-warm-600 text-[11px] px-3 py-1.5">
-                <span className="font-bold">{Number(stats.total_tarimas).toLocaleString()}</span>&nbsp;{t('fep.tarimas').toLowerCase()}
-              </span>
-              <span className="badge bg-accent-100 text-accent-700 text-[11px] px-3 py-1.5">
-                <span className="font-bold">{Number(stats.total_guias).toLocaleString()}</span>&nbsp;{t('fep.guias').toLowerCase()}
-              </span>
-            </div>
-          </div>
-        )}
         </>}
       </div>
 
@@ -646,7 +661,7 @@ export default function Folios() {
             <span>{detailFolio ? detailFolio.folio_numero : 'Cargando...'}</span>
             {detailFolio && (
               <span className={`badge text-xs px-2.5 py-1 ${ESTADO_COLORS[detailFolio.estado] || 'bg-warm-100 text-warm-600'}`}>
-                {detailFolio.estado}
+                {t(`fep.${detailFolio.estado.toLowerCase()}`)}
               </span>
             )}
           </div>
@@ -655,7 +670,7 @@ export default function Folios() {
           <div className="flex items-center gap-2">
             <button onClick={handleDetailExcel}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-success-50 text-success-700 border border-success-200 rounded-lg hover:bg-success-100 transition-colors">
-              <Download className="w-3.5 h-3.5" /> Excel
+              <Download className="w-3.5 h-3.5" /> {t('reports.exportExcel')}
             </button>
             <button onClick={handlePrint} disabled={printingPdf}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50">
