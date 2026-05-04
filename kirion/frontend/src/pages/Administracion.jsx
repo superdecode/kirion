@@ -17,6 +17,7 @@ import {
 const MODULE_GROUPS = [
   {
     group: 'DropScan',
+    groupKey: 'admin.group.dropscan',
     modules: [
       { key: 'dropscan.dashboard', label: 'Dashboard' },
       { key: 'dropscan.escaneo', label: 'Escaneo' },
@@ -27,6 +28,7 @@ const MODULE_GROUPS = [
   },
   {
     group: 'Inventario',
+    groupKey: 'admin.group.inventory',
     modules: [
       { key: 'inventory.escaneo', label: 'Escaneo' },
       { key: 'inventory.historial', label: 'Historial' },
@@ -35,6 +37,7 @@ const MODULE_GROUPS = [
   },
   {
     group: 'Sistema',
+    groupKey: 'admin.group.sistema',
     modules: [
       { key: 'global.inicio', label: 'Inicio (Dashboard Global)' },
       { key: 'global.administracion', label: 'Administración' },
@@ -43,12 +46,14 @@ const MODULE_GROUPS = [
   },
   {
     group: 'Folios (FEP)',
+    groupKey: 'admin.group.fep',
     modules: [
       { key: 'fep.folios', label: 'Folios' },
     ]
   },
   {
     group: 'Módulos Futuros',
+    groupKey: 'admin.group.future',
     modules: [
       { key: 'despacho.ordenes', label: 'Despacho - Órdenes' },
       { key: 'despacho.validacion', label: 'Despacho - Validación' },
@@ -402,6 +407,7 @@ function RolesTab({ canEdit, canDel }) {
   const [showCreate, setShowCreate] = useState(false)
   const toast = useToastStore.getState()
   const qc = useQueryClient()
+  const { t } = useI18nStore()
 
   const { data, isLoading, isError: rolesError } = useQuery({ queryKey: ['admin-roles'], queryFn: getRoles, retry: 1 })
   const { data: usersData } = useQuery({ queryKey: ['admin-users'], queryFn: getUsers, retry: 1 })
@@ -464,24 +470,34 @@ function RolesTab({ canEdit, canDel }) {
                         <span className="badge bg-warm-100 text-warm-500">{userCount}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1 max-w-md">
-                          {r.permisos && typeof r.permisos === 'object' && Object.entries(r.permisos).slice(0, 3).map(([mod, perms]) => {
-                            if (typeof perms === 'object') {
-                              return Object.entries(perms).filter(([, v]) => v !== 'sin_acceso').slice(0, 2).map(([sub, level]) => (
-                                <span key={`${mod}.${sub}`} className={`badge text-[9px] ${PERM_LEVELS.find(p => p.value === level)?.color || 'bg-warm-100 text-warm-500'}`}>
-                                  {sub}: {level}
-                                </span>
-                              ))
+                        <div className="flex flex-wrap gap-1 max-w-sm">
+                          {(() => {
+                            const accessible = []
+                            if (r.permisos && typeof r.permisos === 'object') {
+                              MODULE_GROUPS.forEach(g => {
+                                g.modules.forEach(m => {
+                                  const parts = m.key.split('.')
+                                  const level = parts.length === 2
+                                    ? r.permisos[parts[0]]?.[parts[1]]
+                                    : r.permisos[parts[0]]
+                                  if (level && level !== 'sin_acceso') accessible.push(m.label)
+                                })
+                              })
                             }
-                            return perms !== 'sin_acceso' ? (
-                              <span key={mod} className={`badge text-[9px] ${PERM_LEVELS.find(p => p.value === perms)?.color || 'bg-warm-100 text-warm-500'}`}>
-                                {mod}: {perms}
-                              </span>
-                            ) : null
-                          })}
-                          {r.permisos && Object.keys(r.permisos).length > 3 && (
-                            <span className="badge bg-warm-100 text-warm-400 text-[9px]">+{Object.keys(r.permisos).length - 3}</span>
-                          )}
+                            if (accessible.length === 0) {
+                              return <span className="text-[11px] text-warm-400">{t('admin.noAccess')}</span>
+                            }
+                            return (
+                              <>
+                                {accessible.slice(0, 6).map(label => (
+                                  <span key={label} className="badge bg-primary-100 text-primary-700 text-[10px]">{label}</span>
+                                ))}
+                                {accessible.length > 6 && (
+                                  <span className="badge bg-warm-100 text-warm-400 text-[10px]">+{accessible.length - 6}</span>
+                                )}
+                              </>
+                            )
+                          })()}
                         </div>
                       </td>
                       {canEdit && (
@@ -521,13 +537,13 @@ function PermCheckbox({ checked, onChange }) {
     <button
       type="button"
       onClick={onChange}
-      className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all duration-150 mx-auto
+      className={`w-[18px] h-[18px] rounded flex items-center justify-center border-2 transition-all duration-150 mx-auto shrink-0
         ${checked
-          ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
-          : 'bg-white border-warm-300 hover:border-slate-500'
+          ? 'bg-primary-600 border-primary-600 text-white shadow-sm shadow-primary-200/60'
+          : 'bg-white border-warm-300 hover:border-primary-400 hover:bg-primary-50'
         }`}
     >
-      {checked && <Check className="w-3 h-3" strokeWidth={3} />}
+      {checked && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
     </button>
   )
 }
@@ -538,6 +554,13 @@ function RoleFormModal({ isOpen, onClose, role }) {
   const [permisos, setPermisos] = useState({})
   const toast = useToastStore.getState()
   const qc = useQueryClient()
+  const { t } = useI18nStore()
+  const colLabels = [
+    { key: 'ver', label: t('admin.view'), level: 'lectura' },
+    { key: 'crear', label: t('admin.create'), level: 'escritura' },
+    { key: 'actualizar', label: t('admin.update'), level: 'gestion' },
+    { key: 'eliminar', label: t('admin.delete'), level: 'total' },
+  ]
 
   // Populate
   useEffect(() => {
@@ -584,7 +607,7 @@ function RoleFormModal({ isOpen, onClose, role }) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={role ? `Editar: ${role.nombre}` : 'Nuevo Rol'} icon={Shield} size="lg"
+    <Modal isOpen={isOpen} onClose={onClose} title={role ? `Editar: ${role.nombre}` : 'Nuevo Rol'} icon={Shield} size="xl"
       footer={<>
         <button onClick={onClose} className="btn-ghost">Cancelar</button>
         <button onClick={handleSubmit} disabled={mutation.isPending} className="btn-primary">
@@ -605,45 +628,45 @@ function RoleFormModal({ isOpen, onClose, role }) {
 
         {/* Permission matrix */}
         <div>
-          <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-3">Permisos por Módulo</h4>
+          <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-3">{t('admin.permsByModule')}</h4>
           <div className="rounded-xl border border-warm-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-800 text-white">
-                  <th className="text-left px-4 py-3 font-semibold w-[46%]">Módulo</th>
-                  {COL_DEFS.map(col => (
-                    <th key={col.key} className="text-center px-3 py-3 font-semibold">{col.label}</th>
+                <tr className="bg-gradient-to-r from-primary-600 to-primary-700">
+                  <th className="text-left px-4 py-3 text-white font-semibold text-xs uppercase tracking-wide w-[42%]">{t('admin.module')}</th>
+                  {colLabels.map(col => (
+                    <th key={col.key} className="text-center px-3 py-3 text-white font-semibold text-xs uppercase tracking-wide">{col.label}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {MODULE_GROUPS.map(g => (
                   <>
-                    <tr key={`g-${g.group}`} className="bg-slate-700">
-                      <td colSpan={5} className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-200">
-                        {g.group}
+                    <tr key={`g-${g.groupKey}`} className="bg-primary-50 border-y border-primary-100">
+                      <td colSpan={5} className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-primary-600">
+                        {t(g.groupKey) || g.group}
                       </td>
                     </tr>
                     {g.modules.map((m, i) => {
                       const current = getPermLevel(m.key)
                       const enabled = current !== 'sin_acceso'
                       return (
-                        <tr key={m.key} className={`border-b border-warm-100 transition-colors hover:bg-primary-50/30 ${i % 2 === 0 ? 'bg-white' : 'bg-warm-50/40'}`}>
-                          <td className="px-4 py-3">
-                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <tr key={m.key} className={`border-b border-warm-100 transition-colors hover:bg-primary-50/40 ${i % 2 === 0 ? 'bg-white' : 'bg-warm-50/30'}`}>
+                          <td className="px-4 py-2.5">
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
                               <PermCheckbox
                                 checked={enabled}
                                 onChange={() => setPermLevel(m.key, enabled ? 'sin_acceso' : 'lectura')}
                               />
-                              <span className={`font-medium transition-colors ${enabled ? 'text-warm-800' : 'text-warm-400'}`}>{m.label}</span>
+                              <span className={`text-sm font-medium leading-snug ${enabled ? 'text-warm-800' : 'text-warm-400'}`}>{m.label}</span>
                             </label>
                           </td>
-                          {COL_DEFS.map(col => {
+                          {colLabels.map(col => {
                             const colIdx = LEVEL_ORDER.indexOf(col.level)
                             const curIdx = LEVEL_ORDER.indexOf(current)
                             const checked = curIdx >= colIdx
                             return (
-                              <td key={col.key} className="text-center px-3 py-3">
+                              <td key={col.key} className="text-center px-3 py-2.5">
                                 <PermCheckbox
                                   checked={checked}
                                   onChange={() => {
