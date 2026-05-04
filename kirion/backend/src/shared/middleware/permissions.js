@@ -1,6 +1,6 @@
 /**
  * Permission resolution for 5-level system:
- * sin_acceso (0) → lectura (1) → escritura (2) → gestion (3) → total (4)
+ * sin_acceso → lectura(ver) → escritura(crear) → gestion(actualizar) → total(eliminar)
  */
 
 function resolvePermission(level, action) {
@@ -10,8 +10,8 @@ function resolvePermission(level, action) {
   if (lvl === 'total') return true
   if (lvl === 'sin_acceso' || lvl === '') return false
   if (lvl === 'lectura') return action === 'ver'
-  if (lvl === 'escritura') return ['ver', 'crear', 'editar'].includes(action)
-  if (lvl === 'gestion') return action !== 'desbloquear'
+  if (lvl === 'escritura') return ['ver', 'crear', 'editar', 'actualizar'].includes(action)
+  if (lvl === 'gestion') return ['ver', 'crear', 'editar', 'actualizar', 'cancelar'].includes(action)
 
   return false
 }

@@ -60,12 +60,12 @@ async function seedDatabase() {
       },
       {
         nombre: 'Usuario',
-        descripcion: 'Solo consulta',
+        descripcion: 'Consulta operativa',
         permisos: {
           global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
           dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
           inventory: { escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
-          fep: { folios: 'sin_acceso' },
+          fep: { folios: 'gestion' },
         }
       }
     ]

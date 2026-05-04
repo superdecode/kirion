@@ -484,15 +484,11 @@ router.delete('/:id',
 
       if (folio.estado === 'COMPLETADO') { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Los folios completados son inmutables' }) }
 
-      const canPhysDelete = ['Administrador', 'Jefe'].includes(req.fullUser.rol_nombre)
-      if (!canPhysDelete) { await client.query('ROLLBACK'); return res.status(403).json({ error: 'Solo Supervisor y Administrador pueden eliminar folios' }) }
-
-      const isAdmin = ['Administrador'].includes(req.fullUser.rol_nombre)
-      if (!isAdmin && !isSameDay(folio.created_at)) {
+      if (!isSameDay(folio.created_at)) {
         await client.query('ROLLBACK')
         return res.status(403).json({ error: 'Solo se pueden eliminar folios del día actual' })
       }
-      if (!isAdmin && !['ACTIVO', 'CANCELADO'].includes(folio.estado)) {
+      if (!['ACTIVO', 'CANCELADO'].includes(folio.estado)) {
         await client.query('ROLLBACK')
         return res.status(403).json({ error: 'Estado no permite eliminación' })
       }

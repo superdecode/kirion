@@ -29,7 +29,8 @@ async function reseedDatabase() {
         descripcion: 'Acceso total al sistema',
         permisos: {
           global: { dashboard: 'total', administracion: 'total' },
-          dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total', configuracion: 'total' }
+          dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total', configuracion: 'total' },
+          fep: { folios: 'total' },
         }
       },
       {
@@ -37,7 +38,8 @@ async function reseedDatabase() {
         descripcion: 'Supervisor de operaciones',
         permisos: {
           global: { dashboard: 'lectura', administracion: 'sin_acceso' },
-          dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura', configuracion: 'lectura' }
+          dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura', configuracion: 'lectura' },
+          fep: { folios: 'gestion' },
         }
       },
       {
@@ -45,15 +47,17 @@ async function reseedDatabase() {
         descripcion: 'Operador de escaneo',
         permisos: {
           global: { dashboard: 'lectura', administracion: 'sin_acceso' },
-          dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso', configuracion: 'sin_acceso' }
+          dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
+          fep: { folios: 'lectura' },
         }
       },
       {
         nombre: 'Usuario',
-        descripcion: 'Solo consulta',
+        descripcion: 'Consulta operativa',
         permisos: {
           global: { dashboard: 'lectura', administracion: 'sin_acceso' },
-          dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura', configuracion: 'sin_acceso' }
+          dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura', configuracion: 'sin_acceso' },
+          fep: { folios: 'gestion' },
         }
       }
     ]

@@ -60,20 +60,13 @@ const MODULE_GROUPS = [
 
 const PERM_LEVELS = [
   { value: 'sin_acceso', label: 'Sin acceso', color: 'bg-warm-100 text-warm-500' },
-  { value: 'lectura', label: 'Solo lectura', color: 'bg-warning-100 text-warning-700' },
-  { value: 'escritura', label: 'Lectura/Escritura', color: 'bg-success-100 text-success-700' },
-  { value: 'gestion', label: 'Gestión', color: 'bg-accent-100 text-accent-700' },
-  { value: 'total', label: 'Administrador', color: 'bg-primary-100 text-primary-700' },
+  { value: 'lectura', label: 'Ver', color: 'bg-warning-100 text-warning-700' },
+  { value: 'escritura', label: 'Crear', color: 'bg-success-100 text-success-700' },
+  { value: 'gestion', label: 'Actualizar', color: 'bg-accent-100 text-accent-700' },
+  { value: 'total', label: 'Eliminar', color: 'bg-primary-100 text-primary-700' },
 ]
 
 const LEVEL_ORDER = ['sin_acceso', 'lectura', 'escritura', 'gestion', 'total']
-
-const COL_DEFS = [
-  { key: 'ver', label: 'Ver', level: 'lectura' },
-  { key: 'crear', label: 'Crear', level: 'escritura' },
-  { key: 'actualizar', label: 'Actualizar', level: 'gestion' },
-  { key: 'eliminar', label: 'Eliminar', level: 'total' },
-]
 
 // API helpers
 const getUsers = async () => { const { data } = await api.get('/users'); return data }

@@ -336,7 +336,7 @@ export default function Folios() {
 
   const canViewFolios = canView('fep.folios')
   const canManage = canWrite('fep.folios')
-  const canDel = canDelete('fep.folios') || ['Administrador', 'Jefe'].includes(user?.rol_nombre)
+  const canDel = canDelete('fep.folios')
 
   return (
     <div className="flex flex-col h-full">
