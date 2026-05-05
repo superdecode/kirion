@@ -65,8 +65,8 @@ export default function Historial() {
   const [detailTab, setDetailTab] = useState('guias')
   const [newGuiaCode, setNewGuiaCode] = useState('')
   const [showFilters, setShowFilters] = useState(true)
-  const { canDelete, canWrite, hasPermission, user, getPermissionLevel } = useAuthStore()
-  const canViewDetails = canWrite('dropscan.historial')           // crear+
+  const { canDelete, canView, hasPermission, user, getPermissionLevel } = useAuthStore()
+  const canViewDetails = canView('dropscan.historial')           // ver+
   const historialLevel = getPermissionLevel('dropscan.historial')
   const canManageStatus = user.rol_nombre === 'Administrador' || historialLevel === 'actualizar'  // ONLY actualizar role
   const canExportHistorial = hasPermission('dropscan.historial', 'exportar') // actualizar+

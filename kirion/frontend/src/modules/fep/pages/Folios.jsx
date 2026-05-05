@@ -489,8 +489,8 @@ export default function Folios() {
                   <tbody className="divide-y divide-warm-50">
                     {folios.map(row => (
                       <tr key={row.id}
-                        onClick={() => canCreateFolios && openFolioDetail(row.id)}
-                        className={`hover:bg-warm-50/50 transition-colors group ${canCreateFolios ? 'cursor-pointer' : 'cursor-default'}`}>
+                        onClick={() => canViewFolios && openFolioDetail(row.id)}
+                        className={`hover:bg-warm-50/50 transition-colors group ${canViewFolios ? 'cursor-pointer' : 'cursor-default'}`}>
                         <td className="table-cell">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono font-semibold text-warm-700">{row.folio_numero}</span>
@@ -520,7 +520,7 @@ export default function Folios() {
                         <td className="table-cell text-warm-600 text-xs">{row.creado_por_nombre}</td>
                         <td className="table-cell" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            {canCreateFolios && (
+                            {canViewFolios && (
                             <button onClick={() => openFolioDetail(row.id)}
                               className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title={t('fep.tooltip.verDetalle')}>
                               <Eye className="w-4 h-4" />
