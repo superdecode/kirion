@@ -495,7 +495,7 @@ export default function Escaneo() {
           flashType: 'success',
         }))
       }
-      if (data.alerta) { if (soundEnabled) playSound('warning'); toast.warning(data.alerta.message) }
+      if (data.alerta) { if (soundEnabled) playSound('warning'); if (data.guia.posicion >= 95) toast.warning(data.alerta.message) }
     } catch (err) {
       const d = err.response?.data
       if (d?.error === 'DUPLICADO') {

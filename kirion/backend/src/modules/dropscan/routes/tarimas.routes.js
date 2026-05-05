@@ -440,7 +440,7 @@ router.post('/:tarimaId/guias',
 // DELETE /api/dropscan/tarimas/:tarimaId/guias/:guiaId
 router.delete('/:tarimaId/guias/:guiaId',
   authenticateToken, loadFullUser,
-  requirePermission('dropscan.historial', 'eliminar'),
+  requirePermission('dropscan.historial', 'actualizar'),
   async (req, res) => {
     try {
       const { tarimaId, guiaId } = req.params
