@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c apps/dispatch/app.js)",
+      "Bash(nslookup qsyniseyqxtzyoqsjkaw.supabase.co 8.8.8.8)",
+      "Bash(npm run:*)",
+      "Bash(git submodule:*)",
+      "Bash(git rm:*)",
+      "Bash(npm list:*)",
+      "Bash(node -c src/server.js)",
+      "Bash(node -c src/modules/dropscan/routes/tarimas.routes.js)",
+      "Bash(node -c src/modules/dropscan/routes/scan.routes.js)",
+      "Bash(node -c src/modules/dropscan/routes/dashboard.routes.js)",
+      "Bash(node -c src/core/routes/users.routes.js)",
+      "Bash(timeout 8 node src/server.js)",
+      "Bash(node -e \"import\\(''./src/server.js''\\).then\\(\\(\\) => { console.log\\(''Server module loaded OK''\\); process.exit\\(0\\) }\\).catch\\(e => { console.error\\(''Error:'', e.message\\); process.exit\\(1\\) }\\)\")",
+      "Bash(node -e \":*)",
+      "Bash(NODE_ENV=development node src/config/reseed.js)",
+      "Bash(NODE_ENV=development node -e \":*)",
+      "Bash(cat /Users/quiron/CascadeProjects/kerion/frontend/.env*)",
+      "Bash(/Users/quiron/CascadeProjects/kerion/frontend/.env.local:*)",
+      "Bash(gh run:*)",
+      "Bash(git -C /Users/quiron/CascadeProjects status --short kerion/)",
+      "Bash(git ls-tree:*)",
+      "Bash(node -e \"const lock = require\\(''/Users/quiron/CascadeProjects/kerion/frontend/package-lock.json''\\); const pkg = require\\(''/Users/quiron/CascadeProjects/kerion/frontend/package.json''\\); const mismatches = Object.entries\\(pkg.dependencies||{}\\).filter\\(\\([k,v]\\) => { const lv = lock.packages?.[''node_modules/''+k]?.version; return lv && !require\\(''semver''\\).satisfies\\(lv, v\\); }\\); console.log\\(''mismatches:'', mismatches\\);\")",
+      "Bash(node -e \"require\\(''xlsx''\\); console.log\\(''ok''\\)\")",
+      "Bash(git reset:*)",
+      "Bash(npx vite:*)",
+      "Read(//dev/**)",
+      "Bash(firebase deploy:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/quiron/Desktop"
+    ]
+  }
+}
