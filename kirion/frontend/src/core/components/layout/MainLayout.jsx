@@ -3,9 +3,11 @@ import Sidebar from './Sidebar'
 import Toast from '../common/Toast'
 import ConnectionBanner from '../common/ConnectionBanner'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
+import { usePermissionSync } from '../../hooks/usePermissionSync'
 
 export default function MainLayout() {
   useOnlineStatus()
+  usePermissionSync()
 
   return (
     <div className="flex h-screen overflow-hidden bg-warm-50 bg-gradient-mesh">

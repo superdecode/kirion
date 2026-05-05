@@ -754,7 +754,7 @@ export default function Historial() {
                 <Lock className="w-4 h-4" /> {t('history.finalize')}
               </button>
             )}
-            {canDelete('dropscan.historial') && (
+            {canManageStatus && (
               <button onClick={() => setEditMode(e => !e)}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
                   editMode ? 'bg-warning-100 text-warning-700 hover:bg-warning-200' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'
