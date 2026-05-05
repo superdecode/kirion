@@ -105,3 +105,6 @@ export const getEmpresas = () =>
 
 export const getCanales = () =>
   api.get('/dropscan/config/canales').then(r => r.data)
+
+export const getParametros = () =>
+  api.get('/dropscan/config/parametros').then(r => r.data)

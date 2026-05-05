@@ -61,7 +61,8 @@ app.get('/api/health', (_req, res) => {
 })
 
 // Core API routes
-app.use('/api/auth', loginLimiter, authRoutes)
+app.use('/api/auth/login', loginLimiter) // Scope strict limiter only to the login endpoint
+app.use('/api/auth', authRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/roles', rolesRoutes)
 app.use('/api/config', configRoutes)

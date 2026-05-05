@@ -383,11 +383,23 @@ router.post('/sessions/:id/scan',
         [sessionId]
       )
 
+      // Fetch guias_por_tarima from config (default 100)
+      let gpt = 100
+      try {
+        const gptRes = await client.query(
+          `SELECT config_json FROM configuraciones
+           WHERE modulo = 'dropscan' AND tipo = 'parametros' AND codigo = 'default' LIMIT 1`
+        )
+        if (gptRes.rows.length > 0 && gptRes.rows[0].config_json?.guias_por_tarima) {
+          gpt = parseInt(gptRes.rows[0].config_json.guias_por_tarima) || 100
+        }
+      } catch (_) { /* keep default */ }
+
       let nueva_tarima = null
       let tarima_completada = false
 
-      // Check if tarima is complete (100 guides)
-      if (newPos >= 100) {
+      // Check if tarima is complete
+      if (newPos >= gpt) {
         tarima_completada = true
         await client.query(
           `UPDATE tarimas SET estado = 'FINALIZADA', fecha_cierre = CURRENT_TIMESTAMP,
@@ -434,8 +446,9 @@ router.post('/sessions/:id/scan',
         tarima: updatedTarima.rows[0],
         nueva_tarima,
         tarima_completada,
-        alerta: newPos >= 90 && newPos < 100
-          ? { tipo: 'capacidad', message: `Tarima al ${newPos}%` }
+        guias_por_tarima: gpt,
+        alerta: newPos >= (gpt - 10) && newPos < gpt
+          ? { tipo: 'capacidad', message: `Quedan ${gpt - newPos} posiciones`, remaining: gpt - newPos, guias_por_tarima: gpt }
           : null
       })
     } catch (error) {

@@ -21,12 +21,16 @@ export default function ConnectionBanner() {
     }
   }, [])
 
-  // Auto-sync when coming back online
+  // Auto-sync only when connectivity is restored, not on every queue/syncing state change.
+  // Reading the store imperatively here avoids re-triggering on each dequeue during an
+  // active sync, which would create an immediate-retry loop when sync ends with failures.
   useEffect(() => {
-    if (status === 'online' && queueLen > 0 && !syncing) {
+    if (status !== 'online') return
+    const { queue, syncing: isSyncing } = useOfflineStore.getState()
+    if (queue.length > 0 && !isSyncing) {
       handleSync()
     }
-  }, [status, queueLen, syncing, handleSync])
+  }, [status, handleSync])
 
   const showBanner = status === 'offline' || queueLen > 0 || syncError
 

@@ -142,6 +142,7 @@ export default function Escaneo() {
   const [isStarting, setIsStarting] = useState(false)
 
   const inputRef = useRef(null)
+  const scanInFlight = useRef(new Set()) // tracks tabId:code pairs currently in flight
   const location = useLocation()
   const qc = useQueryClient()
   const { canDelete, canWrite, hasPermission, user } = useAuthStore()
@@ -186,7 +187,7 @@ export default function Escaneo() {
         ['Empresa', td.empresa_nombre],
         ['Canal', td.canal_nombre],
         ['Operador', td.operador_nombre],
-        ['Guías', `${td.cantidad_guias}/100`],
+        ['Guías', `${td.cantidad_guias}/${gpt}`],
         ['Estado', td.estado],
         ['Inicio', td.fecha_inicio ? fmtDateTime(td.fecha_inicio) : '--'],
         ['Cierre', td.fecha_cierre ? fmtDateTime(td.fecha_cierre) : '--'],
@@ -204,6 +205,8 @@ export default function Escaneo() {
 
   const { data: empresasData } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas })
   const { data: canalesData } = useQuery({ queryKey: ['dropscan-canales'], queryFn: ds.getCanales })
+  const { data: parametrosData } = useQuery({ queryKey: ['dropscan-parametros'], queryFn: ds.getParametros })
+  const gpt = parametrosData?.guias_por_tarima || 100
   const empresas = (Array.isArray(empresasData) ? empresasData : empresasData?.items || empresasData?.empresas || []).filter(e => e.activo !== false)
   const allCanales = Array.isArray(canalesData) ? canalesData : canalesData?.items || canalesData?.canales || []
   const pickerCanales = pickerEmpresa
@@ -495,7 +498,7 @@ export default function Escaneo() {
           flashType: 'success',
         }))
       }
-      if (data.alerta) { if (soundEnabled) playSound('warning'); if (data.guia.posicion >= 95) toast.warning(data.alerta.message) }
+      if (data.alerta) { if (soundEnabled) playSound('warning'); if (data.guia.posicion >= (gpt - 5)) toast.warning(data.alerta.message) }
     } catch (err) {
       const d = err.response?.data
       if (d?.error === 'DUPLICADO') {
@@ -550,8 +553,15 @@ export default function Escaneo() {
       return
     }
 
+    const key = `${tabId}:${code}`
+    if (scanInFlight.current.has(key)) return
+    scanInFlight.current.add(key)
     updateTab(tabId, { scanInput: '' })
-    await performActualScan(tabId, code)
+    try {
+      await performActualScan(tabId, code)
+    } finally {
+      scanInFlight.current.delete(key)
+    }
   }, [tabs, soundEnabled, updateTab, performActualScan])
 
   /* ── confirm suspicious scan ────────────────────── */
@@ -672,7 +682,7 @@ export default function Escaneo() {
   const tab = activeTab
   const empresaColor = tab?.empresa?.color || '#8b5cf6'
   const currentGuias = tab?.tarima?.cantidad_guias || 0
-  const progressPercent = (currentGuias / 100) * 100
+  const progressPercent = (currentGuias / gpt) * 100
   const progressGradient = progressPercent >= 95 ? 'from-danger-400 to-danger-600'
     : progressPercent >= 90 ? 'from-warning-400 to-warning-600'
     : 'from-primary-400 to-accent-500'
@@ -847,7 +857,7 @@ export default function Escaneo() {
                 <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: empColor }} />
                 <span className="font-mono text-xs">{tb.tarima?.codigo?.split('-').pop() || `#${idx + 1}`}</span>
                 <span className="text-xs opacity-70">{tb.empresa?.nombre || '?'}</span>
-                <span className="text-[10px] font-bold opacity-60">({tb.tarima?.cantidad_guias || 0}/100)</span>
+                <span className="text-[10px] font-bold opacity-60">({tb.tarima?.cantidad_guias || 0}/{gpt})</span>
                 {/* counters badges */}
                 {tb.duplicados.length > 0 && (
                   <span className="badge bg-danger-100 text-danger-600 text-[9px] ml-1">{tb.duplicados.length} dup</span>
@@ -914,7 +924,7 @@ export default function Escaneo() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-[10px] font-bold text-warm-400 uppercase tracking-wider leading-none">{tab.tarima?.codigo || '—'}</p>
-                    <p className="text-3xl font-black text-warm-800 tracking-tighter leading-none">{currentGuias}<span className="text-xs font-medium text-warm-400">/100</span></p>
+                    <p className="text-3xl font-black text-warm-800 tracking-tighter leading-none">{currentGuias}<span className="text-xs font-medium text-warm-400">/{gpt}</span></p>
                   </div>
                 </div>
 
@@ -1113,7 +1123,7 @@ export default function Escaneo() {
                           }
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-warm-400 font-medium">{pallet.cantidad_guias}/100 guias</span>
+                          <span className="text-[10px] text-warm-400 font-medium">{pallet.cantidad_guias}/{gpt} guias</span>
                           {pallet.completedAt && (
                             <span className="text-[10px] text-warm-400 flex items-center gap-1">
                               <Clock className="w-3 h-3" />{fmtTimeShort(pallet.completedAt)}
@@ -1122,7 +1132,7 @@ export default function Escaneo() {
                         </div>
                         <div className="w-full h-1.5 bg-warm-100 rounded-full mt-2 overflow-hidden">
                           <div className={`h-full rounded-full ${pallet.isCurrent ? 'bg-gradient-to-r from-primary-400 to-accent-500' : pallet.estado === 'CANCELADA' ? 'bg-danger-400' : 'bg-success-400'}`}
-                            style={{ width: `${(pallet.cantidad_guias / 100) * 100}%` }} />
+                            style={{ width: `${(pallet.cantidad_guias / gpt) * 100}%` }} />
                         </div>
                         {pallet.estado === 'EN_PROCESO' && !pallet.isCurrent && (
                           <button
@@ -1187,7 +1197,7 @@ export default function Escaneo() {
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               {[
-                { l: t('history.guides'), v: `${panelDetailData.tarima.cantidad_guias}/100` },
+                { l: t('history.guides'), v: `${panelDetailData.tarima.cantidad_guias}/${gpt}` },
                 { l: t('common.status'), v: formatEstado(panelDetailData.tarima.estado) },
                 { l: t('history.startTime'), v: panelDetailData.tarima.fecha_inicio ? fmtTimeShort(panelDetailData.tarima.fecha_inicio) : '--' },
                 { l: t('history.duration'), v: calcDuration(panelDetailData.tarima) },
@@ -1336,7 +1346,7 @@ export default function Escaneo() {
                   </div>
                   <div className="p-3 rounded-xl bg-warm-50 border border-warm-100">
                     <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-0.5">Guías escaneadas</p>
-                    <p className="text-sm font-bold text-warm-800">{esTab.tarima.cantidad_guias} <span className="text-warm-400 font-normal">/ 100</span></p>
+                    <p className="text-sm font-bold text-warm-800">{esTab.tarima.cantidad_guias} <span className="text-warm-400 font-normal">/ {gpt}</span></p>
                   </div>
                 </div>
               )}
