@@ -133,6 +133,7 @@ export default function Escaneo() {
   const [panelEditMode, setPanelEditMode] = useState(false)
   const [suspiciousModal, setSuspiciousModal] = useState(null)      // { code, tabId, score, level }
   const [deleteLastGuideModal, setDeleteLastGuideModal] = useState(null) // { tabId, guia }
+  const [deleteGuiaModal, setDeleteGuiaModal] = useState(null)          // { tabId, guiaId, guiaCodigo, posicion }
   const [endSessionModal, setEndSessionModal] = useState(null)      // { tabId }
   const [reopenConfirmModal, setReopenConfirmModal] = useState(null) // { pallet }
 
@@ -574,10 +575,21 @@ export default function Escaneo() {
   }, [suspiciousModal, updateTab, performActualScan])
 
   /* ── delete guide (any position, supervisor flow) ── */
-  const handleDeleteGuia = async (tabId, guiaId) => {
+  const handleDeleteGuia = (tabId, guiaId) => {
     const tab = tabs.find(t => t.tabId === tabId)
     if (!tab) return
-    if (!confirm(t('scan.deleteGuideConfirm'))) return
+    const guia = tab.guias.find(g => g.id === guiaId)
+    if (!guia) return
+    setDeleteGuiaModal({ tabId, guiaId, guiaCodigo: guia.codigo_guia, posicion: guia.posicion })
+  }
+
+  /* ── delete guide confirmation (executes after modal confirm) ── */
+  const handleDeleteGuiaConfirm = useCallback(async () => {
+    if (!deleteGuiaModal) return
+    const { tabId, guiaId } = deleteGuiaModal
+    setDeleteGuiaModal(null)
+    const tab = tabs.find(t => t.tabId === tabId)
+    if (!tab) return
     try {
       await ds.deleteGuia(tab.session.id, guiaId)
       updateTab(tabId, {
@@ -586,7 +598,7 @@ export default function Escaneo() {
       })
       toast.success(t('scan.guideDeleted'))
     } catch { toast.error(t('toast.error')) }
-  }
+  }, [deleteGuiaModal, tabs, updateTab, t, toast])
 
   /* ── delete last guide (operador+ with modal confirm) */
   const handleDeleteLastGuide = useCallback(async () => {
@@ -1418,6 +1430,33 @@ export default function Escaneo() {
               <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-1">Guía a eliminar</p>
               <p className="text-sm font-mono font-bold text-warm-800">{deleteLastGuideModal.guia.codigo_guia}</p>
               <p className="text-xs text-warm-400 mt-0.5">Posición #{deleteLastGuideModal.guia.posicion}</p>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Delete guide confirmation modal (supervisor) */}
+      <Modal isOpen={!!deleteGuiaModal} onClose={() => setDeleteGuiaModal(null)}
+        title="Eliminar guía" icon={Trash2} size="sm"
+        footer={<>
+          <button onClick={() => setDeleteGuiaModal(null)} className="btn-ghost">Cancelar</button>
+          <button onClick={handleDeleteGuiaConfirm} className="btn-danger inline-flex items-center gap-2">
+            <Trash2 className="w-4 h-4" /> Eliminar
+          </button>
+        </>}>
+        <div className="space-y-3">
+          <div className="p-4 rounded-xl bg-danger-50 border border-danger-200 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-danger-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-danger-800">¿Eliminar esta guía de la tarima?</p>
+              <p className="text-xs text-danger-600 mt-1">Esta acción elimina el registro del escaneo y no se puede deshacer.</p>
+            </div>
+          </div>
+          {deleteGuiaModal && (
+            <div className="p-3 rounded-xl bg-warm-50 border border-warm-100">
+              <p className="text-[10px] text-warm-400 font-medium uppercase tracking-wider mb-1">Guía a eliminar</p>
+              <p className="text-sm font-mono font-bold text-warm-800">{deleteGuiaModal.guiaCodigo}</p>
+              <p className="text-xs text-warm-400 mt-0.5">Posición #{deleteGuiaModal.posicion}</p>
             </div>
           )}
         </div>
