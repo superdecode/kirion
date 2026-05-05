@@ -10,6 +10,19 @@ import ErrorBoundary from './core/components/common/ErrorBoundary'
 import Login from './core/components/auth/Login'
 import ProtectedRoute, { PermissionRoute } from './core/components/auth/ProtectedRoute'
 
+// Super Admin panel
+import AdminLogin from './modules/superadmin/pages/AdminLogin'
+import AdminLayout from './modules/superadmin/components/AdminLayout'
+import AdminDashboard from './modules/superadmin/pages/AdminDashboard'
+import AdminSolicitudes from './modules/superadmin/pages/AdminSolicitudes'
+import AdminTenants from './modules/superadmin/pages/AdminTenants'
+import AdminTenantDetalle from './modules/superadmin/pages/AdminTenantDetalle'
+import AdminNotificaciones from './modules/superadmin/pages/AdminNotificaciones'
+import { useAdminAuthStore } from './modules/superadmin/stores/adminAuthStore'
+
+// Landing page
+import Landing from './pages/Landing'
+
 // Pages
 import GlobalDashboard from './pages/GlobalDashboard'
 import Administracion from './pages/Administracion'
@@ -67,12 +80,34 @@ function SmartRedirect() {
   return <GlobalDashboard />
 }
 
+function AdminProtectedRoute({ children }) {
+  const { isAuthenticated } = useAdminAuthStore()
+  if (!isAuthenticated) return <Navigate to="/super-admin/login" replace />
+  return children
+}
+
 function AppRoutes() {
   const { isAuthenticated } = useAuthStore()
 
   return (
     <Routes>
-      {/* Public */}
+      {/* Landing */}
+      <Route path="/landing" element={<Landing />} />
+
+      {/* Super Admin */}
+      <Route path="/super-admin/login" element={<AdminLogin />} />
+      <Route
+        path="/super-admin"
+        element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="solicitudes" element={<AdminSolicitudes />} />
+        <Route path="tenants" element={<AdminTenants />} />
+        <Route path="tenants/:id" element={<AdminTenantDetalle />} />
+        <Route path="notificaciones" element={<AdminNotificaciones />} />
+      </Route>
+
+      {/* Tenant public login */}
       <Route
         path="/login"
         element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}

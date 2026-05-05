@@ -5,5 +5,9 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron/notifications", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/lifecycle",     "schedule": "0 * * * *" }
   ]
 }
