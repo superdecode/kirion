@@ -6,6 +6,9 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Track whether we're already handling a 401 redirect to prevent loops
+let isHandling401 = false
+
 // Request interceptor - attach token
 api.interceptors.request.use((config) => {
   const stored = localStorage.getItem('wms-auth')
@@ -20,16 +23,30 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Response interceptor - handle 401
+// Response interceptor - handle 401 gracefully
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Only redirect if this wasn't the login request itself
       const isLoginRequest = error.config?.url?.includes('/auth/login')
-      if (!isLoginRequest) {
+      const isAuthMeRequest = error.config?.url?.includes('/auth/me')
+
+      if (!isLoginRequest && !isHandling401) {
+        isHandling401 = true
+
+        // Clear auth state via localStorage (Zustand persist will pick this up)
         localStorage.removeItem('wms-auth')
-        window.location.href = '/login'
+
+        // Use soft redirect instead of hard reload to prevent login loops.
+        // Replace history state so back button doesn't create another loop.
+        if (window.location.pathname !== '/login') {
+          window.history.replaceState(null, '', '/login')
+          // Dispatch a popstate so React Router picks up the change
+          window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
+        }
+
+        // Reset guard after 2 seconds to allow future redirects if needed
+        setTimeout(() => { isHandling401 = false }, 2000)
       }
     }
     return Promise.reject(error)

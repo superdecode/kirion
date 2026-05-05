@@ -513,6 +513,17 @@ export default function Escaneo() {
           duplicadosCount: (t.duplicadosCount || 0) + 1,
           duplicados: [{ codigo_guia: code, message: msg, tarima_original: d.tarima_original, posicion_original: d.posicion_original, duplicado_en: d.duplicado_en, timestamp: new Date() }, ...t.duplicados],
         }))
+      } else if (d?.code === 'TARIMA_NO_ACTIVA') {
+        // Session's tarima is finalized/cancelled — session was auto-closed by backend.
+        // Show clear error and auto-close the tab after a short delay.
+        if (soundEnabled) playSound('error')
+        toast.error(d.error || 'La tarima ya no está activa. Inicia una nueva sesión.')
+        updateTab(tabId, {
+          lastScan: { type: 'error', message: d.error },
+          flashType: 'error',
+          sessionEnded: true, // Mark tab as ended so UI shows "start new session"
+        })
+        // Don't close the tab immediately — let the user read the message
       } else {
         if (soundEnabled) playSound('error')
         toast.error(d?.error || t('toast.error'))

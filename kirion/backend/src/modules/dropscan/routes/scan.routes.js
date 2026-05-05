@@ -277,8 +277,25 @@ router.post('/sessions/:id/scan',
         [targetTarimaId, 'EN_PROCESO', userId]
       )
       if (tarimaRes.rows.length === 0) {
-        await client.query('ROLLBACK')
-        return res.status(400).json({ error: 'No hay tarima activa' })
+        // Check what happened to the tarima for a better error message
+        const deadTarimaRes = await client.query(
+          'SELECT id, estado, codigo FROM tarimas WHERE id = $1 AND operador_id = $2',
+          [targetTarimaId, userId]
+        )
+        const deadTarima = deadTarimaRes.rows[0]
+        // Auto-close orphan session so the frontend can start a fresh one
+        await client.query(
+          'UPDATE sesiones_escaneo SET activa = false, fecha_fin = CURRENT_TIMESTAMP WHERE id = $1',
+          [sessionId]
+        )
+        await client.query('COMMIT')
+        return res.status(400).json({
+          error: deadTarima
+            ? `Tarima ${deadTarima.codigo} está ${deadTarima.estado} (no se pueden agregar más guías)`
+            : 'No hay tarima activa',
+          code: 'TARIMA_NO_ACTIVA',
+          tarima_estado: deadTarima?.estado || null,
+        })
       }
       let tarima = tarimaRes.rows[0]
 

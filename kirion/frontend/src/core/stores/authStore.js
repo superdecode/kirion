@@ -116,7 +116,12 @@ export const useAuthStore = create(
           if (data.zona_horaria) setTimezone(data.zona_horaria)
           set((state) => ({ user: { ...state.user, ...data } }))
         } catch (e) {
-          get().logout()
+          // Only logout on 401 (token truly invalid/expired).
+          // Other errors (network, 5xx) should NOT trigger logout — prevents login loops.
+          if (e.response?.status === 401) {
+            get().logout()
+          }
+          // Silently ignore non-auth errors to avoid disrupting the user session
         }
       },
 
