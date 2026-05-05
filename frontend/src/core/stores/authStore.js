@@ -1,0 +1,198 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import api from '../services/api.js'
+import { mockLogin, mockAuthMe } from '../services/mockAuth.js'
+import { setTimezone } from '../utils/dateFormat.js'
+
+/**
+ * Permission resolution for 5-level system (action-verb names):
+ * sin_acceso → ver → crear → actualizar → eliminar
+ */
+const LEVEL_HIERARCHY = { sin_acceso: 0, ver: 1, crear: 2, actualizar: 3, eliminar: 4 }
+
+// Legacy level mapping (for data that wasn't fully migrated)
+const LEGACY_MAP = { total: 'eliminar', gestion: 'actualizar', escritura: 'crear', lectura: 'ver' }
+
+function normalizeLevel(level) {
+  if (!level) return 'sin_acceso'
+  const lvl = String(level).toLowerCase()
+  return LEGACY_MAP[lvl] || lvl
+}
+
+const ACTION_MIN_LEVEL = {
+  ver: 'ver',
+  crear: 'crear',
+  editar: 'crear',
+  imprimir: 'crear',
+  cancelar: 'actualizar',
+  exportar: 'actualizar',
+  desbloquear: 'actualizar',
+  eliminar: 'eliminar',
+}
+
+function resolvePermission(level, action) {
+  if (!level) return false
+  const lvl = normalizeLevel(level)
+  if (lvl === 'sin_acceso' || lvl === '') return false
+  const lvlRank = LEVEL_HIERARCHY[lvl] ?? -1
+  const minRank = LEVEL_HIERARCHY[ACTION_MIN_LEVEL[action]] ?? 99
+  return lvlRank >= minRank
+}
+
+function getModuleLevel(permisos, modulePath) {
+  if (!permisos || !modulePath) return 'sin_acceso'
+  const parts = modulePath.split('.')
+  let current = permisos
+  for (const part of parts) {
+    if (current && typeof current === 'object' && part in current) {
+      current = current[part]
+    } else {
+      return 'sin_acceso'
+    }
+  }
+  return typeof current === 'string' ? normalizeLevel(current) : 'sin_acceso'
+}
+
+export const useAuthStore = create(
+  persist(
+    (set, get) => ({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: false,
+
+      login: async (email, password) => {
+        set({ isLoading: true })
+        try {
+          // Usar mock data en desarrollo
+          if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
+            const result = await mockLogin(email, password)
+            if (result.success) {
+              set({
+                user: result.user,
+                token: result.token,
+                isAuthenticated: true,
+                isLoading: false,
+              })
+            }
+            set({ isLoading: false })
+            return result
+          }
+          
+          // API real
+          const { data } = await api.post('/auth/login', { email, password })
+          if (data.user?.zona_horaria) setTimezone(data.user.zona_horaria)
+          set({
+            user: data.user,
+            token: data.token,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+          return { success: true }
+        } catch (error) {
+          set({ isLoading: false })
+          let errorMsg = 'Error de conexión'
+          if (error.response?.data?.error) {
+            const err = error.response.data.error
+            errorMsg = typeof err === 'object' ? (err.message || JSON.stringify(err)) : err
+          } else if (error.message) {
+            errorMsg = error.message
+          }
+          return { success: false, error: errorMsg }
+        }
+      },
+
+      logout: async () => {
+        try {
+          await api.post('/auth/logout')
+        } catch (_e) { /* ignore — token may already be expired */ }
+        set({ user: null, token: null, isAuthenticated: false })
+        localStorage.removeItem('wms-auth')
+      },
+
+      refreshUser: async () => {
+        try {
+          const { data } = await api.get('/auth/me')
+          if (data.zona_horaria) setTimezone(data.zona_horaria)
+          set((state) => ({ user: { ...state.user, ...data } }))
+        } catch (e) {
+          // Only logout on 401 (token truly invalid/expired).
+          // Other errors (network, 5xx) should NOT trigger logout — prevents login loops.
+          if (e.response?.status === 401) {
+            get().logout()
+          }
+          // Silently ignore non-auth errors to avoid disrupting the user session
+        }
+      },
+
+      updateTimezone: async (zona_horaria) => {
+        const { data } = await api.put('/auth/preferences', { zona_horaria })
+        if (data.success) {
+          setTimezone(zona_horaria)
+          set((state) => ({ user: { ...state.user, zona_horaria } }))
+        }
+        return data
+      },
+
+      // Permission check: hasPermission('dropscan.escaneo', 'crear')
+      hasPermission: (modulePath, action) => {
+        const { user } = get()
+        if (!user) return false
+        if (user.rol_nombre === 'Administrador') return true
+        const level = getModuleLevel(user.permisos, modulePath)
+        return resolvePermission(level, action)
+      },
+
+      // Get raw permission level: getPermissionLevel('dropscan.escaneo')
+      getPermissionLevel: (modulePath) => {
+        const { user } = get()
+        if (!user) return 'sin_acceso'
+        if (user.rol_nombre === 'Administrador') return 'eliminar'
+        return getModuleLevel(user.permisos, modulePath)
+      },
+
+      canView: (modulePath) => {
+        const { user } = get()
+        if (!user) return false
+        if (user.rol_nombre === 'Administrador') return true
+        const level = getModuleLevel(user.permisos, modulePath)
+        return level !== 'sin_acceso'
+      },
+
+      canWrite: (modulePath) => {
+        const { user } = get()
+        if (!user) return false
+        if (user.rol_nombre === 'Administrador') return true
+        const level = getModuleLevel(user.permisos, modulePath)
+        return ['crear', 'actualizar', 'eliminar'].includes(level)
+      },
+
+      canDelete: (modulePath) => {
+        const { user } = get()
+        if (!user) return false
+        if (user.rol_nombre === 'Administrador') return true
+        const level = getModuleLevel(user.permisos, modulePath)
+        return level === 'eliminar'
+      },
+
+      canUnlock: (modulePath) => {
+        const { user } = get()
+        if (!user) return false
+        if (user.rol_nombre === 'Administrador') return true
+        const level = getModuleLevel(user.permisos, modulePath)
+        return level === 'eliminar'
+      },
+    }),
+    {
+      name: 'wms-auth',
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.user?.zona_horaria) setTimezone(state.user.zona_horaria)
+      },
+    }
+  )
+)

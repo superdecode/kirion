@@ -1,0 +1,214 @@
+import { Router } from 'express'
+import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import env from '../../config/env.js'
+import { query } from '../../config/database.js'
+import { authenticateToken, auditLog } from '../../shared/middleware/auth.js'
+import { normalizeLevel } from '../../shared/middleware/permissions.js'
+
+
+// Deep-normalize all permission level values in a permissions object
+function normalizePermisos(obj) {
+  if (!obj || typeof obj !== 'object') return obj
+  const result = {}
+  for (const [key, val] of Object.entries(obj)) {
+    result[key] = typeof val === 'string' ? normalizeLevel(val) : normalizePermisos(val)
+  }
+  return result
+}
+
+const router = Router()
+
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña son requeridos' })
+    }
+
+    const result = await query(
+      `SELECT u.*, r.nombre as rol_nombre, r.permisos as rol_permisos
+       FROM usuarios u
+       LEFT JOIN roles r ON u.rol_id = r.id
+       WHERE u.email = $1`,
+      [email.toLowerCase().trim()]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Credenciales inválidas' })
+    }
+
+    const user = result.rows[0]
+
+    if (user.estado !== 'ACTIVO') {
+      return res.status(403).json({ error: 'Usuario inactivo o suspendido' })
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password_hash)
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Credenciales inválidas' })
+    }
+
+    // Update last access
+    await query('UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1', [user.id])
+
+    // Build permissions from role or override
+    const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
+
+    const jti = crypto.randomBytes(16).toString('hex')
+    const payload = {
+      id: user.id,
+      codigo: user.codigo,
+      email: user.email,
+      rol_id: user.rol_id,
+      rol_nombre: user.rol_nombre,
+      jti,
+    }
+
+    const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN })
+
+    // Audit: login
+    auditLog(req, 'LOGIN', 'usuario', user.id, { email: user.email, rol: user.rol_nombre })
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        codigo: user.codigo,
+        nombre_completo: user.nombre_completo,
+        email: user.email,
+        rol_id: user.rol_id,
+        rol_nombre: user.rol_nombre,
+        permisos,
+        avatar_url: user.avatar_url,
+        zona_horaria: user.zona_horaria || 'America/Mexico_City',
+      }
+    })
+  } catch (error) {
+    console.error('Login error:', error)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// GET /api/auth/me
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT u.id, u.codigo, u.nombre_completo, u.email, u.rol_id, u.estado,
+              u.avatar_url, u.permisos_override, u.ultimo_acceso,
+              r.nombre as rol_nombre, r.permisos as rol_permisos
+       FROM usuarios u
+       LEFT JOIN roles r ON u.rol_id = r.id
+       WHERE u.id = $1`,
+      [req.user.id]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    const user = result.rows[0]
+    const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
+
+    res.json({
+      id: user.id,
+      codigo: user.codigo,
+      nombre_completo: user.nombre_completo,
+      email: user.email,
+      rol_id: user.rol_id,
+      rol_nombre: user.rol_nombre,
+      permisos,
+      avatar_url: user.avatar_url,
+      estado: user.estado,
+      ultimo_acceso: user.ultimo_acceso,
+      zona_horaria: user.zona_horaria || 'America/Mexico_City',
+    })
+  } catch (error) {
+    console.error('Auth/me error:', error)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// POST /api/auth/change-password
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' })
+    }
+    if (new_password.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' })
+    }
+
+    const userRes = await query('SELECT password_hash FROM usuarios WHERE id = $1', [req.user.id])
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    const valid = await bcrypt.compare(current_password, userRes.rows[0].password_hash)
+    if (!valid) {
+      return res.status(401).json({ error: 'Contraseña actual incorrecta' })
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10)
+    await query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [newHash, req.user.id])
+    auditLog(req, 'CHANGE_PASSWORD', 'usuario', req.user.id, null)
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Change password error:', error)
+    res.status(500).json({ error: 'Error al cambiar contraseña' })
+  }
+})
+
+// PUT /api/auth/preferences
+router.put('/preferences', authenticateToken, async (req, res) => {
+  try {
+    const { zona_horaria } = req.body
+    if (!zona_horaria || typeof zona_horaria !== 'string') {
+      return res.status(400).json({ error: 'zona_horaria es requerida' })
+    }
+    // Validate timezone by trying to format with it
+    try {
+      new Intl.DateTimeFormat('en-CA', { timeZone: zona_horaria }).format(new Date())
+    } catch {
+      return res.status(400).json({ error: 'Zona horaria inválida' })
+    }
+    await query(
+      'UPDATE usuarios SET zona_horaria = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [zona_horaria, req.user.id]
+    )
+    res.json({ success: true, zona_horaria })
+  } catch (error) {
+    console.error('Preferences error:', error)
+    res.status(500).json({ error: 'Error actualizando preferencias' })
+  }
+})
+
+// POST /api/auth/logout
+router.post('/logout', authenticateToken, async (req, res) => {
+  try {
+    // Blacklist the token if it has a JTI
+    if (req.user.jti) {
+      const expiresAt = new Date(req.user.exp * 1000)
+      await query(
+        'INSERT INTO token_blacklist (token_jti, user_id, expires_at) VALUES ($1, $2, $3) ON CONFLICT (token_jti) DO NOTHING',
+        [req.user.jti, req.user.id, expiresAt]
+      )
+    }
+    // Cleanup expired tokens opportunistically (1 in 10 chance)
+    if (Math.random() < 0.1) {
+      query('DELETE FROM token_blacklist WHERE expires_at < CURRENT_TIMESTAMP').catch(() => {})
+    }
+    auditLog(req, 'LOGOUT', 'usuario', req.user.id, null)
+    res.json({ success: true, message: 'Sesión cerrada' })
+  } catch (error) {
+    console.error('Logout error:', error)
+    res.json({ success: true, message: 'Sesión cerrada' })
+  }
+})
+
+export default router
