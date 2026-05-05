@@ -12,6 +12,13 @@ import rolesRoutes from './core/routes/roles.routes.js'
 import configRoutes from './core/routes/config.routes.js'
 import setupRoutes from './core/routes/setup.routes.js'
 import wmsRoutes from './core/routes/wms.routes.js'
+import adminRoutes from './core/routes/admin.routes.js'
+import publicRoutes from './core/routes/public.routes.js'
+import cronRoutes from './core/routes/cron.routes.js'
+
+// Multi-tenant middleware
+import { tenantContext } from './modules/middleware/tenantContext.js'
+import { moduleGuard } from './modules/middleware/moduleGuard.js'
 
 // Module routes
 import scanRoutes from './modules/dropscan/routes/scan.routes.js'
@@ -60,28 +67,39 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' })
 })
 
-// Core API routes
-app.use('/api/auth/login', loginLimiter) // Scope strict limiter only to the login endpoint
+// Public routes (no auth, no tenant context)
+app.use('/api/public', publicRoutes)
+
+// Admin routes (super_admin auth, no tenant context)
+app.use('/api/admin', adminRoutes)
+
+// Cron routes (CRON_SECRET auth, no tenant context)
+app.use('/api/cron', cronRoutes)
+
+// Auth routes (tenant resolved inline from Host header)
+app.use('/api/auth/login', loginLimiter)
 app.use('/api/auth', authRoutes)
-app.use('/api/users', usersRoutes)
-app.use('/api/roles', rolesRoutes)
-app.use('/api/config', configRoutes)
-app.use('/api/setup', setupRoutes)
-app.use('/api/wms', wmsRoutes)
 
-// DropScan module routes
-app.use('/api/dropscan', scanRoutes)
-app.use('/api/dropscan/tarimas', tarimasRoutes)
-app.use('/api/dropscan/dashboard', dashboardRoutes)
-app.use('/api/dropscan/config', dropscanConfigRoutes)
-app.use('/api/dropscan/operadores', operadoresRoutes)
+// All tenant-scoped routes — apply tenantContext first
+app.use('/api/users', tenantContext, usersRoutes)
+app.use('/api/roles', tenantContext, rolesRoutes)
+app.use('/api/config', tenantContext, configRoutes)
+app.use('/api/setup', tenantContext, setupRoutes)
+app.use('/api/wms', tenantContext, wmsRoutes)
 
-// Inventory module routes
-app.use('/api/inventory', invScanRoutes)
-app.use('/api/inventory', invHistoryRoutes)
+// DropScan — require dropscan module access
+app.use('/api/dropscan', tenantContext, moduleGuard('dropscan'), scanRoutes)
+app.use('/api/dropscan/tarimas', tenantContext, moduleGuard('dropscan'), tarimasRoutes)
+app.use('/api/dropscan/dashboard', tenantContext, moduleGuard('dropscan'), dashboardRoutes)
+app.use('/api/dropscan/config', tenantContext, moduleGuard('dropscan'), dropscanConfigRoutes)
+app.use('/api/dropscan/operadores', tenantContext, moduleGuard('dropscan'), operadoresRoutes)
 
-// FEP module routes
-app.use('/api/fep/folios', fepFoliosRoutes)
+// Inventory — require inventory module (not in MVP plans, returns 403 for trial/basic)
+app.use('/api/inventory', tenantContext, moduleGuard('inventory'), invScanRoutes)
+app.use('/api/inventory', tenantContext, moduleGuard('inventory'), invHistoryRoutes)
+
+// FEP — require fep module
+app.use('/api/fep/folios', tenantContext, moduleGuard('fep'), fepFoliosRoutes)
 
 // Auto-apply pending migrations (idempotent — each step is independent)
 async function runMigrations() {
