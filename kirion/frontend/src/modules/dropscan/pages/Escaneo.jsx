@@ -134,6 +134,7 @@ export default function Escaneo() {
   const [suspiciousModal, setSuspiciousModal] = useState(null)      // { code, tabId, score, level }
   const [deleteLastGuideModal, setDeleteLastGuideModal] = useState(null) // { tabId, guia }
   const [deleteGuiaModal, setDeleteGuiaModal] = useState(null)          // { tabId, guiaId, guiaCodigo, posicion }
+  const [deleteTarimaGuiaModal, setDeleteTarimaGuiaModal] = useState(null) // { guia } for valid tarima guide deletion
   const [endSessionModal, setEndSessionModal] = useState(null)      // { tabId }
   const [reopenConfirmModal, setReopenConfirmModal] = useState(null) // { pallet }
 
@@ -1241,7 +1242,7 @@ export default function Escaneo() {
                       {panelEditMode && (
                         <td className="px-2 py-2">
                           <button
-                            onClick={() => deleteGuiaFromTarimaMutation.mutate({ tarimaId: panelDetailData.tarima.id, guiaId: g.id })}
+                            onClick={() => setDeleteTarimaGuiaModal({ guia: g })}
                             disabled={deleteGuiaFromTarimaMutation.isPending}
                             className="p-1.5 rounded-lg hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all disabled:opacity-40">
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1461,6 +1462,49 @@ export default function Escaneo() {
           )}
         </div>
       </Modal>
+      {/* Delete guide from valid tarima confirmation modal */}
+      <Modal isOpen={!!deleteTarimaGuiaModal} onClose={() => setDeleteTarimaGuiaModal(null)}
+        title="Eliminar Guía" icon={Trash2} size="sm"
+        footer={<>
+          <button onClick={() => setDeleteTarimaGuiaModal(null)} className="btn-ghost">Cancelar</button>
+          <button
+            onClick={() => {
+              deleteGuiaFromTarimaMutation.mutate({ tarimaId: panelDetailData.tarima.id, guiaId: deleteTarimaGuiaModal.guia.id })
+              setDeleteTarimaGuiaModal(null)
+            }}
+            disabled={deleteGuiaFromTarimaMutation.isPending}
+            className="btn-danger inline-flex items-center gap-2">
+            <Trash2 className="w-4 h-4" />
+            {deleteGuiaFromTarimaMutation.isPending ? 'Eliminando...' : 'Eliminar guía'}
+          </button>
+        </>}>
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-danger-50 border border-danger-200 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-danger-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-danger-800">¿Estás seguro de eliminar esta guía?</p>
+              <p className="text-xs text-danger-600 mt-1">La guía será eliminada de la tarima permanentemente. Las posiciones de las demás guías se reordenarán automáticamente.</p>
+            </div>
+          </div>
+          {deleteTarimaGuiaModal && (
+            <div className="p-3 rounded-xl bg-warm-50 border border-warm-200 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Guía</span>
+                <span className="text-sm font-bold font-mono text-warm-800">{deleteTarimaGuiaModal.guia.codigo_guia}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Posición</span>
+                <span className="text-sm font-semibold text-warm-700">#{deleteTarimaGuiaModal.guia.posicion}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Operador</span>
+                <span className="text-sm font-semibold text-warm-700">{deleteTarimaGuiaModal.guia.operador_nombre}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
 
       {/* Recount mode modal */}
       <RecountModal
