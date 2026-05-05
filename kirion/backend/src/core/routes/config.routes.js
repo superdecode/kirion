@@ -1,12 +1,14 @@
 import { Router } from 'express'
 import { query } from '../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../shared/middleware/auth.js'
+import { requirePermission } from '../../shared/middleware/permissions.js'
 
 const router = Router()
 
 // GET /api/config/:modulo/:tipo
 router.get('/:modulo/:tipo',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('global.administracion', 'ver'),
   async (req, res) => {
     try {
       const { modulo, tipo } = req.params
@@ -32,6 +34,7 @@ router.get('/:modulo/:tipo',
 // POST /api/config
 router.post('/',
   authenticateToken, loadFullUser,
+  requirePermission('global.administracion', 'crear'),
   async (req, res) => {
     try {
       const { modulo, tipo, codigo, nombre, descripcion, config_json } = req.body
@@ -60,6 +63,7 @@ router.post('/',
 // PUT /api/config/:id
 router.put('/:id',
   authenticateToken, loadFullUser,
+  requirePermission('global.administracion', 'editar'),
   async (req, res) => {
     try {
       const { id } = req.params

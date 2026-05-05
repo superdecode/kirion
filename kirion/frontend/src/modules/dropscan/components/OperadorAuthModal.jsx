@@ -17,9 +17,9 @@ export default function OperadorAuthModal({ isOpen, onClose, onAuthenticated }) 
   const { setOperador } = useOperadorStore()
   const { t } = useI18nStore()
 
-  // High-level: matches role name OR has gestion/total permission on dropscan.escaneo
+  // High-level: matches role name OR has eliminar permission on dropscan.escaneo
   const permLevel = getPermissionLevel('dropscan.escaneo')
-  const isHighLevel = HIGH_LEVEL_ROLES.includes(user?.rol_nombre) || ['gestion', 'total'].includes(permLevel)
+  const isHighLevel = HIGH_LEVEL_ROLES.includes(user?.rol_nombre) || ['actualizar', 'eliminar'].includes(permLevel)
 
   if (!isOpen) return null
 

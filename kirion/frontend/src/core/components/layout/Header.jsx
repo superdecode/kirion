@@ -407,10 +407,10 @@ export default function Header({ title, subtitle, actions, showSearch = false })
                     <div className="flex flex-wrap gap-1.5">
                       {typeof perms === 'object' ? Object.entries(perms).map(([sub, level]) => (
                         <span key={sub} className={`badge text-[10px] ${
-                          level === 'total' ? 'bg-primary-100 text-primary-700' :
-                          level === 'gestion' ? 'bg-accent-100 text-accent-700' :
-                          level === 'escritura' ? 'bg-success-100 text-success-700' :
-                          level === 'lectura' ? 'bg-warning-100 text-warning-700' :
+                          level === 'eliminar' ? 'bg-primary-100 text-primary-700' :
+                          level === 'actualizar' ? 'bg-accent-100 text-accent-700' :
+                          level === 'crear' ? 'bg-success-100 text-success-700' :
+                          level === 'ver' ? 'bg-warning-100 text-warning-700' :
                           'bg-warm-100 text-warm-500'
                         }`}>
                           {t(`perm.sub.${sub}`)}: {t(`perm.${level}`)}

@@ -132,10 +132,10 @@ GROUP BY s.id, u.nombre_completo;
 
 -- ── Permisos de Inventory y WMS en Roles ──────────────────────────────────────────
 -- Agregar permisos de WMS a roles existentes
-UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"total"', true)
+UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"eliminar"', true)
 WHERE nombre = 'Administrador' AND NOT (permisos -> 'global' ? 'wms');
 
-UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"lectura"', true)
+UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"ver"', true)
 WHERE nombre = 'Jefe' AND NOT (permisos -> 'global' ? 'wms');
 
 UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"sin_acceso"', true)
@@ -143,19 +143,19 @@ WHERE nombre NOT IN ('Administrador','Jefe') AND NOT (permisos -> 'global' ? 'wm
 
 -- Agregar permisos de Inventory a roles existentes
 UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-  '{"escaneo":"total","historial":"total","reportes":"total"}'::jsonb, true)
+  '{"escaneo":"eliminar","historial":"eliminar","reportes":"eliminar"}'::jsonb, true)
 WHERE nombre = 'Administrador' AND NOT (permisos ? 'inventory');
 
 UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-  '{"escaneo":"gestion","historial":"gestion","reportes":"escritura"}'::jsonb, true)
+  '{"escaneo":"actualizar","historial":"actualizar","reportes":"crear"}'::jsonb, true)
 WHERE nombre = 'Jefe' AND NOT (permisos ? 'inventory');
 
 UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-  '{"escaneo":"escritura","historial":"lectura","reportes":"sin_acceso"}'::jsonb, true)
+  '{"escaneo":"crear","historial":"ver","reportes":"sin_acceso"}'::jsonb, true)
 WHERE nombre = 'Operador' AND NOT (permisos ? 'inventory');
 
 UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-  '{"escaneo":"sin_acceso","historial":"lectura","reportes":"lectura"}'::jsonb, true)
+  '{"escaneo":"sin_acceso","historial":"ver","reportes":"ver"}'::jsonb, true)
 WHERE nombre = 'Usuario' AND NOT (permisos ? 'inventory');
 
 -- ── Comentarios de documentación ──────────────────────────────────────────────────

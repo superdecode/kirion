@@ -58,7 +58,8 @@ async function logEvent(evento, usuarioInternoId, usuarioInternoNombre, req, det
 
 // ─── GET /api/dropscan/operadores — List active internal operators ───
 router.get('/',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'ver'),
   async (req, res) => {
     try {
       const result = await query(
@@ -77,7 +78,8 @@ router.get('/',
 
 // ─── GET /api/dropscan/operadores/activos — List only active (for scan dropdown) ───
 router.get('/activos',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'ver'),
   async (req, res) => {
     try {
       const result = await query(
@@ -317,7 +319,8 @@ router.delete('/:id',
 
 // ─── POST /api/dropscan/operadores/validar-pin — Validate PIN for scanning ───
 router.post('/validar-pin',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'crear'),
   async (req, res) => {
     try {
       const { usuario_interno_id, pin } = req.body

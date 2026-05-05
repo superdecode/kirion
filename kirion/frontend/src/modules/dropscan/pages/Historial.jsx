@@ -65,7 +65,10 @@ export default function Historial() {
   const [detailTab, setDetailTab] = useState('guias')
   const [newGuiaCode, setNewGuiaCode] = useState('')
   const [showFilters, setShowFilters] = useState(true)
-  const { canDelete, canWrite, user } = useAuthStore()
+  const { canDelete, canWrite, hasPermission, user } = useAuthStore()
+  const canViewDetails = canWrite('dropscan.historial')           // crear+
+  const canManageStatus = hasPermission('dropscan.historial', 'cancelar')  // actualizar+
+  const canExportHistorial = hasPermission('dropscan.historial', 'exportar') // actualizar+
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const qc = useQueryClient()
@@ -495,7 +498,7 @@ export default function Historial() {
                   <X className="w-3 h-3" />{t('common.clear')}
                 </button>
               )}
-              {canWrite('dropscan.historial') && !selectMode && (
+              {canExportHistorial && !selectMode && (
                 <button onClick={() => { setSelectMode(true); setSelectedIds(new Set()) }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-success-600 text-white hover:bg-success-700 rounded-xl transition-all duration-200 hover:shadow-glow hover:-translate-y-[1px] active:scale-[0.97]">
                   <Download className="w-4 h-4" /> {t('common.export')}
@@ -621,8 +624,8 @@ export default function Historial() {
                     <tbody className="divide-y divide-warm-50">
                       {tarimas.map(row => (
                         <tr key={row.id}
-                          onClick={() => !selectMode && handleOpenDetail(row.id)}
-                          className={`hover:bg-warm-50/50 transition-colors group ${selectMode ? 'cursor-default' : 'cursor-pointer'} ${selectMode && selectedIds.has(row.id) ? 'bg-primary-50/40' : ''}`}>
+                          onClick={() => !selectMode && canViewDetails && handleOpenDetail(row.id)}
+                          className={`hover:bg-warm-50/50 transition-colors group ${selectMode ? 'cursor-default' : canViewDetails ? 'cursor-pointer' : 'cursor-default'} ${selectMode && selectedIds.has(row.id) ? 'bg-primary-50/40' : ''}`}>
                           {selectMode && (
                             <td className="table-cell text-center">
                               <input type="checkbox" checked={selectedIds.has(row.id)}
@@ -666,10 +669,12 @@ export default function Historial() {
                           </td>
                           <td className="table-cell" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                              {canViewDetails && (
                               <button onClick={() => handleOpenDetail(row.id)}
                                 className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title="Ver detalle">
                                 <Eye className="w-4 h-4" />
                               </button>
+                              )}
                               {canDelete('dropscan.historial') && (
                                 <button onClick={() => handleOpenDetail(row.id, true)}
                                   className="p-2 rounded-xl hover:bg-warning-50 text-warm-400 hover:text-warning-500 transition-all" title="Editar">
@@ -734,7 +739,7 @@ export default function Historial() {
       {/* Detail Modal */}
       <Modal isOpen={!!selectedTarima} onClose={() => { setSelectedTarima(null); setEditMode(false) }} icon={Package}
         title={detail ? `${detail.codigo}` : t('common.loading')} size="xl"
-        headerAction={detail && canWrite('dropscan.historial') && (
+        headerAction={detail && canExportHistorial && (
           <button onClick={handleExportTarimaExcel}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-success-50 text-success-700 rounded-lg hover:bg-success-100 font-semibold transition-all border border-success-200">
             <Download className="w-3.5 h-3.5" /> {t('common.export')}
@@ -742,7 +747,7 @@ export default function Historial() {
         )}
         footer={detail && (
           <>
-            {canDelete('dropscan.historial') && detail.estado === 'EN_PROCESO' && (
+            {canManageStatus && detail.estado === 'EN_PROCESO' && (
               <button onClick={() => finalizeMutation.mutate(detail.id)}
                 disabled={finalizeMutation.isPending}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200 disabled:opacity-50">

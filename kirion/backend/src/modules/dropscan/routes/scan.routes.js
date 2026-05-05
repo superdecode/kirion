@@ -22,6 +22,7 @@ async function generateTarimaCodigo(dbClient) {
 // POST /api/dropscan/sessions/start — any authenticated user can start scanning
 router.post('/sessions/start',
   authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'crear'),
   async (req, res) => {
     const client = await getClient()
     try {
@@ -133,7 +134,8 @@ router.post('/sessions/start',
 
 // GET /api/dropscan/sessions/active
 router.get('/sessions/active',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'ver'),
   async (req, res) => {
     try {
       const sesionRes = await query(
@@ -185,7 +187,8 @@ router.get('/sessions/active',
 // GET /api/dropscan/sessions/all-active
 // Returns all active sessions for the current operator so frontend can restore all tabs.
 router.get('/sessions/all-active',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'ver'),
   async (req, res) => {
     try {
       const sesionRes = await query(
@@ -241,6 +244,7 @@ router.get('/sessions/all-active',
 // POST /api/dropscan/sessions/:id/scan — any authenticated user can scan
 router.post('/sessions/:id/scan',
   authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'crear'),
   async (req, res) => {
     const client = await getClient()
     try {
@@ -523,7 +527,8 @@ router.post('/sessions/:id/add-tarima',
 
 // POST /api/dropscan/sessions/:id/switch-tarima - Switch active tarima
 router.post('/sessions/:id/switch-tarima',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'crear'),
   async (req, res) => {
     try {
       const sessionId = req.params.id
@@ -579,7 +584,8 @@ router.post('/sessions/:id/switch-tarima',
 
 // POST /api/dropscan/sessions/:id/end
 router.post('/sessions/:id/end',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.escaneo', 'crear'),
   async (req, res) => {
     try {
       const sessionId = req.params.id

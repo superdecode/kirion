@@ -367,7 +367,7 @@ router.get('/:id/duplicados',
 // POST /api/dropscan/tarimas/:tarimaId/guias (add a guide to existing tarima)
 router.post('/:tarimaId/guias',
   authenticateToken, loadFullUser,
-  requirePermission('dropscan.historial', 'gestion'),
+  requirePermission('dropscan.historial', 'editar'),
   async (req, res) => {
     try {
       const { tarimaId } = req.params

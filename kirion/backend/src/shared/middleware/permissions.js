@@ -1,19 +1,57 @@
 /**
- * Permission resolution for 5-level system:
- * sin_acceso → lectura(ver) → escritura(crear/imprimir) → gestion(actualizar/exportar) → total(eliminar)
+ * Permission resolution for 4-action level system:
+ *
+ * Level stored in DB          Actions allowed
+ * ─────────────────────────────────────────────
+ * sin_acceso                  (none)
+ * ver                         ver
+ * crear                       ver, crear, editar, imprimir
+ * actualizar                  ver, crear, editar, imprimir, cancelar, exportar, desbloquear
+ * eliminar                    ALL (ver, crear, editar, imprimir, cancelar, exportar, desbloquear, eliminar)
+ *
+ * Legacy level mapping (for data that wasn't fully migrated):
+ *   total → eliminar, gestion → actualizar, escritura → crear, lectura → ver
+ *
+ * Frontend admin UI maps checkboxes to these same level names:
+ *   [✓Ver] [✓Crear] [✓Actualizar] [✓Eliminar]
+ * Checking "Crear" also checks "Ver", checking "Actualizar" checks all previous, etc.
  */
 
-function resolvePermission(level, action) {
-  if (!level) return false
+const LEVEL_HIERARCHY = ['sin_acceso', 'ver', 'crear', 'actualizar', 'eliminar']
+
+// Legacy level mapping (for data that wasn't fully migrated)
+const LEGACY_MAP = { total: 'eliminar', gestion: 'actualizar', escritura: 'crear', lectura: 'ver' }
+
+function normalizeLevel(level) {
+  if (!level) return 'sin_acceso'
   const lvl = String(level).toLowerCase()
+  return LEGACY_MAP[lvl] || lvl
+}
 
-  if (lvl === 'total') return true
+const ACTION_MIN_LEVEL = {
+  ver:         'ver',
+  crear:       'crear',
+  editar:      'crear',
+  imprimir:    'crear',
+  cancelar:    'actualizar',
+  exportar:    'actualizar',
+  desbloquear: 'actualizar',
+  eliminar:    'eliminar',
+}
+
+function resolvePermission(level, action) {
+  const lvl = normalizeLevel(level)
+
+  if (lvl === 'eliminar') return true
   if (lvl === 'sin_acceso' || lvl === '') return false
-  if (lvl === 'lectura') return action === 'ver'
-  if (lvl === 'escritura') return ['ver', 'crear', 'editar', 'actualizar', 'imprimir'].includes(action)
-  if (lvl === 'gestion') return ['ver', 'crear', 'editar', 'actualizar', 'cancelar', 'imprimir', 'exportar'].includes(action)
 
-  return false
+  const minLevel = ACTION_MIN_LEVEL[action]
+  if (!minLevel) return false
+
+  const currentIdx = LEVEL_HIERARCHY.indexOf(lvl)
+  const requiredIdx = LEVEL_HIERARCHY.indexOf(minLevel)
+
+  return currentIdx >= requiredIdx
 }
 
 function getPermissionLevel(permisos, modulePath) {
@@ -30,7 +68,7 @@ function getPermissionLevel(permisos, modulePath) {
     }
   }
 
-  return typeof current === 'string' ? current : 'sin_acceso'
+  return typeof current === 'string' ? normalizeLevel(current) : 'sin_acceso'
 }
 
 /**
@@ -59,4 +97,4 @@ export function requirePermission(modulePath, action) {
   }
 }
 
-export { resolvePermission, getPermissionLevel }
+export { resolvePermission, getPermissionLevel, normalizeLevel, LEVEL_HIERARCHY, ACTION_MIN_LEVEL }

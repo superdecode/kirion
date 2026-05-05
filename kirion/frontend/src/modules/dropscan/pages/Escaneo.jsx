@@ -144,11 +144,15 @@ export default function Escaneo() {
   const inputRef = useRef(null)
   const location = useLocation()
   const qc = useQueryClient()
-  const { canDelete, canWrite, user } = useAuthStore()
+  const { canDelete, canWrite, hasPermission, user } = useAuthStore()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const { isAuthenticated: operadorAuthed, getSessionPayload, clearOperador } = useOperadorStore()
   const isSupervisor = ['Supervisor', 'Jefe', 'Administrador'].includes(user?.rol_nombre)
+  // crear+: can scan but needs internal operator PIN authentication
+  const canScanWithPin = hasPermission('dropscan.escaneo', 'crear')
+  // actualizar+: can scan directly with own profile, skips PIN
+  const canScanDirect = hasPermission('dropscan.escaneo', 'desbloquear')
   const MAX_ACTIVE_TABS = 3
 
   const deleteGuiaFromTarimaMutation = useMutation({
@@ -302,7 +306,10 @@ export default function Escaneo() {
   const [authTarget, setAuthTarget] = useState('start') // 'start' or 'addTab'
 
   const handleRequestNewSession = () => {
-    if (operadorAuthed) {
+    if (canScanDirect) {
+      // actualizar+: skip PIN, start directly with own profile
+      setPickerEmpresa(''); setPickerCanal(''); setShowStartModal(true)
+    } else if (operadorAuthed) {
       setPickerEmpresa(''); setPickerCanal(''); setShowStartModal(true)
     } else {
       setAuthTarget('start')
@@ -315,7 +322,9 @@ export default function Escaneo() {
       toast.warning(t('scan.reopenLimitReached'))
       return
     }
-    if (operadorAuthed) {
+    if (canScanDirect) {
+      setPickerEmpresa(''); setPickerCanal(''); setShowAddTabModal(true)
+    } else if (operadorAuthed) {
       setPickerEmpresa(''); setPickerCanal(''); setShowAddTabModal(true)
     } else {
       setAuthTarget('addTab')
@@ -688,11 +697,20 @@ export default function Escaneo() {
               </motion.div>
               <h2 className="text-2xl font-bold text-warm-800 mb-2">{t('scan.startSession')}</h2>
               <p className="text-sm text-warm-500 mb-8 leading-relaxed">{t('scan.startDesc')}</p>
-              <motion.button onClick={handleRequestNewSession}
-                className="btn-primary inline-flex items-center gap-2.5 px-8 py-3.5 text-base shadow-glow"
-                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Play className="w-5 h-5" /> {t('scan.start')}
-              </motion.button>
+              {canScanWithPin ? (
+                <motion.button onClick={handleRequestNewSession}
+                  className="btn-primary inline-flex items-center gap-2.5 px-8 py-3.5 text-base shadow-glow"
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <Play className="w-5 h-5" /> {t('scan.start')}
+                </motion.button>
+              ) : (
+                <button
+                  disabled
+                  title="No tienes permisos para iniciar un escaneo"
+                  className="inline-flex items-center gap-2.5 px-8 py-3.5 text-base font-semibold rounded-2xl bg-warm-200 text-warm-400 cursor-not-allowed opacity-70">
+                  <Lock className="w-5 h-5" /> {t('scan.start')}
+                </button>
+              )}
             </motion.div>
 
             {/* Today history */}
@@ -1117,7 +1135,7 @@ export default function Escaneo() {
       {/* Panel detail modal */}
       <Modal isOpen={!!panelDetailId} onClose={() => { updateTab(activeTabId, { panelDetailId: null }); setPanelEditMode(false) }}
         title={panelDetailData?.tarima ? panelDetailData.tarima.codigo : t('common.loading')} icon={Package} size="xl"
-        headerAction={panelDetailData?.tarima && (
+        headerAction={panelDetailData?.tarima && canDelete('dropscan.escaneo') && (
           <button onClick={handleExportPanelDetailExcel}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-success-50 text-success-700 rounded-lg hover:bg-success-100 font-semibold transition-all border border-success-200">
             <Download className="w-3.5 h-3.5" /> Exportar
@@ -1125,7 +1143,7 @@ export default function Escaneo() {
         )}
         footer={panelDetailData?.tarima && (
           <>
-            {canDelete('dropscan.historial') && panelDetailData.tarima.estado === 'EN_PROCESO' && (() => {
+            {canWrite('dropscan.escaneo') && panelDetailData.tarima.estado === 'EN_PROCESO' && (() => {
               const matchTab = tabs.find(tb => tb.empresa?.id === panelDetailData.tarima.empresa_id && tb.canal?.id === panelDetailData.tarima.canal_id)
               return (
                 <button onClick={() => {
@@ -1137,14 +1155,14 @@ export default function Escaneo() {
                 </button>
               )
             })()}
-            {canDelete('dropscan.historial') && panelDetailData.tarima.estado === 'EN_PROCESO' && (
+            {hasPermission('dropscan.escaneo', 'cancelar') && panelDetailData.tarima.estado === 'EN_PROCESO' && (
               <button onClick={() => finalizePanelTarimaMutation.mutate(panelDetailData.tarima.id)}
                 disabled={finalizePanelTarimaMutation?.isPending}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200 disabled:opacity-50">
                 <Lock className="w-4 h-4" /> Finalizar
               </button>
             )}
-            {canDelete('dropscan.historial') && (
+            {canDelete('dropscan.escaneo') && (
               <button onClick={() => setPanelEditMode(e => !e)}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl font-semibold transition-all ${
                   panelEditMode ? 'bg-warning-100 text-warning-700 hover:bg-warning-200' : 'bg-warm-100 text-warm-600 hover:bg-warm-200'

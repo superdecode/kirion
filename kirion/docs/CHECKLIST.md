@@ -200,7 +200,7 @@ See `kerion/docs/test-plan.md` for:
 - All code follows kerion existing patterns (mirrors dropscan module)
 - Uses Node.js native `fetch` (v24) — no additional dependencies
 - AES-256-CBC encryption for WMS secrets (env var: `WMS_ENCRYPTION_KEY`)
-- 5-level permission system: sin_acceso → lectura → escritura → gestion → total
+- 5-level permission system: sin_acceso → ver → crear → actualizar → eliminar
 - PostgreSQL `gen_random_uuid()` required for session IDs
 - Cache strategy: 10-min PostgreSQL cache (inventory), 5-min in-memory (credentials)
 

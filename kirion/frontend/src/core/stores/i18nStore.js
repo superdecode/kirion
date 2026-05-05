@@ -491,10 +491,6 @@ const translations = {
 
     // Permissions / 权限
     'perm.sin_acceso': '无权限',
-    'perm.lectura': '只读',
-    'perm.escritura': '读写',
-    'perm.gestion': '管理',
-    'perm.total': '完全控制',
 
     // Status / 状态
     'status.EN_PROCESO': '进行中',
@@ -644,10 +640,6 @@ const translations = {
 
     // Permission Levels / 权限级别
     'perm.sin_acceso': '无访问权限',
-    'perm.lectura': '只读',
-    'perm.escritura': '读/写',
-    'perm.gestion': '管理',
-    'perm.total': '管理员',
     'perm.eliminar': '删除',
 
     // Permission Modules / 权限模块
@@ -1259,10 +1251,6 @@ const translations = {
 
     // Permissions
     'perm.sin_acceso': 'Sin acceso',
-    'perm.lectura': 'Solo lectura',
-    'perm.escritura': 'Lectura/Escritura',
-    'perm.gestion': 'Gestión',
-    'perm.total': 'Administrador',
 
     // Status
     'status.EN_PROCESO': 'En Proceso',
@@ -1449,10 +1437,6 @@ const translations = {
 
     // Permission Levels / Niveles de Permiso
     'perm.sin_acceso': 'Sin acceso',
-    'perm.lectura': 'Solo lectura',
-    'perm.escritura': 'Lectura/Escritura',
-    'perm.gestion': 'Gestión',
-    'perm.total': 'Administrador',
     'perm.eliminar': 'Eliminar',
 
     // Permission Modules

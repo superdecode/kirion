@@ -202,28 +202,28 @@ Función que elimina entradas de cache expiradas.
 Los siguientes permisos se agregaron automáticamente a los roles existentes:
 
 #### Administrador
-- `global.wms`: "total"
-- `inventory.escaneo`: "total"
-- `inventory.historial`: "total"
-- `inventory.reportes`: "total"
+- `global.wms`: "eliminar"
+- `inventory.escaneo`: "eliminar"
+- `inventory.historial`: "eliminar"
+- `inventory.reportes`: "eliminar"
 
 #### Jefe
-- `global.wms`: "lectura"
-- `inventory.escaneo`: "gestion"
-- `inventory.historial`: "gestion"
-- `inventory.reportes`: "escritura"
+- `global.wms`: "ver"
+- `inventory.escaneo`: "actualizar"
+- `inventory.historial`: "actualizar"
+- `inventory.reportes`: "crear"
 
 #### Operador
 - `global.wms`: "sin_acceso"
-- `inventory.escaneo`: "escritura"
-- `inventory.historial`: "lectura"
+- `inventory.escaneo`: "crear"
+- `inventory.historial`: "ver"
 - `inventory.reportes`: "sin_acceso"
 
 #### Usuario
 - `global.wms`: "sin_acceso"
 - `inventory.escaneo`: "sin_acceso"
-- `inventory.historial`: "lectura"
-- `inventory.reportes`: "lectura"
+- `inventory.historial`: "ver"
+- `inventory.reportes`: "ver"
 
 ## Troubleshooting
 

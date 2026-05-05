@@ -313,7 +313,8 @@ router.get('/export',
 
 // GET /api/dropscan/guias/search?q=
 router.get('/guias/search',
-  authenticateToken,
+  authenticateToken, loadFullUser,
+  requirePermission('dropscan.historial', 'ver'),
   async (req, res) => {
     try {
       const { q } = req.query

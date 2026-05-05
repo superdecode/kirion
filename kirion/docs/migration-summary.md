@@ -79,9 +79,9 @@
   - `inventory.escaneo`, `inventory.historial`, `inventory.reportes`
 - Added migration steps to backfill existing roles:
   - Administrador: `global.wms=total`, `inventory.*=total`
-  - Jefe: `global.wms=lectura`, `inventory.escaneo=gestion`, others `escritura`
-  - Operador: `global.wms=sin_acceso`, `inventory.escaneo=escritura`, historial `lectura`
-  - Usuario: `global.wms=sin_acceso`, `inventory.escaneo=sin_acceso`, others `lectura`
+  - Jefe: `global.wms=ver`, `inventory.escaneo=actualizar`, others `crear`
+  - Operador: `global.wms=sin_acceso`, `inventory.escaneo=crear`, historial `ver`
+  - Usuario: `global.wms=sin_acceso`, `inventory.escaneo=sin_acceso`, others `ver`
 
 ### ✅ Task 9: i18n + Module Groups in Admin
 - Updated `frontend/src/core/stores/i18nStore.js` with new keys (zh and es):
@@ -147,7 +147,7 @@
 
 3. **Cache Strategy** — 10-min PostgreSQL cache for inventory data reduces WMS API calls. In-memory 5-min cache for credentials avoids DB hits.
 
-4. **Permission Model** — Mirrors dropscan exactly: 5-level system (sin_acceso→lectura→escritura→gestion→total), granular sub-permissions (escaneo/historial/reportes).
+4. **Permission Model** — Mirrors dropscan exactly: 5-level system (sin_acceso→ver→crear→actualizar→eliminar), granular sub-permissions (escaneo/historial/reportes).
 
 5. **Status Classification** — OK (stock > 0), Bloqueado (stock = 0), NoWMS (not found in WMS). Enables quick inventory audits.
 

@@ -174,23 +174,23 @@ async function runMigrations() {
     `CREATE INDEX IF NOT EXISTS idx_inv_scans_status ON inventory_scans(status)`,
 
     // ── Backfill existing roles with inventory + wms permissions ──────────
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"total"', true)
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"eliminar"', true)
      WHERE nombre = 'Administrador' AND NOT (permisos -> 'global' ? 'wms')`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"lectura"', true)
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"ver"', true)
      WHERE nombre = 'Jefe' AND NOT (permisos -> 'global' ? 'wms')`,
     `UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"sin_acceso"', true)
      WHERE nombre NOT IN ('Administrador','Jefe') AND NOT (permisos -> 'global' ? 'wms')`,
     `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-       '{"escaneo":"total","historial":"total","reportes":"total"}'::jsonb, true)
+       '{"escaneo":"eliminar","historial":"eliminar","reportes":"eliminar"}'::jsonb, true)
      WHERE nombre = 'Administrador' AND NOT (permisos ? 'inventory')`,
     `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-       '{"escaneo":"gestion","historial":"gestion","reportes":"escritura"}'::jsonb, true)
+       '{"escaneo":"actualizar","historial":"actualizar","reportes":"crear"}'::jsonb, true)
      WHERE nombre = 'Jefe' AND NOT (permisos ? 'inventory')`,
     `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-       '{"escaneo":"escritura","historial":"lectura","reportes":"sin_acceso"}'::jsonb, true)
+       '{"escaneo":"crear","historial":"ver","reportes":"sin_acceso"}'::jsonb, true)
      WHERE nombre = 'Operador' AND NOT (permisos ? 'inventory')`,
     `UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}',
-       '{"escaneo":"sin_acceso","historial":"lectura","reportes":"lectura"}'::jsonb, true)
+       '{"escaneo":"sin_acceso","historial":"ver","reportes":"ver"}'::jsonb, true)
      WHERE nombre = 'Usuario' AND NOT (permisos ? 'inventory')`,
 
     // ── FEP — Folios de Entrega Paqueteria ────────────────────────────────
@@ -238,10 +238,10 @@ async function runMigrations() {
      )`,
     `CREATE INDEX IF NOT EXISTS idx_fel_folio ON folios_entrega_log(folio_id)`,
     // FEP permissions — always set (safe upsert by name+expected level)
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"total"}'::jsonb, true) WHERE nombre = 'Administrador'`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"gestion"}'::jsonb, true) WHERE nombre IN ('Jefe', 'Supervisor')`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"escritura"}'::jsonb, true) WHERE nombre = 'Operador'`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"lectura"}'::jsonb, true) WHERE nombre = 'Usuario'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"eliminar"}'::jsonb, true) WHERE nombre = 'Administrador'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"actualizar"}'::jsonb, true) WHERE nombre IN ('Jefe', 'Supervisor')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"crear"}'::jsonb, true) WHERE nombre = 'Operador'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"ver"}'::jsonb, true) WHERE nombre = 'Usuario'`,
   ]
   for (const sql of steps) {
     try {

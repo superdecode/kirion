@@ -9,36 +9,40 @@ const DEFAULT_ROLES = [
     nombre: 'Administrador',
     descripcion: 'Acceso total al sistema',
     permisos: {
-      global: { dashboard: 'total', administracion: 'total' },
-      dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total', configuracion: 'total' },
-      fep: { folios: 'total' },
+      global: { inicio: 'eliminar', administracion: 'eliminar', wms: 'eliminar' },
+      dropscan: { dashboard: 'eliminar', escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar', configuracion: 'eliminar' },
+      inventory: { escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar' },
+      fep: { folios: 'eliminar' },
     }
   },
   {
     nombre: 'Jefe',
     descripcion: 'Supervisor de operaciones',
     permisos: {
-      global: { dashboard: 'lectura', administracion: 'sin_acceso' },
-      dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura', configuracion: 'escritura' },
-      fep: { folios: 'gestion' },
+      global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'ver' },
+      dropscan: { dashboard: 'ver', escaneo: 'actualizar', historial: 'actualizar', reportes: 'crear', configuracion: 'ver' },
+      inventory: { escaneo: 'actualizar', historial: 'actualizar', reportes: 'crear' },
+      fep: { folios: 'actualizar' },
     }
   },
   {
     nombre: 'Operador',
     descripcion: 'Operador de escaneo',
     permisos: {
-      global: { dashboard: 'lectura', administracion: 'sin_acceso' },
-      dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
-      fep: { folios: 'escritura' },
+      global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
+      dropscan: { dashboard: 'ver', escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
+      inventory: { escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso' },
+      fep: { folios: 'crear' },
     }
   },
   {
     nombre: 'Usuario',
     descripcion: 'Consulta operativa',
     permisos: {
-      global: { dashboard: 'lectura', administracion: 'sin_acceso' },
-      dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura', configuracion: 'sin_acceso' },
-      fep: { folios: 'lectura' },
+      global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
+      dropscan: { dashboard: 'ver', escaneo: 'sin_acceso', historial: 'ver', reportes: 'ver', configuracion: 'sin_acceso' },
+      inventory: { escaneo: 'sin_acceso', historial: 'ver', reportes: 'ver' },
+      fep: { folios: 'ver' },
     }
   }
 ]

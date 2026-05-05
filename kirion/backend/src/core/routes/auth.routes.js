@@ -5,6 +5,18 @@ import jwt from 'jsonwebtoken'
 import env from '../../config/env.js'
 import { query } from '../../config/database.js'
 import { authenticateToken, auditLog } from '../../shared/middleware/auth.js'
+import { normalizeLevel } from '../../shared/middleware/permissions.js'
+
+
+// Deep-normalize all permission level values in a permissions object
+function normalizePermisos(obj) {
+  if (!obj || typeof obj !== 'object') return obj
+  const result = {}
+  for (const [key, val] of Object.entries(obj)) {
+    result[key] = typeof val === 'string' ? normalizeLevel(val) : normalizePermisos(val)
+  }
+  return result
+}
 
 const router = Router()
 
@@ -44,7 +56,7 @@ router.post('/login', async (req, res) => {
     await query('UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1', [user.id])
 
     // Build permissions from role or override
-    const permisos = user.permisos_override || user.rol_permisos || {}
+    const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
 
     const jti = crypto.randomBytes(16).toString('hex')
     const payload = {
@@ -100,7 +112,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
 
     const user = result.rows[0]
-    const permisos = user.permisos_override || user.rol_permisos || {}
+    const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
 
     res.json({
       id: user.id,

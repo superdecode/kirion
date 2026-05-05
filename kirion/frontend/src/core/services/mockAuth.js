@@ -7,8 +7,14 @@ const mockUsers = [
     email: 'admin@wms.com',
     rol_nombre: 'Administrador',
     permisos: {
-      global: { dashboard: 'total', administracion: 'total' },
-      dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total' }
+      global: { inicio: 'eliminar', administracion: 'eliminar', wms: 'eliminar' },
+      dropscan: { dashboard: 'eliminar', escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar', configuracion: 'eliminar' },
+      inventory: { escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar' },
+      fep: { folios: 'eliminar' },
+      despacho: { ordenes: 'eliminar', validacion: 'eliminar' },
+      rastreo: { consulta: 'eliminar' },
+      integraciones: { config: 'eliminar' },
+      reportes: { global: 'eliminar' }
     }
   },
   {
@@ -18,8 +24,14 @@ const mockUsers = [
     email: 'operador@wms.com',
     rol_nombre: 'Operador',
     permisos: {
-      global: { dashboard: 'lectura', administracion: 'sin_acceso' },
-      dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' }
+      global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
+      dropscan: { dashboard: 'ver', escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
+      inventory: { escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso' },
+      fep: { folios: 'ver' },
+      despacho: { ordenes: 'ver', validacion: 'sin_acceso' },
+      rastreo: { consulta: 'ver' },
+      integraciones: { config: 'sin_acceso' },
+      reportes: { global: 'sin_acceso' }
     }
   }
 ]

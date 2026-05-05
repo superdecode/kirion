@@ -1167,36 +1167,36 @@ In each role's `permisos` object in `seed.js`, add the new keys:
 For `Administrador`:
 ```js
 permisos: {
-  global: { inicio: 'total', administracion: 'total', wms: 'total' },
-  dropscan: { dashboard: 'total', escaneo: 'total', historial: 'total', reportes: 'total' },
-  inventory: { escaneo: 'total', historial: 'total', reportes: 'total' }
+  global: { inicio: 'eliminar', administracion: 'eliminar', wms: 'eliminar' },
+  dropscan: { dashboard: 'eliminar', escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar' },
+  inventory: { escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar' }
 }
 ```
 
 For `Jefe`:
 ```js
 permisos: {
-  global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'lectura' },
-  dropscan: { dashboard: 'lectura', escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' },
-  inventory: { escaneo: 'gestion', historial: 'gestion', reportes: 'escritura' }
+  global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'ver' },
+  dropscan: { dashboard: 'ver', escaneo: 'actualizar', historial: 'actualizar', reportes: 'crear' },
+  inventory: { escaneo: 'actualizar', historial: 'actualizar', reportes: 'crear' }
 }
 ```
 
 For `Operador`:
 ```js
 permisos: {
-  global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
-  dropscan: { dashboard: 'lectura', escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' },
-  inventory: { escaneo: 'escritura', historial: 'lectura', reportes: 'sin_acceso' }
+  global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
+  dropscan: { dashboard: 'ver', escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso' },
+  inventory: { escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso' }
 }
 ```
 
 For `Usuario`:
 ```js
 permisos: {
-  global: { inicio: 'lectura', administracion: 'sin_acceso', wms: 'sin_acceso' },
-  dropscan: { dashboard: 'lectura', escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' },
-  inventory: { escaneo: 'sin_acceso', historial: 'lectura', reportes: 'lectura' }
+  global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
+  dropscan: { dashboard: 'ver', escaneo: 'sin_acceso', historial: 'ver', reportes: 'ver' },
+  inventory: { escaneo: 'sin_acceso', historial: 'ver', reportes: 'ver' }
 }
 ```
 
@@ -1206,15 +1206,15 @@ Run this in psql (one-time) to add the new permission keys to existing roles wit
 
 ```sql
 -- Add wms permission to all roles
-UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"total"') WHERE nombre = 'Administrador';
-UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"lectura"') WHERE nombre = 'Jefe';
+UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"eliminar"') WHERE nombre = 'Administrador';
+UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"ver"') WHERE nombre = 'Jefe';
 UPDATE roles SET permisos = jsonb_set(permisos, '{global,wms}', '"sin_acceso"') WHERE nombre IN ('Operador','Usuario');
 
 -- Add inventory permissions to all roles
 UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}', '{"escaneo":"total","historial":"total","reportes":"total"}') WHERE nombre = 'Administrador';
-UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}', '{"escaneo":"gestion","historial":"gestion","reportes":"escritura"}') WHERE nombre = 'Jefe';
-UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}', '{"escaneo":"escritura","historial":"lectura","reportes":"sin_acceso"}') WHERE nombre = 'Operador';
-UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}', '{"escaneo":"sin_acceso","historial":"lectura","reportes":"lectura"}') WHERE nombre = 'Usuario';
+UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}', '{"escaneo":"actualizar","historial":"actualizar","reportes":"crear"}') WHERE nombre = 'Jefe';
+UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}', '{"escaneo":"crear","historial":"ver","reportes":"sin_acceso"}') WHERE nombre = 'Operador';
+UPDATE roles SET permisos = jsonb_set(permisos, '{inventory}', '{"escaneo":"sin_acceso","historial":"ver","reportes":"ver"}') WHERE nombre = 'Usuario';
 ```
 
 - [ ] **Step 4: Restart backend and verify**

@@ -20,11 +20,13 @@ import * as operadoresService from '../services/operadoresService'
 export default function Configuracion() {
   const { t } = useI18nStore()
   const [tab, setTab] = useState('empresas')
-  const { user, canWrite, canDelete } = useAuthStore()
-  const canEdit = canWrite('dropscan.configuracion')
+  const { canDelete, getPermissionLevel } = useAuthStore()
+  const configLevel = getPermissionLevel('dropscan.configuracion')
+  // crear+: can toggle active/inactive status
+  const canToggle = ['crear', 'actualizar', 'eliminar'].includes(configLevel)
+  // actualizar+: can edit names, create records, change permissions
+  const canEdit = ['actualizar', 'eliminar'].includes(configLevel)
   const canRemove = canDelete('dropscan.configuracion')
-
-  const isSupervisorOrAdmin = user?.rol_nombre === 'Administrador' || user?.rol_nombre === 'Supervisor'
 
   return (
     <div className="flex flex-col h-full">
@@ -56,10 +58,10 @@ export default function Configuracion() {
 
         {/* Tab content */}
         <div className="p-6">
-          {tab === 'empresas' && <EmpresasTab canEdit={canEdit} canRemove={canRemove} />}
-          {tab === 'canales' && <CanalesTab canEdit={canEdit} canRemove={canRemove} />}
-          {tab === 'operadores' && <OperadoresTab canEdit={canEdit} canRemove={canRemove} />}
-          {tab === 'parametros' && <ParametrosTab canEdit={isSupervisorOrAdmin} />}
+          {tab === 'empresas' && <EmpresasTab canEdit={canEdit} canToggle={canToggle} canRemove={canRemove} />}
+          {tab === 'canales' && <CanalesTab canEdit={canEdit} canToggle={canToggle} canRemove={canRemove} />}
+          {tab === 'operadores' && <OperadoresTab canEdit={canEdit} canToggle={canToggle} canRemove={canRemove} />}
+          {tab === 'parametros' && <ParametrosTab canEdit={canEdit} />}
         </div>
       </div>
     </div>
@@ -68,7 +70,7 @@ export default function Configuracion() {
 
 // ==================== EMPRESAS TAB ====================
 
-function EmpresasTab({ canEdit, canRemove }) {
+function EmpresasTab({ canEdit, canToggle, canRemove }) {
   const { t } = useI18nStore()
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -227,7 +229,7 @@ function EmpresasTab({ canEdit, canRemove }) {
                 <span className={`text-xs font-semibold ${empresa.activo ? 'text-success-600' : 'text-warm-400'}`}>
                   {empresa.activo ? t('common.active') : t('common.inactive')}
                 </span>
-                {canEdit && (
+                {canToggle && (
                   <button
                     onClick={() => toggleMutation.mutate(empresa.id)}
                     className={`p-1 rounded-lg transition-all ${
@@ -426,7 +428,7 @@ function EmpresaModal({ empresa, onClose, onSubmit, isLoading }) {
 
 // ==================== CANALES TAB ====================
 
-function CanalesTab({ canEdit, canRemove }) {
+function CanalesTab({ canEdit, canToggle, canRemove }) {
   const { t } = useI18nStore()
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -605,7 +607,7 @@ function CanalesTab({ canEdit, canRemove }) {
                     <span className={`text-[10px] font-semibold ${canal.activo ? 'text-success-600' : 'text-warm-400'}`}>
                       {canal.activo ? t('common.active') : t('common.inactive')}
                     </span>
-                    {canEdit && (
+                    {canToggle && (
                       <button
                         onClick={() => toggleMutation.mutate(canal.id)}
                         className={`p-1 rounded-lg transition-all ${
@@ -967,7 +969,7 @@ function ParametrosTab({ canEdit }) {
 
 // ==================== OPERADORES INTERNOS TAB ====================
 
-function OperadoresTab({ canEdit, canRemove }) {
+function OperadoresTab({ canEdit, canToggle, canRemove }) {
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingOp, setEditingOp] = useState(null)
@@ -1102,7 +1104,7 @@ function OperadoresTab({ canEdit, canRemove }) {
                 <span className={`text-xs font-semibold ${op.activo ? 'text-success-600' : 'text-warm-400'}`}>
                   {op.activo ? t('common.active') : t('common.inactive')}
                 </span>
-                {canEdit && (
+                {canToggle && (
                   <button
                     onClick={() => toggleMutation.mutate({ id: op.id, activo: !op.activo })}
                     className={`p-1 rounded-lg transition-all ${

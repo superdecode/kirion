@@ -60,13 +60,31 @@ const MODULE_GROUPS = [
 
 const PERM_LEVELS = [
   { value: 'sin_acceso', label: 'Sin acceso', color: 'bg-warm-100 text-warm-500' },
-  { value: 'lectura', label: 'Ver', color: 'bg-warning-100 text-warning-700' },
-  { value: 'escritura', label: 'Crear', color: 'bg-success-100 text-success-700' },
-  { value: 'gestion', label: 'Actualizar', color: 'bg-accent-100 text-accent-700' },
-  { value: 'total', label: 'Eliminar', color: 'bg-primary-100 text-primary-700' },
+  { value: 'ver', label: 'Ver', color: 'bg-warning-100 text-warning-700' },
+  { value: 'crear', label: 'Crear', color: 'bg-success-100 text-success-700' },
+  { value: 'actualizar', label: 'Actualizar', color: 'bg-accent-100 text-accent-700' },
+  { value: 'eliminar', label: 'Eliminar', color: 'bg-primary-100 text-primary-700' },
 ]
 
-const LEVEL_ORDER = ['sin_acceso', 'lectura', 'escritura', 'gestion', 'total']
+const LEVEL_ORDER = ['sin_acceso', 'ver', 'crear', 'actualizar', 'eliminar']
+
+// Legacy level mapping (for data that wasn't fully migrated)
+const LEGACY_MAP = { total: 'eliminar', gestion: 'actualizar', escritura: 'crear', lectura: 'ver' }
+function normalizeLevel(level) {
+  if (!level) return 'sin_acceso'
+  const lvl = String(level).toLowerCase()
+  return LEGACY_MAP[lvl] || lvl
+}
+
+// Deep-normalize all permission values in a permissions object
+function deepNormalize(obj) {
+  if (!obj || typeof obj !== 'object') return obj
+  const result = {}
+  for (const [key, val] of Object.entries(obj)) {
+    result[key] = typeof val === 'string' ? normalizeLevel(val) : deepNormalize(val)
+  }
+  return result
+}
 
 // API helpers
 const getUsers = async () => { const { data } = await api.get('/users'); return data }
@@ -554,10 +572,10 @@ function RoleFormModal({ isOpen, onClose, role }) {
   const qc = useQueryClient()
   const { t } = useI18nStore()
   const colLabels = [
-    { key: 'ver', label: t('admin.view'), level: 'lectura' },
-    { key: 'crear', label: t('admin.create'), level: 'escritura' },
-    { key: 'actualizar', label: t('admin.update'), level: 'gestion' },
-    { key: 'eliminar', label: t('admin.delete'), level: 'total' },
+    { key: 'ver', label: t('admin.view'), level: 'ver' },
+    { key: 'crear', label: t('admin.create'), level: 'crear' },
+    { key: 'actualizar', label: t('admin.update'), level: 'actualizar' },
+    { key: 'eliminar', label: t('admin.delete'), level: 'eliminar' },
   ]
 
   // Populate
@@ -565,7 +583,7 @@ function RoleFormModal({ isOpen, onClose, role }) {
     if (role) {
       setNombre(role.nombre || '')
       setDescripcion(role.descripcion || '')
-      setPermisos(role.permisos && typeof role.permisos === 'object' ? JSON.parse(JSON.stringify(role.permisos)) : {})
+      setPermisos(role.permisos && typeof role.permisos === 'object' ? deepNormalize(role.permisos) : {})
     } else {
       setNombre('')
       setDescripcion('')
@@ -595,8 +613,8 @@ function RoleFormModal({ isOpen, onClose, role }) {
 
   const getPermLevel = (moduleKey) => {
     const parts = moduleKey.split('.')
-    if (parts.length === 2) return permisos[parts[0]]?.[parts[1]] || 'sin_acceso'
-    return permisos[parts[0]] || 'sin_acceso'
+    if (parts.length === 2) return normalizeLevel(permisos[parts[0]]?.[parts[1]])
+    return normalizeLevel(permisos[parts[0]])
   }
 
   const handleSubmit = () => {
@@ -654,7 +672,7 @@ function RoleFormModal({ isOpen, onClose, role }) {
                             <label className="flex items-center gap-2.5 cursor-pointer select-none w-full">
                               <PermCheckbox
                                 checked={enabled}
-                                onChange={() => setPermLevel(m.key, enabled ? 'sin_acceso' : 'total')}
+                                onChange={() => setPermLevel(m.key, enabled ? 'sin_acceso' : 'eliminar')}
                                 variant="module"
                               />
                               <span className={`text-sm font-medium leading-snug ${enabled ? 'text-warm-800' : 'text-warm-400'}`}>{t(m.labelKey) || m.label}</span>

@@ -337,10 +337,10 @@ export default function Folios() {
 
   const foliosLevel = getPermissionLevel('fep.folios')
   const canViewFolios = canView('fep.folios')
-  const canCreateFolios = ['escritura', 'gestion', 'total'].includes(foliosLevel)
-  const canUpdateFolios = ['gestion', 'total'].includes(foliosLevel)
-  const canExportFolios = ['gestion', 'total'].includes(foliosLevel)
-  const canPrintFolios = ['escritura', 'gestion', 'total'].includes(foliosLevel)
+  const canCreateFolios = ['crear', 'actualizar', 'eliminar'].includes(foliosLevel)
+  const canUpdateFolios = ['actualizar', 'eliminar'].includes(foliosLevel)
+  const canExportFolios = ['actualizar', 'eliminar'].includes(foliosLevel)
+  const canPrintFolios = ['crear', 'actualizar', 'eliminar'].includes(foliosLevel)
   const canDel = canDelete('fep.folios')
 
   return (
@@ -488,8 +488,8 @@ export default function Folios() {
                   <tbody className="divide-y divide-warm-50">
                     {folios.map(row => (
                       <tr key={row.id}
-                        onClick={() => openFolioDetail(row.id)}
-                        className="hover:bg-warm-50/50 transition-colors group cursor-pointer">
+                        onClick={() => canCreateFolios && openFolioDetail(row.id)}
+                        className={`hover:bg-warm-50/50 transition-colors group ${canCreateFolios ? 'cursor-pointer' : 'cursor-default'}`}>
                         <td className="table-cell">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono font-semibold text-warm-700">{row.folio_numero}</span>
@@ -519,10 +519,12 @@ export default function Folios() {
                         <td className="table-cell text-warm-600 text-xs">{row.creado_por_nombre}</td>
                         <td className="table-cell" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                            {canCreateFolios && (
                             <button onClick={() => openFolioDetail(row.id)}
                               className="p-2 rounded-xl hover:bg-primary-50 text-warm-400 hover:text-primary-600 transition-all" title={t('fep.tooltip.verDetalle')}>
                               <Eye className="w-4 h-4" />
                             </button>
+                            )}
                             {canPrintFolios && (
                               <button onClick={() => handleDownloadPdf(row)} disabled={downloadingId === row.id}
                               className="p-2 rounded-xl hover:bg-success-50 text-warm-400 hover:text-success-600 transition-all disabled:opacity-40" title={t('fep.detail.imprimir')}>

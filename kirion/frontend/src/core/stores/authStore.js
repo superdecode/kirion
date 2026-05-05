@@ -5,18 +5,38 @@ import { mockLogin, mockAuthMe } from '../services/mockAuth.js'
 import { setTimezone } from '../utils/dateFormat.js'
 
 /**
- * Permission resolution for 5-level system:
- * sin_acceso → lectura(ver) → escritura(crear/imprimir) → gestion(actualizar/exportar) → total(eliminar)
+ * Permission resolution for 5-level system (action-verb names):
+ * sin_acceso → ver → crear → actualizar → eliminar
  */
+const LEVEL_HIERARCHY = { sin_acceso: 0, ver: 1, crear: 2, actualizar: 3, eliminar: 4 }
+
+// Legacy level mapping (for data that wasn't fully migrated)
+const LEGACY_MAP = { total: 'eliminar', gestion: 'actualizar', escritura: 'crear', lectura: 'ver' }
+
+function normalizeLevel(level) {
+  if (!level) return 'sin_acceso'
+  const lvl = String(level).toLowerCase()
+  return LEGACY_MAP[lvl] || lvl
+}
+
+const ACTION_MIN_LEVEL = {
+  ver: 'ver',
+  crear: 'crear',
+  editar: 'crear',
+  imprimir: 'crear',
+  cancelar: 'actualizar',
+  exportar: 'actualizar',
+  desbloquear: 'actualizar',
+  eliminar: 'eliminar',
+}
+
 function resolvePermission(level, action) {
   if (!level) return false
-  const lvl = String(level).toLowerCase()
-  if (lvl === 'total') return true
+  const lvl = normalizeLevel(level)
   if (lvl === 'sin_acceso' || lvl === '') return false
-  if (lvl === 'lectura') return action === 'ver'
-  if (lvl === 'escritura') return ['ver', 'crear', 'editar', 'actualizar', 'imprimir'].includes(action)
-  if (lvl === 'gestion') return ['ver', 'crear', 'editar', 'actualizar', 'cancelar', 'imprimir', 'exportar'].includes(action)
-  return false
+  const lvlRank = LEVEL_HIERARCHY[lvl] ?? -1
+  const minRank = LEVEL_HIERARCHY[ACTION_MIN_LEVEL[action]] ?? 99
+  return lvlRank >= minRank
 }
 
 function getModuleLevel(permisos, modulePath) {
@@ -30,7 +50,7 @@ function getModuleLevel(permisos, modulePath) {
       return 'sin_acceso'
     }
   }
-  return typeof current === 'string' ? current : 'sin_acceso'
+  return typeof current === 'string' ? normalizeLevel(current) : 'sin_acceso'
 }
 
 export const useAuthStore = create(
@@ -122,7 +142,7 @@ export const useAuthStore = create(
       getPermissionLevel: (modulePath) => {
         const { user } = get()
         if (!user) return 'sin_acceso'
-        if (user.rol_nombre === 'Administrador') return 'total'
+        if (user.rol_nombre === 'Administrador') return 'eliminar'
         return getModuleLevel(user.permisos, modulePath)
       },
 
@@ -139,7 +159,7 @@ export const useAuthStore = create(
         if (!user) return false
         if (user.rol_nombre === 'Administrador') return true
         const level = getModuleLevel(user.permisos, modulePath)
-        return ['escritura', 'gestion', 'total'].includes(level)
+        return ['crear', 'actualizar', 'eliminar'].includes(level)
       },
 
       canDelete: (modulePath) => {
@@ -147,7 +167,7 @@ export const useAuthStore = create(
         if (!user) return false
         if (user.rol_nombre === 'Administrador') return true
         const level = getModuleLevel(user.permisos, modulePath)
-        return level === 'total'
+        return level === 'eliminar'
       },
 
       canUnlock: (modulePath) => {
@@ -155,7 +175,7 @@ export const useAuthStore = create(
         if (!user) return false
         if (user.rol_nombre === 'Administrador') return true
         const level = getModuleLevel(user.permisos, modulePath)
-        return level === 'total'
+        return level === 'eliminar'
       },
     }),
     {

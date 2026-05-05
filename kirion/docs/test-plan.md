@@ -79,7 +79,7 @@ psql -U quiron -d wms_dev
 1. Logout and login as `operador@wms.com` / `operador123`
 2. Navigate to WMS Hub
 3. Expected: Should NOT see WMS Hub in sidebar (Operador role has `global.wms=sin_acceso`)
-4. Login as Jefe/Supervisor — should see but not edit (`global.wms=lectura`)
+4. Login as Jefe/Supervisor — should see but not edit (`global.wms=ver`)
 
 ---
 
@@ -390,7 +390,7 @@ DELETE FROM inventory_sessions WHERE id = '[session-uuid]';
 SELECT nombre, permisos->'global'->'wms' as wms_perm,
        permisos->'inventory' as inv_perm
 FROM roles;
--- Expected: Admin has 'total' for both, Operador has 'sin_acceso'/'escritura'
+-- Expected: Admin has 'eliminar' for both, Operador has 'sin_acceso'/'crear'
 ```
 
 ---

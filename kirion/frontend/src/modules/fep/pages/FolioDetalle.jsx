@@ -41,8 +41,8 @@ export default function FolioDetalle() {
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [copiedCode, setCopiedCode] = useState(null)
   const foliosLevel = getPermissionLevel('fep.folios')
-  const canPrintFolios = ['escritura', 'gestion', 'total'].includes(foliosLevel)
-  const canExportFolios = ['gestion', 'total'].includes(foliosLevel)
+  const canPrintFolios = ['crear', 'actualizar', 'eliminar'].includes(foliosLevel)
+  const canExportFolios = ['actualizar', 'eliminar'].includes(foliosLevel)
 
   const { data: detailData, isLoading } = useQuery({
     queryKey: ['fep-folio-detail', id],
