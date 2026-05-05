@@ -33,6 +33,7 @@ const ACTION_MIN_LEVEL = {
   crear:       'crear',
   editar:      'crear',
   imprimir:    'crear',
+  actualizar:  'actualizar',
   cancelar:    'actualizar',
   exportar:    'actualizar',
   desbloquear: 'actualizar',

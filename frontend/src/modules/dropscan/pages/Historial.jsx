@@ -56,6 +56,7 @@ export default function Historial() {
   const [copiedGuia, setCopiedGuia] = useState(null)
   const [selectedTarima, setSelectedTarima] = useState(null)
   const [deletingTarima, setDeletingTarima] = useState(null)
+  const [deletingGuia, setDeletingGuia] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -876,7 +877,7 @@ export default function Historial() {
                               {editMode && (
                                 <td className="px-2 py-1.5">
                                   <button
-                                    onClick={() => deleteGuiaMutation.mutate({ tarimaId: detail.id, guiaId: g.id })}
+                                    onClick={() => setDeletingGuia(g)}
                                     disabled={deleteGuiaMutation.isPending}
                                     className="p-1.5 rounded-lg hover:bg-danger-50 text-warm-300 hover:text-danger-500 transition-all disabled:opacity-40">
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -998,6 +999,55 @@ export default function Historial() {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-warm-500 font-medium">Guías</span>
                 <span className="text-sm font-semibold text-warm-700">{deletingTarima.cantidad_guias}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Delete individual guide confirmation modal */}
+      <Modal isOpen={!!deletingGuia} onClose={() => setDeletingGuia(null)}
+        title="Eliminar Guía" icon={Trash2} size="sm"
+        footer={<>
+          <button onClick={() => setDeletingGuia(null)} className="btn-ghost">Cancelar</button>
+          <button
+            onClick={() => {
+              deleteGuiaMutation.mutate({ tarimaId: detail.id, guiaId: deletingGuia.id })
+              setDeletingGuia(null)
+            }}
+            disabled={deleteGuiaMutation.isPending}
+            className="btn-danger inline-flex items-center gap-2">
+            <Trash2 className="w-4 h-4" />
+            {deleteGuiaMutation.isPending ? 'Eliminando...' : 'Eliminar guía'}
+          </button>
+        </>}>
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-danger-50 border border-danger-200 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-danger-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-danger-800">¿Estás seguro de eliminar esta guía?</p>
+              <p className="text-xs text-danger-600 mt-1">
+                La guía será eliminada de la tarima permanentemente. Las posiciones de las demás guías se reordenarán automáticamente.
+              </p>
+            </div>
+          </div>
+          {deletingGuia && (
+            <div className="p-3 rounded-xl bg-warm-50 border border-warm-200 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Guía</span>
+                <span className="text-sm font-bold font-mono text-warm-800">{deletingGuia.codigo_guia}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Posición</span>
+                <span className="text-sm font-semibold text-warm-700">#{deletingGuia.posicion}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Operador</span>
+                <span className="text-sm font-semibold text-warm-700">{deletingGuia.operador_nombre}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-warm-500 font-medium">Hora escaneo</span>
+                <span className="text-sm font-semibold text-warm-700">{fmtTime(deletingGuia.timestamp_escaneo)}</span>
               </div>
             </div>
           )}
