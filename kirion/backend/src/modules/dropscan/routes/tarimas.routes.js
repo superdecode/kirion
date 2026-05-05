@@ -200,7 +200,7 @@ router.get('/:id',
 // POST /api/dropscan/tarimas/:id/finalize
 router.post('/:id/finalize',
   authenticateToken, loadFullUser,
-  requirePermission('dropscan.historial', 'eliminar'),
+  requirePermission('dropscan.historial', 'actualizar'),
   async (req, res) => {
     try {
       const { id } = req.params
