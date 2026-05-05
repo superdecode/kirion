@@ -31,7 +31,7 @@ const CHART_DEFAULTS = {
 
 export default function Reportes() {
   const { t } = useI18nStore()
-  const { canWrite } = useAuthStore()
+  const { hasPermission } = useAuthStore()
   const today = getToday()
 
   const CHART_OPTIONS = [
@@ -230,7 +230,7 @@ export default function Reportes() {
                     </div>
                   </div>
                 )}
-                {canWrite('dropscan.reportes') && (
+                {hasPermission('dropscan.reportes', 'exportar') && (
                   <button onClick={handleExport} disabled={!porDia.length || isExporting}
                     className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-success-50 text-success-700 hover:bg-success-100 rounded-xl transition-colors border border-success-200 disabled:opacity-50">
                     {isExporting ? <div className="w-3.5 h-3.5 border-2 border-success-600 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}

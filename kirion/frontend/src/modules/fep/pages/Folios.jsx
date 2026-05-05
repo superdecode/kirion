@@ -339,6 +339,7 @@ export default function Folios() {
   const canViewFolios = canView('fep.folios')
   const canCreateFolios = ['crear', 'actualizar', 'eliminar'].includes(foliosLevel)
   const canUpdateFolios = ['actualizar', 'eliminar'].includes(foliosLevel)
+  const canCancelFolio = user.rol_nombre === 'Administrador' || foliosLevel === 'actualizar'  // ONLY actualizar for canceling
   const canExportFolios = ['actualizar', 'eliminar'].includes(foliosLevel)
   const canPrintFolios = ['crear', 'actualizar', 'eliminar'].includes(foliosLevel)
   const canDel = canDelete('fep.folios')
@@ -533,7 +534,7 @@ export default function Folios() {
                                 : <Printer className="w-4 h-4" />}
                               </button>
                             )}
-                            {canUpdateFolios && row.estado === 'ACTIVO' && (
+                            {canCancelFolio && row.estado === 'ACTIVO' && (
                               <button onClick={() => { setCancelTarget(row); setCancelMotivo('') }}
                                 className="p-2 rounded-xl hover:bg-warning-50 text-warm-400 hover:text-warning-500 transition-all" title={t('fep.cancel.title')}>
                                 <XCircle className="w-4 h-4" />
@@ -696,7 +697,7 @@ export default function Folios() {
         )}
         footer={detailFolio && (
           <>
-            {canUpdateFolios && detailFolio.estado === 'ACTIVO' && (
+            {canCancelFolio && detailFolio.estado === 'ACTIVO' && (
               <button onClick={() => { setCancelTarget(detailFolio); setCancelMotivo('') }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-danger-50 text-danger-700 rounded-xl hover:bg-danger-100 font-semibold transition-all border border-danger-200">
                 <XCircle className="w-4 h-4" /> {t('fep.detail.cancelarFolio')}

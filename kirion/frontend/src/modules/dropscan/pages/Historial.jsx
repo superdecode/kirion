@@ -65,9 +65,10 @@ export default function Historial() {
   const [detailTab, setDetailTab] = useState('guias')
   const [newGuiaCode, setNewGuiaCode] = useState('')
   const [showFilters, setShowFilters] = useState(true)
-  const { canDelete, canWrite, hasPermission, user } = useAuthStore()
+  const { canDelete, canWrite, hasPermission, user, getPermissionLevel } = useAuthStore()
   const canViewDetails = canWrite('dropscan.historial')           // crear+
-  const canManageStatus = hasPermission('dropscan.historial', 'cancelar')  // actualizar+
+  const historialLevel = getPermissionLevel('dropscan.historial')
+  const canManageStatus = user.rol_nombre === 'Administrador' || historialLevel === 'actualizar'  // ONLY actualizar role
   const canExportHistorial = hasPermission('dropscan.historial', 'exportar') // actualizar+
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
@@ -675,7 +676,7 @@ export default function Historial() {
                                 <Eye className="w-4 h-4" />
                               </button>
                               )}
-                              {canDelete('dropscan.historial') && (
+                              {canManageStatus && (
                                 <button onClick={() => handleOpenDetail(row.id, true)}
                                   className="p-2 rounded-xl hover:bg-warning-50 text-warm-400 hover:text-warning-500 transition-all" title="Editar">
                                   <Pencil className="w-4 h-4" />
@@ -891,7 +892,7 @@ export default function Historial() {
                 )}
 
                 {/* Add guide section (edit mode only) */}
-                {editMode && canDelete('dropscan.historial') && (
+                {editMode && canManageStatus && (
                   <div className="mt-5 p-4 rounded-xl bg-primary-50 border border-primary-200">
                     <p className="text-xs font-bold text-primary-700 mb-3 uppercase tracking-wider">{t('history.addNewGuide')}</p>
                     <form onSubmit={(e) => {
