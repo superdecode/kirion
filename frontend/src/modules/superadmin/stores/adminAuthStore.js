@@ -12,6 +12,6 @@ export const useAdminAuthStore = create(
       logout: () => set({ token: null, admin: null, isAuthenticated: false }),
       getToken: () => get().token,
     }),
-    { name: 'kerion-admin-auth' }
+    { name: 'kirion-admin-auth' }
   )
 )
