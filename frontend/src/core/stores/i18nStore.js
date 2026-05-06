@@ -496,6 +496,7 @@ const translations = {
     'status.EN_PROCESO': '进行中',
     'status.FINALIZADA': '已完成',
     'status.CANCELADA': '已取消',
+    'status.ENVIADA': '已发送',
     'status.ACTIVA': '活跃',
     'status.INACTIVA': '非活跃',
 
@@ -1256,6 +1257,7 @@ const translations = {
     'status.EN_PROCESO': 'En Proceso',
     'status.FINALIZADA': 'Finalizada',
     'status.CANCELADA': 'Cancelada',
+    'status.ENVIADA': 'Enviada',
     'status.ACTIVA': 'Activa',
     'status.INACTIVA': 'Inactiva',
 

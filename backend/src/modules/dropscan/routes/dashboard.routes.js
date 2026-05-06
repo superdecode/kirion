@@ -326,7 +326,15 @@ router.get('/guias/search',
         `SELECT g.id, g.codigo_guia, g.posicion, g.timestamp_escaneo,
                 t.id as tarima_id, t.codigo as tarima_codigo, t.estado as tarima_estado,
                 e.nombre as empresa_nombre, c.nombre as canal_nombre,
-                u.nombre_completo as operador_nombre
+                u.nombre_completo as operador_nombre,
+                (SELECT fe2.folio_numero FROM folios_entrega_tarimas fet2
+                 JOIN folios_entrega fe2 ON fe2.id = fet2.folio_id
+                 WHERE fet2.tarima_id = t.id AND fet2.eliminado_en IS NULL AND fe2.estado = 'ACTIVO'
+                 LIMIT 1) AS folio_asignado,
+                (SELECT fe2.id FROM folios_entrega_tarimas fet2
+                 JOIN folios_entrega fe2 ON fe2.id = fet2.folio_id
+                 WHERE fet2.tarima_id = t.id AND fet2.eliminado_en IS NULL AND fe2.estado = 'ACTIVO'
+                 LIMIT 1) AS folio_id
          FROM guias g
          JOIN tarimas t ON g.tarima_id = t.id
          JOIN configuraciones e ON t.empresa_id = e.id

@@ -68,7 +68,7 @@ const MODULE_ROUTES = [
   { module: 'inventory.escaneo', path: '/inventory/escaneo' },
   { module: 'inventory.historial', path: '/inventory/historial' },
   { module: 'inventory.reportes', path: '/inventory/reportes' },
-  { module: 'fep.folios', path: '/dropscan/folios' },
+  { module: 'dropscan.folios', path: '/dropscan/folios' },
   { module: 'global.wms', path: '/wms' },
   { module: 'global.administracion', path: '/admin' },
 ]
@@ -160,10 +160,10 @@ function AppRoutes() {
 
         {/* FEP — embedded inside DropScan */}
         <Route path="dropscan/folios" element={
-          <PermissionRoute module="fep.folios"><ErrorBoundary><Folios /></ErrorBoundary></PermissionRoute>
+          <PermissionRoute module="dropscan.folios"><ErrorBoundary><Folios /></ErrorBoundary></PermissionRoute>
         } />
         <Route path="dropscan/folios/:id" element={
-          <PermissionRoute module="fep.folios"><ErrorBoundary><FolioDetalle /></ErrorBoundary></PermissionRoute>
+          <PermissionRoute module="dropscan.folios"><ErrorBoundary><FolioDetalle /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* WMS Hub */}
