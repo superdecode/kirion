@@ -39,7 +39,10 @@ api.interceptors.response.use(
 
         // Use soft redirect instead of hard reload to prevent login loops.
         // Replace history state so back button doesn't create another loop.
-        if (window.location.pathname !== '/login') {
+        // Do NOT redirect if already on login pages (tenant or super-admin).
+        const path = window.location.pathname
+        const isOnLoginPage = path === '/login' || path.startsWith('/super-admin')
+        if (!isOnLoginPage) {
           window.history.replaceState(null, '', '/login')
           // Dispatch a popstate so React Router picks up the change
           window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
