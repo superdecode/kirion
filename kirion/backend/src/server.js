@@ -12,13 +12,6 @@ import rolesRoutes from './core/routes/roles.routes.js'
 import configRoutes from './core/routes/config.routes.js'
 import setupRoutes from './core/routes/setup.routes.js'
 import wmsRoutes from './core/routes/wms.routes.js'
-import adminRoutes from './core/routes/admin.routes.js'
-import publicRoutes from './core/routes/public.routes.js'
-import cronRoutes from './core/routes/cron.routes.js'
-
-// Multi-tenant middleware
-import { tenantContext } from './modules/middleware/tenantContext.js'
-import { moduleGuard } from './modules/middleware/moduleGuard.js'
 
 // Module routes
 import scanRoutes from './modules/dropscan/routes/scan.routes.js'
@@ -67,39 +60,28 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' })
 })
 
-// Public routes (no auth, no tenant context)
-app.use('/api/public', publicRoutes)
-
-// Admin routes (super_admin auth, no tenant context)
-app.use('/api/admin', adminRoutes)
-
-// Cron routes (CRON_SECRET auth, no tenant context)
-app.use('/api/cron', cronRoutes)
-
-// Auth routes (tenant resolved inline from Host header)
-app.use('/api/auth/login', loginLimiter)
+// Core API routes
+app.use('/api/auth/login', loginLimiter) // Scope strict limiter only to the login endpoint
 app.use('/api/auth', authRoutes)
+app.use('/api/users', usersRoutes)
+app.use('/api/roles', rolesRoutes)
+app.use('/api/config', configRoutes)
+app.use('/api/setup', setupRoutes)
+app.use('/api/wms', wmsRoutes)
 
-// All tenant-scoped routes — apply tenantContext first
-app.use('/api/users', tenantContext, usersRoutes)
-app.use('/api/roles', tenantContext, rolesRoutes)
-app.use('/api/config', tenantContext, configRoutes)
-app.use('/api/setup', tenantContext, setupRoutes)
-app.use('/api/wms', tenantContext, wmsRoutes)
+// DropScan module routes
+app.use('/api/dropscan', scanRoutes)
+app.use('/api/dropscan/tarimas', tarimasRoutes)
+app.use('/api/dropscan/dashboard', dashboardRoutes)
+app.use('/api/dropscan/config', dropscanConfigRoutes)
+app.use('/api/dropscan/operadores', operadoresRoutes)
 
-// DropScan — require dropscan module access
-app.use('/api/dropscan', tenantContext, moduleGuard('dropscan'), scanRoutes)
-app.use('/api/dropscan/tarimas', tenantContext, moduleGuard('dropscan'), tarimasRoutes)
-app.use('/api/dropscan/dashboard', tenantContext, moduleGuard('dropscan'), dashboardRoutes)
-app.use('/api/dropscan/config', tenantContext, moduleGuard('dropscan'), dropscanConfigRoutes)
-app.use('/api/dropscan/operadores', tenantContext, moduleGuard('dropscan'), operadoresRoutes)
+// Inventory module routes
+app.use('/api/inventory', invScanRoutes)
+app.use('/api/inventory', invHistoryRoutes)
 
-// Inventory — require inventory module (not in MVP plans, returns 403 for trial/basic)
-app.use('/api/inventory', tenantContext, moduleGuard('inventory'), invScanRoutes)
-app.use('/api/inventory', tenantContext, moduleGuard('inventory'), invHistoryRoutes)
-
-// FEP — require dropscan module (FEP is part of dropscan)
-app.use('/api/fep/folios', tenantContext, moduleGuard('dropscan'), fepFoliosRoutes)
+// FEP module routes
+app.use('/api/fep/folios', fepFoliosRoutes)
 
 // Auto-apply pending migrations (idempotent — each step is independent)
 async function runMigrations() {
@@ -256,11 +238,11 @@ async function runMigrations() {
        timestamp TIMESTAMPTZ DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS idx_fel_folio ON folios_entrega_log(folio_id)`,
-    // FEP folios is part of dropscan module — add folios permission to dropscan
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"eliminar"', true) WHERE nombre = 'Administrador' AND NOT (permisos -> 'dropscan' ? 'folios')`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"actualizar"', true) WHERE nombre IN ('Jefe', 'Supervisor') AND NOT (permisos -> 'dropscan' ? 'folios')`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"crear"', true) WHERE nombre = 'Operador' AND NOT (permisos -> 'dropscan' ? 'folios')`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"ver"', true) WHERE nombre = 'Usuario' AND NOT (permisos -> 'dropscan' ? 'folios')`,
+    // FEP permissions — always set (safe upsert by name+expected level)
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"eliminar"}'::jsonb, true) WHERE nombre = 'Administrador'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"actualizar"}'::jsonb, true) WHERE nombre IN ('Jefe', 'Supervisor')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"crear"}'::jsonb, true) WHERE nombre = 'Operador'`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"ver"}'::jsonb, true) WHERE nombre = 'Usuario'`,
   ]
   for (const sql of steps) {
     try {
