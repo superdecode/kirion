@@ -91,11 +91,21 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Landing */}
+      {/* PUBLIC ROUTES — No auth required, outside all protected layouts */}
+
+      {/* Landing page */}
       <Route path="/landing" element={<Landing />} />
 
-      {/* Super Admin */}
+      {/* Super Admin Login — Completely public, no auth required */}
       <Route path="/super-admin/login" element={<AdminLogin />} />
+
+      {/* Tenant Login — Redirects to dashboard if already authenticated as normal user */}
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+      />
+
+      {/* SUPER ADMIN PANEL — Requires super_admin auth */}
       <Route
         path="/super-admin"
         element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}
@@ -106,12 +116,6 @@ function AppRoutes() {
         <Route path="tenants/:id" element={<AdminTenantDetalle />} />
         <Route path="notificaciones" element={<AdminNotificaciones />} />
       </Route>
-
-      {/* Tenant public login */}
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
-      />
 
       {/* Protected */}
       <Route

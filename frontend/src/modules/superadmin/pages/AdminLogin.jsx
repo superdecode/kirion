@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useAdminAuthStore } from '../stores/adminAuthStore'
 import axios from 'axios'
 
@@ -7,8 +7,12 @@ export default function AdminLogin() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login } = useAdminAuthStore()
+  const { login, isAuthenticated } = useAdminAuthStore()
   const navigate = useNavigate()
+
+  if (isAuthenticated) {
+    return <Navigate to="/super-admin" replace />
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
