@@ -362,7 +362,7 @@ export default function Folios() {
   const canViewFolios = canView('fep.folios')
   const canCreateFolios = ['crear', 'actualizar', 'eliminar'].includes(foliosLevel)
   const canUpdateFolios = ['actualizar', 'eliminar'].includes(foliosLevel)
-  const canCancelFolio = user.rol_nombre === 'Administrador' || foliosLevel === 'actualizar'  // ONLY actualizar for canceling
+  const canCancelFolio = ['actualizar', 'eliminar'].includes(foliosLevel)
   const canExportFolios = ['actualizar', 'eliminar'].includes(foliosLevel)
   const canPrintFolios = ['crear', 'actualizar', 'eliminar'].includes(foliosLevel)
   const canDel = canDelete('fep.folios')
