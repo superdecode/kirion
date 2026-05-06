@@ -1,82 +1,259 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import {
+  ArrowLeft, RefreshCw, CheckCircle2, XCircle, PauseCircle, PlayCircle,
+  Edit2, Save, X, Plus, Calendar, Users, CreditCard, Activity,
+  AlertCircle, Check, Clock, Building2
+} from 'lucide-react'
 import adminApi from '../services/adminApi'
 
-function AddSubscriptionForm({ tenantId, plans, onDone }) {
-  const [form, setForm] = useState({ plan_id: '', expires_at: '', payment_reference: '', notes: '' })
-  const [loading, setLoading] = useState(false)
+const STATUS_CFG = {
+  trial:         { label: 'Trial activo',   bg: 'bg-blue-500/15',    text: 'text-blue-300',    border: 'border-blue-500/25' },
+  active:        { label: 'Activo',         bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/25' },
+  trial_expired: { label: 'Trial vencido',  bg: 'bg-amber-500/15',   text: 'text-amber-300',   border: 'border-amber-500/25' },
+  expired:       { label: 'Vencido',        bg: 'bg-orange-500/15',  text: 'text-orange-300',  border: 'border-orange-500/25' },
+  suspended:     { label: 'Suspendido',     bg: 'bg-red-500/15',     text: 'text-red-300',     border: 'border-red-500/25' },
+}
+
+function Toast({ msg }) {
+  if (!msg) return null
+  return (
+    <div className="fixed top-5 right-5 z-50 flex items-center gap-2 bg-gray-800 border border-gray-600 text-white text-sm px-4 py-3 rounded-xl shadow-2xl">
+      <Check className="w-4 h-4 text-emerald-400" />
+      {msg}
+    </div>
+  )
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+const inputCls = "w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
+const disabledCls = "w-full bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2.5 text-gray-400 text-sm"
+
+function EditInfoCard({ tenant, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({
+    legal_name: tenant.legal_name || '',
+    contact_email: tenant.contact_email || '',
+    contact_phone: tenant.contact_phone || '',
+    country: tenant.country || '',
+  })
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!form.plan_id || !form.expires_at) return setError('Plan y fecha de vencimiento requeridos')
-    setLoading(true)
+  function set(k) { return e => setForm(f => ({ ...f, [k]: e.target.value })) }
+
+  async function save() {
+    setSaving(true)
+    setError('')
     try {
-      await adminApi.post(`/tenants/${tenantId}/subscriptions`, form)
-      onDone()
+      await adminApi.patch(`/tenants/${tenant.id}`, form)
+      onSaved('Informacion actualizada')
+      setEditing(false)
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al agregar suscripcion')
+      setError(err.response?.data?.error || 'Error al guardar')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Plan</label>
-          <select
-            value={form.plan_id}
-            onChange={e => setForm(f => ({ ...f, plan_id: e.target.value }))}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none"
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-white font-semibold flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-blue-400" />
+          Informacion del tenant
+        </h2>
+        {!editing ? (
+          <button
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg border border-gray-700 transition-colors"
           >
-            <option value="">Seleccionar...</option>
-            {plans.map(p => (
-              <option key={p.id} value={p.id}>{p.name} — ${p.price_amount} {p.price_currency}/mes</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Vence el</label>
-          <input
-            type="date"
-            value={form.expires_at}
-            onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none"
-          />
-        </div>
+            <Edit2 className="w-3 h-3" />
+            Editar
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setEditing(false); setError('') }}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg border border-gray-700 transition-colors"
+            >
+              <X className="w-3 h-3" />
+              Cancelar
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-lg transition-colors"
+            >
+              <Save className="w-3 h-3" />
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        )}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Referencia de pago</label>
-          <input
-            type="text"
-            value={form.payment_reference}
-            onChange={e => setForm(f => ({ ...f, payment_reference: e.target.value }))}
-            placeholder="Num. transferencia, etc."
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none"
-          />
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-950/30 border border-red-800/40 rounded-lg p-3 mb-4 text-sm text-red-300">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {error}
         </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Notas</label>
-          <input
-            type="text"
-            value={form.notes}
-            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none"
-          />
-        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Field label="Nombre legal">
+          {editing
+            ? <input value={form.legal_name} onChange={set('legal_name')} className={inputCls} />
+            : <p className={disabledCls}>{tenant.legal_name || '—'}</p>}
+        </Field>
+        <Field label="Slug (ID)">
+          <p className={disabledCls}>{tenant.slug}</p>
+        </Field>
+        <Field label="Email de contacto">
+          {editing
+            ? <input type="email" value={form.contact_email} onChange={set('contact_email')} className={inputCls} />
+            : <p className={disabledCls}>{tenant.contact_email || '—'}</p>}
+        </Field>
+        <Field label="Telefono">
+          {editing
+            ? <input value={form.contact_phone} onChange={set('contact_phone')} className={inputCls} />
+            : <p className={disabledCls}>{tenant.contact_phone || '—'}</p>}
+        </Field>
+        <Field label="Pais">
+          {editing
+            ? <input value={form.country} onChange={set('country')} className={inputCls} />
+            : <p className={disabledCls}>{tenant.country || '—'}</p>}
+        </Field>
+        <Field label="Creado el">
+          <p className={disabledCls}>{new Date(tenant.created_at).toLocaleString('es-MX')}</p>
+        </Field>
+        <Field label="Trial vence">
+          <p className={disabledCls}>{tenant.trial_expires_at ? new Date(tenant.trial_expires_at).toLocaleDateString('es-MX') : '—'}</p>
+        </Field>
+        <Field label="Suscripcion vence">
+          <p className={disabledCls}>{tenant.subscription_expires_at ? new Date(tenant.subscription_expires_at).toLocaleDateString('es-MX') : '—'}</p>
+        </Field>
       </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
-      >
-        {loading ? 'Guardando...' : 'Activar suscripcion'}
-      </button>
-    </form>
+    </div>
+  )
+}
+
+function SubscriptionCard({ tenantId, subscriptions, plans, onSaved }) {
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ plan_id: '', expires_at: '', payment_reference: '', notes: '' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  function set(k) { return e => setForm(f => ({ ...f, [k]: e.target.value })) }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.plan_id || !form.expires_at) return setError('Plan y fecha requeridos')
+    setSaving(true)
+    setError('')
+    try {
+      await adminApi.post(`/tenants/${tenantId}/subscriptions`, form)
+      onSaved('Suscripcion activada')
+      setShowForm(false)
+      setForm({ plan_id: '', expires_at: '', payment_reference: '', notes: '' })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-white font-semibold flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-emerald-400" />
+          Suscripciones
+        </h2>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+          Nueva
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="mb-5 p-4 bg-gray-800/60 rounded-xl border border-gray-700/50 space-y-3">
+          <p className="text-white text-sm font-medium">Agregar suscripcion</p>
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Plan">
+              <select value={form.plan_id} onChange={set('plan_id')} className={inputCls}>
+                <option value="">Seleccionar...</option>
+                {plans.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} — ${p.price_amount} {p.price_currency}/mes</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Vence el">
+              <input type="date" value={form.expires_at} onChange={set('expires_at')} className={inputCls} />
+            </Field>
+            <Field label="Referencia de pago">
+              <input value={form.payment_reference} onChange={set('payment_reference')} placeholder="Transferencia, recibo..." className={inputCls} />
+            </Field>
+            <Field label="Notas">
+              <input value={form.notes} onChange={set('notes')} className={inputCls} />
+            </Field>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs rounded-lg transition-colors font-medium">
+              {saving ? 'Guardando...' : 'Activar suscripcion'}
+            </button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-400 hover:text-white text-xs transition-colors">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+
+      {subscriptions.length === 0 ? (
+        <div className="flex items-center gap-2 text-gray-500 py-4">
+          <CreditCard className="w-4 h-4" />
+          <span className="text-sm">Sin suscripciones registradas</span>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {subscriptions.map(s => {
+            const exp = s.expires_at ? new Date(s.expires_at) : null
+            const days = exp ? Math.ceil((exp - Date.now()) / 86400000) : null
+            return (
+              <div key={s.id} className="flex items-center justify-between p-3 bg-gray-800/40 rounded-lg border border-gray-700/40">
+                <div>
+                  <p className="text-white text-sm font-medium">{s.plan_name}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">{s.payment_reference || 'Sin referencia'}{s.notes ? ` · ${s.notes}` : ''}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    s.status === 'active'
+                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                      : 'bg-gray-700/50 text-gray-400 border border-gray-600/50'
+                  }`}>{s.status}</span>
+                  {exp && (
+                    <p className={`text-xs mt-1 ${days !== null && days < 7 ? 'text-red-400' : 'text-gray-500'}`}>
+                      {days !== null && days > 0 ? `${days}d restantes` : 'Vencido'} · {exp.toLocaleDateString('es-MX')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -86,9 +263,9 @@ export default function AdminTenantDetalle() {
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
-  const [showSubForm, setShowSubForm] = useState(false)
+  const [confirming, setConfirming] = useState(null)
 
-  function showMsg(msg) {
+  function showToast(msg) {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
   }
@@ -113,129 +290,132 @@ export default function AdminTenantDetalle() {
   async function handleAction(action) {
     try {
       await adminApi.post(`/tenants/${id}/${action}`)
-      showMsg(action === 'suspend' ? 'Tenant suspendido' : 'Tenant reactivado')
+      showToast(action === 'suspend' ? 'Tenant suspendido' : 'Tenant reactivado')
+      setConfirming(null)
       load()
     } catch (err) {
-      showMsg(err.response?.data?.error || 'Error')
+      showToast(err.response?.data?.error || 'Error al ejecutar accion')
     }
   }
 
-  if (loading) return <p className="text-gray-400">Cargando...</p>
-  if (!data) return <p className="text-red-400">Tenant no encontrado</p>
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="flex items-center gap-3 text-gray-400">
+        <RefreshCw className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Cargando...</span>
+      </div>
+    </div>
+  )
+
+  if (!data) return (
+    <div className="flex items-center gap-3 text-red-400 p-4">
+      <AlertCircle className="w-5 h-5" />
+      <span>Tenant no encontrado</span>
+    </div>
+  )
 
   const { tenant, provisioning_log, subscriptions } = data
+  const statusCfg = STATUS_CFG[tenant.status] || { label: tenant.status, bg: 'bg-gray-700', text: 'text-gray-300', border: 'border-gray-600' }
 
   return (
-    <div className="space-y-6">
-      {toast && (
-        <div className="fixed top-4 right-4 bg-gray-800 border border-gray-700 text-white text-sm px-4 py-3 rounded-lg z-50">
-          {toast}
+    <div className="space-y-5">
+      <Toast msg={toast} />
+
+      {/* Confirm modal */}
+      {confirming && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-white font-semibold mb-2">
+              {confirming === 'suspend' ? 'Suspender tenant' : 'Reactivar tenant'}
+            </h3>
+            <p className="text-gray-400 text-sm mb-5">
+              {confirming === 'suspend'
+                ? `¿Confirmas suspender "${tenant.legal_name}"? Los usuarios no podran acceder.`
+                : `¿Confirmas reactivar "${tenant.legal_name}"?`}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setConfirming(null)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleAction(confirming)}
+                className={`px-4 py-2 text-sm text-white rounded-lg transition-colors ${confirming === 'suspend' ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
+              >
+                {confirming === 'suspend' ? 'Suspender' : 'Reactivar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <Link to="/super-admin/tenants" className="text-gray-400 hover:text-white text-sm">
-          Tenants /
-        </Link>
-        <h1 className="text-xl font-bold text-white">{tenant.legal_name}</h1>
-        <span className="text-xs px-2 py-0.5 bg-gray-800 text-gray-300 rounded-full">{tenant.status}</span>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-white font-medium mb-3">Informacion</h2>
-          <dl className="space-y-2 text-sm">
-            {[
-              ['Slug', tenant.slug],
-              ['Email contacto', tenant.contact_email],
-              ['Telefono', tenant.contact_phone || '-'],
-              ['Pais', tenant.country || '-'],
-              ['Plan', tenant.plan_name || '-'],
-              ['Trial vence', tenant.trial_expires_at ? new Date(tenant.trial_expires_at).toLocaleDateString('es-MX') : '-'],
-              ['Suscripcion vence', tenant.subscription_expires_at ? new Date(tenant.subscription_expires_at).toLocaleDateString('es-MX') : '-'],
-              ['Creado', new Date(tenant.created_at).toLocaleString('es-MX')],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between">
-                <dt className="text-gray-400">{k}</dt>
-                <dd className="text-white text-right">{v}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="flex gap-2 mt-4 pt-4 border-t border-gray-800">
-            {tenant.status !== 'suspended' ? (
-              <button
-                onClick={() => handleAction('suspend')}
-                className="px-3 py-1.5 bg-red-900/40 hover:bg-red-900/70 text-red-300 text-xs rounded-lg transition-colors"
-              >
-                Suspender
-              </button>
-            ) : (
-              <button
-                onClick={() => handleAction('reactivate')}
-                className="px-3 py-1.5 bg-green-900/40 hover:bg-green-900/70 text-green-300 text-xs rounded-lg transition-colors"
-              >
-                Reactivar
-              </button>
-            )}
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link to="/super-admin/tenants" className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Tenants
+          </Link>
+          <span className="text-gray-700">/</span>
+          <h1 className="text-xl font-bold text-white truncate">{tenant.legal_name}</h1>
+          <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
+            {statusCfg.label}
+          </span>
         </div>
-
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-white font-medium">Suscripciones</h2>
+        <div className="flex gap-2">
+          {tenant.status !== 'suspended' ? (
             <button
-              onClick={() => setShowSubForm(s => !s)}
-              className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg transition-colors"
+              onClick={() => setConfirming('suspend')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-950/40 hover:bg-red-950/70 border border-red-800/40 text-red-300 text-xs rounded-lg transition-colors"
             >
-              + Agregar
+              <PauseCircle className="w-3.5 h-3.5" />
+              Suspender
             </button>
-          </div>
-          {showSubForm && (
-            <div className="mb-4 p-4 bg-gray-800 rounded-lg">
-              <AddSubscriptionForm
-                tenantId={id}
-                plans={plans}
-                onDone={() => { setShowSubForm(false); load() }}
-              />
-            </div>
-          )}
-          {subscriptions.length === 0 ? (
-            <p className="text-gray-500 text-sm">Sin suscripciones</p>
           ) : (
-            <div className="space-y-2">
-              {subscriptions.map(s => (
-                <div key={s.id} className="flex justify-between items-start py-2 border-b border-gray-800 last:border-0 text-sm">
-                  <div>
-                    <p className="text-white">{s.plan_name}</p>
-                    <p className="text-gray-500 text-xs">{s.payment_reference || 'Sin referencia'}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-xs ${s.status === 'active' ? 'text-green-400' : 'text-gray-500'}`}>{s.status}</span>
-                    {s.expires_at && (
-                      <p className="text-gray-500 text-xs">vence {new Date(s.expires_at).toLocaleDateString('es-MX')}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <button
+              onClick={() => setConfirming('reactivate')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-800/40 text-emerald-300 text-xs rounded-lg transition-colors"
+            >
+              <PlayCircle className="w-3.5 h-3.5" />
+              Reactivar
+            </button>
           )}
+          <button
+            onClick={load}
+            className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 hover:text-white text-xs rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
+      {/* Main grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <EditInfoCard tenant={tenant} onSaved={(msg) => { showToast(msg); load() }} />
+        <SubscriptionCard tenantId={id} subscriptions={subscriptions} plans={plans} onSaved={(msg) => { showToast(msg); load() }} />
+      </div>
+
+      {/* Provisioning log */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h2 className="text-white font-medium mb-3">Log de provisioning</h2>
+        <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-purple-400" />
+          Log de provisioning
+        </h2>
         {provisioning_log.length === 0 ? (
-          <p className="text-gray-500 text-sm">Sin registros</p>
+          <p className="text-gray-500 text-sm">Sin registros de provisioning</p>
         ) : (
-          <div className="space-y-1 max-h-64 overflow-y-auto">
+          <div className="max-h-72 overflow-y-auto space-y-0.5">
             {provisioning_log.map(l => (
-              <div key={l.id} className="flex items-center gap-3 py-1.5 border-b border-gray-800 last:border-0 text-xs">
-                <span className={l.status === 'ok' ? 'text-green-400' : l.status === 'skipped' ? 'text-gray-500' : 'text-red-400'}>
+              <div key={l.id} className="flex items-center gap-3 py-2 border-b border-gray-800/60 last:border-0 text-xs">
+                <span className={`flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-full ${
+                  l.status === 'ok' ? 'bg-emerald-500/20 text-emerald-400' :
+                  l.status === 'skipped' ? 'bg-gray-700 text-gray-500' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
                   {l.status === 'ok' ? '✓' : l.status === 'skipped' ? '–' : '✗'}
                 </span>
-                <span className="text-gray-300 font-mono">{l.step}</span>
-                {l.error_message && <span className="text-red-400 truncate">{l.error_message}</span>}
-                <span className="text-gray-600 ml-auto">{new Date(l.created_at).toLocaleTimeString('es-MX')}</span>
+                <span className="text-gray-300 font-mono flex-1 truncate">{l.step}</span>
+                {l.error_message && <span className="text-red-400 truncate max-w-xs">{l.error_message}</span>}
+                <span className="text-gray-600 flex-shrink-0">{new Date(l.created_at).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
               </div>
             ))}
           </div>

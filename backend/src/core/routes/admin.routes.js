@@ -221,6 +221,29 @@ router.get('/tenants/:id', authenticateAdmin, async (req, res) => {
   }
 })
 
+// PATCH /api/admin/tenants/:id — update editable tenant fields
+router.patch('/tenants/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { legal_name, contact_email, contact_phone, country } = req.body
+    await query(
+      `UPDATE tenants SET
+         legal_name = COALESCE($1, legal_name),
+         contact_email = COALESCE($2, contact_email),
+         contact_phone = COALESCE($3, contact_phone),
+         country = COALESCE($4, country),
+         updated_at = now()
+       WHERE id = $5`,
+      [legal_name || null, contact_email || null, contact_phone || null, country || null, id]
+    )
+    adminAudit(req.admin.id, 'UPDATE_TENANT', 'tenant', id, { legal_name, contact_email, contact_phone, country })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[admin/tenants/:id PATCH]', err)
+    res.status(500).json({ error: 'Error interno' })
+  }
+})
+
 // POST /api/admin/tenants/:id/suspend
 router.post('/tenants/:id/suspend', authenticateAdmin, async (req, res) => {
   try {
