@@ -31,16 +31,31 @@ async function resolveTenantIdFromRequest(req) {
   } else if (env.NODE_ENV !== 'production' && req.headers['x-tenant-slug']) {
     slug = req.headers['x-tenant-slug']
   }
-  if (!slug) return null
 
-  const res = await query(
-    'SELECT id, status FROM tenants WHERE slug = $1 LIMIT 1',
-    [slug]
-  )
-  if (res.rows.length === 0) return null
-  const tenant = res.rows[0]
-  if (['suspended', 'rejected', 'pending'].includes(tenant.status)) return { blocked: true, status: tenant.status }
-  return { id: tenant.id, status: tenant.status }
+  if (slug) {
+    const res = await query(
+      'SELECT id, status FROM tenants WHERE slug = $1 LIMIT 1',
+      [slug]
+    )
+    if (res.rows.length === 0) return null
+    const tenant = res.rows[0]
+    if (['suspended', 'rejected', 'pending'].includes(tenant.status)) return { blocked: true, status: tenant.status }
+    return { id: tenant.id, status: tenant.status }
+  }
+
+  // Dev fallback: no subdomain and no header — use legacy tenant so local login works
+  if (env.NODE_ENV !== 'production' && env.LEGACY_TENANT_ID) {
+    const res = await query(
+      'SELECT id, status FROM tenants WHERE id = $1 LIMIT 1',
+      [env.LEGACY_TENANT_ID]
+    )
+    if (res.rows.length === 0) return null
+    const tenant = res.rows[0]
+    if (['suspended', 'rejected', 'pending'].includes(tenant.status)) return { blocked: true, status: tenant.status }
+    return { id: tenant.id, status: tenant.status }
+  }
+
+  return null
 }
 
 // POST /api/auth/login

@@ -28,14 +28,19 @@ export async function tenantContext(req, res, next) {
     extractSlugFromHost(host) ||
     (env.NODE_ENV !== 'production' ? req.headers['x-tenant-slug'] : null)
 
-  if (!slug) {
+  // Dev fallback: no subdomain and no header — use legacy tenant
+  const useDevFallback = !slug && env.NODE_ENV !== 'production' && env.LEGACY_TENANT_ID
+
+  if (!slug && !useDevFallback) {
     return res.status(400).json({ error: 'Tenant no identificado' })
   }
 
   try {
     const result = await query(
-      'SELECT id, slug, status, trial_expires_at, subscription_expires_at, current_plan_id FROM tenants WHERE slug = $1 LIMIT 1',
-      [slug]
+      useDevFallback
+        ? 'SELECT id, slug, status, trial_expires_at, subscription_expires_at, current_plan_id FROM tenants WHERE id = $1 LIMIT 1'
+        : 'SELECT id, slug, status, trial_expires_at, subscription_expires_at, current_plan_id FROM tenants WHERE slug = $1 LIMIT 1',
+      [useDevFallback ? env.LEGACY_TENANT_ID : slug]
     )
 
     if (result.rows.length === 0) {
