@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kirion-v4'
+const CACHE_NAME = 'kirion-v5'
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
