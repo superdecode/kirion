@@ -38,11 +38,10 @@ api.interceptors.response.use(
         localStorage.removeItem('wms-auth')
 
         // Use soft redirect instead of hard reload to prevent login loops.
-        // Replace history state so back button doesn't create another loop.
-        // Do NOT redirect if already on login pages (tenant or super-admin).
-        const path = window.location.pathname
-        const isOnLoginPage = path === '/login' || path.startsWith('/super-admin')
-        if (!isOnLoginPage) {
+        // Skip redirect on super-admin paths — those have their own auth flow.
+        const currentPath = window.location.pathname
+        const isOnPublicOrAdminPath = currentPath === '/login' || currentPath.startsWith('/super-admin')
+        if (!isOnPublicOrAdminPath) {
           window.history.replaceState(null, '', '/login')
           // Dispatch a popstate so React Router picks up the change
           window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
