@@ -22,6 +22,7 @@ import { useAdminAuthStore } from './modules/superadmin/stores/adminAuthStore'
 
 // Landing page
 import Landing from './pages/Landing'
+import NotFound from './pages/NotFound'
 
 // Pages
 import GlobalDashboard from './pages/GlobalDashboard'
@@ -117,66 +118,67 @@ function AppRoutes() {
         <Route path="notificaciones" element={<AdminNotificaciones />} />
       </Route>
 
-      {/* Protected */}
+      {/* TENANT APP — path="/" so this layout only activates for its own child routes,
+          never for public routes like /landing or /super-admin/* */}
       <Route
+        path="/"
         element={
           <ProtectedRoute>
             <MainLayout />
           </ProtectedRoute>
         }
       >
-        {/* Global — smart redirect if no dashboard access */}
-        <Route path="/" element={<ErrorBoundary><SmartRedirect /></ErrorBoundary>} />
+        <Route index element={<ErrorBoundary><SmartRedirect /></ErrorBoundary>} />
 
         {/* DropScan Module */}
-        <Route path="/dropscan" element={
+        <Route path="dropscan" element={
           <PermissionRoute module="dropscan.dashboard"><ErrorBoundary><DropScanDashboard /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/escaneo" element={
+        <Route path="dropscan/escaneo" element={
           <PermissionRoute module="dropscan.escaneo"><ErrorBoundary><Escaneo /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/historial" element={
+        <Route path="dropscan/historial" element={
           <PermissionRoute module="dropscan.historial"><ErrorBoundary><Historial /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/reportes" element={
+        <Route path="dropscan/reportes" element={
           <PermissionRoute module="dropscan.reportes"><ErrorBoundary><Reportes /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/configuracion" element={
+        <Route path="dropscan/configuracion" element={
           <PermissionRoute module="dropscan.configuracion"><ErrorBoundary><Configuracion /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* Inventory Module */}
-        <Route path="/inventory/escaneo" element={
+        <Route path="inventory/escaneo" element={
           <PermissionRoute module="inventory.escaneo"><ErrorBoundary><InvEscaneo /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/inventory/historial" element={
+        <Route path="inventory/historial" element={
           <PermissionRoute module="inventory.historial"><ErrorBoundary><InvHistorial /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/inventory/reportes" element={
+        <Route path="inventory/reportes" element={
           <PermissionRoute module="inventory.reportes"><ErrorBoundary><InvReportes /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* FEP — embedded inside DropScan */}
-        <Route path="/dropscan/folios" element={
+        <Route path="dropscan/folios" element={
           <PermissionRoute module="fep.folios"><ErrorBoundary><Folios /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/folios/:id" element={
+        <Route path="dropscan/folios/:id" element={
           <PermissionRoute module="fep.folios"><ErrorBoundary><FolioDetalle /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* WMS Hub */}
-        <Route path="/wms" element={
+        <Route path="wms" element={
           <PermissionRoute module="global.wms"><ErrorBoundary><WmsHub /></ErrorBoundary></PermissionRoute>
         } />
 
-        {/* Administration (unified users + roles) */}
-        <Route path="/admin" element={
+        {/* Administration */}
+        <Route path="admin" element={
           <PermissionRoute module="global.administracion"><ErrorBoundary><Administracion /></ErrorBoundary></PermissionRoute>
         } />
       </Route>
 
-      {/* Catch-all — outside ProtectedRoute so it doesn't intercept public routes */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 404 — shown for any unmatched route, completely public */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }
