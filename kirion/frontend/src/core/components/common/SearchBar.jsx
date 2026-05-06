@@ -155,9 +155,9 @@ export default function SearchBar() {
                             : ds === 'CANCELADA'
                               ? 'bg-danger-100 text-danger-700'
                               : 'bg-warning-100 text-warning-700'
-                        const label = ds === 'ENVIADA' ? 'Enviada' : ds
+                        const STATUS_ZH = { ENVIADA: '已发货', FINALIZADA: '已完成', CANCELADA: '已取消', EN_PROCESO: '处理中' }
                         return (
-                          <span className={`badge text-[10px] ${clr}`}>{label}</span>
+                          <span className={`badge text-[10px] ${clr}`}>{STATUS_ZH[ds] || ds}</span>
                         )
                       })()}
                     </motion.div>
