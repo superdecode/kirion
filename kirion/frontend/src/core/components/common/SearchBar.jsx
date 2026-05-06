@@ -101,7 +101,7 @@ export default function SearchBar() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute top-full left-0 right-0 mt-2 z-50 bg-white/95 backdrop-blur-xl rounded-xl shadow-depth border border-warm-100 overflow-hidden"
+            className="absolute top-full left-0 mt-2 z-50 w-[120%] bg-white/95 backdrop-blur-xl rounded-xl shadow-depth border border-warm-100 overflow-hidden"
           >
             {loading ? (
               <div className="p-6 text-center">
@@ -128,20 +128,23 @@ export default function SearchBar() {
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.02 }}
                       onMouseDown={(e) => { e.preventDefault(); handleResultClick(g) }}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-primary-50/50 cursor-pointer border-b border-warm-50 last:border-b-0 transition-colors group"
+                      className="px-4 py-3 hover:bg-primary-50/50 cursor-pointer border-b border-warm-50 last:border-b-0 transition-colors group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
-                        <Package className="w-4 h-4" />
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <p className="text-sm font-mono font-bold text-warm-800 leading-tight">{g.codigo_guia}</p>
+                        <ArrowRight className="w-3.5 h-3.5 text-warm-300 group-hover:text-primary-500 transition-colors shrink-0 mt-0.5" />
                       </div>
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <p className="text-sm font-mono font-bold text-warm-800 truncate">{g.codigo_guia}</p>
-                        <div className="flex items-center gap-1 mt-0.5 overflow-hidden whitespace-nowrap">
-                          <span className="text-[10px] text-warm-500 truncate max-w-[80px]">{g.tarima_codigo}</span>
-                          <span className="text-warm-300 text-[10px] shrink-0">·</span>
-                          <span className="text-[10px] text-warm-500 truncate">{g.empresa_nombre}</span>
-                          <span className="text-warm-300 text-[10px] shrink-0">·</span>
-                          <span className="text-[10px] font-semibold text-primary-600 shrink-0">Pos #{g.posicion}</span>
-                        </div>
+                      <div className="flex items-center gap-1 text-[10px] text-warm-500 mb-1.5">
+                        <Package className="w-3 h-3 shrink-0" />
+                        <span>{g.tarima_codigo}</span>
+                        {g.folio_asignado && (
+                          <>
+                            <span className="text-warm-300">·</span>
+                            <span className="font-medium text-accent-600">{g.folio_asignado}</span>
+                          </>
+                        )}
+                        <span className="text-warm-300">·</span>
+                        <span>Pos #{g.posicion}</span>
                       </div>
                       {(() => {
                         const ds = g.folio_asignado ? 'ENVIADA' : g.tarima_estado
@@ -154,12 +157,9 @@ export default function SearchBar() {
                               : 'bg-warning-100 text-warning-700'
                         const label = ds === 'ENVIADA' ? 'Enviada' : ds
                         return (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${clr}`}>
-                            {label}
-                          </span>
+                          <span className={`badge text-[10px] ${clr}`}>{label}</span>
                         )
                       })()}
-                      <ArrowRight className="w-3.5 h-3.5 text-warm-300 group-hover:text-primary-500 transition-colors shrink-0" />
                     </motion.div>
                   ))}
                 </div>
