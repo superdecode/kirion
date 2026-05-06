@@ -770,7 +770,7 @@ export default function Historial() {
                     ? <CheckCircle className="w-3.5 h-3.5 text-success-500" />
                     : <Copy className="w-3.5 h-3.5" />}
                 </button>
-                <span className={`badge text-[10px] ${estadoColors[getDisplayEstado(detail)] || 'bg-warm-100 text-warm-600'}`}>
+                <span className={`badge text-xs ${estadoColors[getDisplayEstado(detail)] || 'bg-warm-100 text-warm-600'}`}>
                   {estadoLabels[getDisplayEstado(detail)] || getDisplayEstado(detail)}
                 </span>
               </div>
@@ -779,7 +779,7 @@ export default function Historial() {
                   onClick={() => { setSelectedTarima(null); setEditMode(false); navigate(`/dropscan/folios?folio_id=${detail.folio_id}`) }}
                   className="text-[11px] font-semibold text-primary-600 hover:text-primary-800 hover:underline text-left leading-tight"
                 >
-                  Folio Entrega: {detail.folio_asignado}
+                  {detail.folio_asignado}
                 </button>
               )}
             </div>
