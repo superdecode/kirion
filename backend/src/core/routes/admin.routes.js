@@ -65,7 +65,7 @@ router.post('/auth/login', async (req, res) => {
   }
 })
 
-// POST /api/admin/seed — DEV ONLY: create first super_admin if none exists
+// POST /api/admin/seed — DEV ONLY: upsert super_admin (creates or updates password)
 router.post('/seed', async (req, res) => {
   if (env.NODE_ENV === 'production') {
     return res.status(404).json({ error: 'Not found' })
@@ -74,19 +74,36 @@ router.post('/seed', async (req, res) => {
     const { email, password, name } = req.body
     if (!email || !password) return res.status(400).json({ error: 'email y password requeridos' })
 
-    const existing = await query('SELECT id FROM super_admins WHERE email = $1', [email.toLowerCase().trim()])
-    if (existing.rows.length > 0) {
-      return res.json({ success: true, message: 'super_admin ya existe', id: existing.rows[0].id })
-    }
-
     const hash = await bcrypt.hash(password, 12)
     const result = await query(
-      `INSERT INTO super_admins (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name`,
+      `INSERT INTO super_admins (email, password_hash, name, is_active)
+       VALUES ($1, $2, $3, true)
+       ON CONFLICT (email) DO UPDATE
+         SET password_hash = EXCLUDED.password_hash, is_active = true
+       RETURNING id, email, name, is_active`,
       [email.toLowerCase().trim(), hash, name || 'Super Admin']
     )
     res.json({ success: true, admin: result.rows[0] })
   } catch (err) {
     console.error('[admin/seed]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/admin/debug — DEV ONLY: list super_admin records for diagnosis
+router.get('/debug', async (req, res) => {
+  if (env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' })
+  }
+  try {
+    const result = await query(
+      `SELECT id, email, name, is_active, last_login_at,
+              left(password_hash, 7) AS hash_prefix,
+              length(password_hash) AS hash_len
+       FROM super_admins ORDER BY created_at DESC`
+    )
+    res.json({ success: true, admins: result.rows })
+  } catch (err) {
     res.status(500).json({ error: err.message })
   }
 })
