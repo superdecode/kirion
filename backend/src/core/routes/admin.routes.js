@@ -65,6 +65,32 @@ router.post('/auth/login', async (req, res) => {
   }
 })
 
+// POST /api/admin/seed — DEV ONLY: create first super_admin if none exists
+router.post('/seed', async (req, res) => {
+  if (env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' })
+  }
+  try {
+    const { email, password, name } = req.body
+    if (!email || !password) return res.status(400).json({ error: 'email y password requeridos' })
+
+    const existing = await query('SELECT id FROM super_admins WHERE email = $1', [email.toLowerCase().trim()])
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, message: 'super_admin ya existe', id: existing.rows[0].id })
+    }
+
+    const hash = await bcrypt.hash(password, 12)
+    const result = await query(
+      `INSERT INTO super_admins (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name`,
+      [email.toLowerCase().trim(), hash, name || 'Super Admin']
+    )
+    res.json({ success: true, admin: result.rows[0] })
+  } catch (err) {
+    console.error('[admin/seed]', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Signup Requests ────────────────────────────────────────────────────────────
 
 // GET /api/admin/signup-requests?status=pending
