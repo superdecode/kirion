@@ -173,10 +173,10 @@ function AppRoutes() {
         <Route path="/admin" element={
           <PermissionRoute module="global.administracion"><ErrorBoundary><Administracion /></ErrorBoundary></PermissionRoute>
         } />
-
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
+
+      {/* Catch-all — outside ProtectedRoute so it doesn't intercept public routes */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
