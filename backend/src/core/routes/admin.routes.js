@@ -366,6 +366,47 @@ router.get('/dashboard', authenticateAdmin, async (_req, res) => {
   }
 })
 
+// GET /api/admin/usage-stats — real usage stats across all tenants
+router.get('/usage-stats', authenticateAdmin, async (_req, res) => {
+  try {
+    const safeQuery = async (sql, params) => {
+      try { return (await query(sql, params)).rows }
+      catch { return [] }
+    }
+
+    const [totalGuias, guias30d, topTenants, dbSize, tarimas, folios, usersInternos] = await Promise.all([
+      safeQuery(`SELECT COUNT(*) AS total FROM guias`),
+      safeQuery(`SELECT COUNT(*) AS total FROM guias WHERE created_at >= now() - INTERVAL '30 days'`),
+      safeQuery(`
+        SELECT t.legal_name, t.slug, t.status, COUNT(g.id) AS guias_total,
+               COUNT(g.id) FILTER (WHERE g.created_at >= now() - INTERVAL '30 days') AS guias_30d
+        FROM tenants t
+        LEFT JOIN guias g ON g.tenant_id = t.id
+        GROUP BY t.id, t.legal_name, t.slug, t.status
+        ORDER BY guias_total DESC LIMIT 10
+      `),
+      safeQuery(`SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size`),
+      safeQuery(`SELECT COUNT(*) AS total FROM tarimas`),
+      safeQuery(`SELECT COUNT(*) AS total FROM folios_fep`),
+      safeQuery(`SELECT COUNT(*) AS total FROM usuarios_internos WHERE activo = true`),
+    ])
+
+    res.json({
+      success: true,
+      total_guias: Number(totalGuias[0]?.total ?? 0),
+      guias_last_30d: Number(guias30d[0]?.total ?? 0),
+      total_tarimas: Number(tarimas[0]?.total ?? 0),
+      total_folios: Number(folios[0]?.total ?? 0),
+      active_scanners: Number(usersInternos[0]?.total ?? 0),
+      db_size: dbSize[0]?.db_size ?? 'N/A',
+      top_tenants: topTenants,
+    })
+  } catch (err) {
+    console.error('[admin/usage-stats]', err)
+    res.status(500).json({ error: 'Error interno' })
+  }
+})
+
 // GET /api/admin/notifications?status=failed
 router.get('/notifications', authenticateAdmin, async (req, res) => {
   try {

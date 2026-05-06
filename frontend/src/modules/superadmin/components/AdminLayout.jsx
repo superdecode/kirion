@@ -31,8 +31,18 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-gray-950 flex">
       {/* Sidebar */}
       <aside
-        className={`${collapsed ? 'w-16' : 'w-60'} bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 flex-shrink-0`}
+        className={`relative ${collapsed ? 'w-16' : 'w-60'} bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 flex-shrink-0`}
       >
+        {/* Collapse toggle — floating on sidebar edge */}
+        <button
+          onClick={() => setCollapsed(v => !v)}
+          className="absolute -right-3 top-[4.5rem] z-10 w-6 h-6 rounded-full bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:border-gray-500 flex items-center justify-center transition-colors shadow-md"
+          title={collapsed ? 'Expandir' : 'Colapsar'}
+        >
+          {collapsed
+            ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+            : <ChevronLeft className="w-3.5 h-3.5 text-gray-400" />}
+        </button>
         {/* Logo */}
         <div className={`h-16 flex items-center border-b border-gray-800 ${collapsed ? 'justify-center px-3' : 'px-5 gap-3'}`}>
           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
@@ -86,13 +96,6 @@ export default function AdminLayout() {
             </div>
           )}
           <button
-            onClick={() => setCollapsed(v => !v)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            {!collapsed && 'Colapsar'}
-          </button>
-          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-red-950/30 transition-colors"
           >
@@ -108,7 +111,7 @@ export default function AdminLayout() {
         <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 flex-shrink-0">
           <div>
             <p className="text-white font-semibold text-sm">Panel de Administracion</p>
-            <p className="text-gray-500 text-xs">Sistema Kirion WMS</p>
+            <p className="text-gray-500 text-xs">Sistema Kirion</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

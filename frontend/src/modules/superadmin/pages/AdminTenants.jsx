@@ -82,15 +82,15 @@ export default function AdminTenants() {
             className="w-full bg-gray-900 border border-gray-700 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1 gap-0.5 flex-wrap">
           {STATUSES.map(s => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 statusFilter === s
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-200 hover:bg-gray-800'
               }`}
             >
               {STATUS_LABELS[s]}

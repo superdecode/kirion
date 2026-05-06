@@ -1,122 +1,89 @@
 import { useState } from 'react'
 import axios from 'axios'
-import { Check, ChevronRight, Zap, Shield, BarChart3, Users, FileText, Package, ArrowRight, Star, MessageCircle } from 'lucide-react'
+import {
+  Check, ChevronRight, ArrowRight, MessageCircle,
+  ScanLine, Package, FileText, BarChart3, Users, ShieldCheck,
+  AlertTriangle, X, Layers, Clock, Smartphone,
+} from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
+const WA_LINK = 'https://wa.me/8618514458054'
+const WA_LABEL = '+86 185 1445 8054'
+
 const FEATURES = [
   {
-    icon: Zap,
+    icon: ScanLine,
     color: 'text-blue-400',
     bg: 'bg-blue-500/10',
     border: 'border-blue-500/20',
-    title: 'Escaneo DropScan',
-    desc: 'Registra guias en tiempo real con validacion automatica de duplicados, notificaciones sonoras y cierre de tarimas. Cero errores, maxima velocidad.',
+    title: 'Escaneo de guias',
+    desc: 'Registra guias en tiempo real con validacion automatica de duplicados y alerta sonora instantanea. Cero guias perdidas, cero repeticiones.',
   },
   {
-    icon: FileText,
+    icon: Layers,
     color: 'text-purple-400',
     bg: 'bg-purple-500/10',
     border: 'border-purple-500/20',
-    title: 'FEP — Folios de Entrega',
-    desc: 'Generacion automatica de folios y actas de entrega con firma del destinatario. Exportacion a PDF con un clic.',
+    title: 'Control por tarimas',
+    desc: 'Agrupa guias en tarimas de entrega. Abre, cierra y rastrea cada tarima con su contenido exacto. Sabe en todo momento donde esta cada paquete.',
   },
   {
-    icon: Package,
+    icon: FileText,
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/10',
     border: 'border-cyan-500/20',
-    title: 'Inventario',
-    desc: 'Control de stock por escaneo, historial completo de movimientos y reportes de diferencias. Siempre sabes que tienes y donde esta.',
+    title: 'Folios de entrega',
+    desc: 'Genera actas de entrega automaticamente con el detalle de cada guia. Exportacion a PDF con un clic. Sin papel, sin excusas.',
+  },
+  {
+    icon: Smartphone,
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/20',
+    title: 'Escaneadores con PIN',
+    desc: 'Cada operador tiene acceso con PIN unico. Auditoria completa de quien escaneo que y cuando. Control total de tu equipo en campo.',
   },
   {
     icon: BarChart3,
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/10',
     border: 'border-emerald-500/20',
-    title: 'Dashboard y Reportes',
-    desc: 'Metricas de productividad por operador, empresa y canal. Filtros avanzados, exportacion a Excel y vista en tiempo real.',
+    title: 'Reportes exportables',
+    desc: 'Metricas de productividad por operador, empresa y canal. Filtros avanzados y exportacion a Excel incluidos en todos los planes.',
   },
   {
-    icon: Users,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-    title: 'Permisos por Rol',
-    desc: '5 niveles de acceso: Administrador, Jefe, Supervisor, Operador y Usuario. Control granular de que puede ver y hacer cada persona.',
-  },
-  {
-    icon: Shield,
+    icon: Package,
     color: 'text-rose-400',
     bg: 'bg-rose-500/10',
     border: 'border-rose-500/20',
-    title: 'Multi-empresa',
-    desc: 'Separa operaciones por empresa, canal o cliente dentro del mismo sistema. Reportes independientes sin mezclar datos.',
-  },
-]
-
-const PLANS = [
-  {
-    name: 'Basico',
-    price: 97,
-    desc: 'Para operaciones pequenas',
-    color: 'border-gray-700',
-    badge: null,
-    features: [
-      'Hasta 3 operadores',
-      'Modulo DropScan',
-      'Dashboard basico',
-      'Soporte por email',
-      '5,000 guias/mes',
-    ],
-    excluded: ['FEP — Folios de entrega', 'Modulo Inventario', 'Reportes avanzados'],
-  },
-  {
-    name: 'Profesional',
-    price: 188,
-    desc: 'El mas popular',
-    color: 'border-blue-500',
-    badge: 'Mas popular',
-    badgeColor: 'bg-blue-600',
-    features: [
-      'Operadores ilimitados',
-      'DropScan + FEP + Inventario',
-      'Dashboard avanzado + Excel',
-      'Permisos por rol (5 niveles)',
-      '50,000 guias/mes',
-      'Soporte prioritario',
-      'Onboarding incluido',
-    ],
-    excluded: [],
-  },
-  {
-    name: 'Enterprise',
-    price: null,
-    desc: 'Para grandes operaciones',
-    color: 'border-purple-500',
-    badge: 'Mejor valor',
-    badgeColor: 'bg-purple-600',
-    features: [
-      'Todo lo del plan Profesional',
-      'Guias ilimitadas',
-      'Integraciones API',
-      'SLA garantizado',
-      'Soporte dedicado 24/7',
-      'Capacitacion in-situ',
-      'Personalizacion a medida',
-    ],
-    excluded: [],
+    title: 'Multi-paqueteria',
+    desc: 'Compatible con FedEx, DHL, Estafeta, J&T, SHEIN, Shopee y cualquier otro canal en un mismo sistema. Sin separar hojas ni archivos.',
   },
 ]
 
 const PAIN_POINTS = [
-  { q: 'Escaneos duplicados', a: 'Kirion detecta y bloquea automaticamente guias repetidas, con alerta sonora inmediata.' },
-  { q: 'Errores manuales', a: 'La validacion automatica elimina el error humano en el registro de guias y movimientos.' },
-  { q: 'Sin visibilidad en tiempo real', a: 'Dashboard en vivo con metricas de productividad, sin esperar al cierre del turno.' },
-  { q: 'Actas de entrega en papel', a: 'FEP genera folios digitales con firma del destinatario y exporta PDF al instante.' },
+  {
+    icon: AlertTriangle,
+    problem: 'Hojas de calculo interminables',
+    solution: 'Un sistema centralizado reemplaza decenas de Excel. Cada guia queda registrada, trazable y auditable sin copiar y pegar.',
+  },
+  {
+    icon: MessageCircle,
+    problem: 'Coordinar entregas por WhatsApp',
+    solution: 'Nada de capturas y mensajes de voz. Todo el equipo ve el mismo sistema en tiempo real, con el estatus de cada tarima y operador.',
+  },
+  {
+    icon: X,
+    problem: 'Guias duplicadas o perdidas',
+    solution: 'Kirion detecta duplicados al instante con alerta sonora. Si la guia ya fue escaneada, el sistema lo avisa antes de que cause problemas.',
+  },
+  {
+    icon: Clock,
+    problem: 'Cierres de turno que toman horas',
+    solution: 'El folio de entrega se genera automaticamente con todas las guias de la tarima. Cierre documentado en segundos.',
+  },
 ]
-
-const COUNTRIES = ['Mexico', 'Colombia', 'Chile', 'Peru', 'Argentina', 'Brasil', 'China', 'Otro']
 
 const STATS = [
   { value: '12+', label: 'Empresas activas' },
@@ -124,6 +91,64 @@ const STATS = [
   { value: '99.9%', label: 'Uptime garantizado' },
   { value: '< 30 min', label: 'Tiempo de setup' },
 ]
+
+const MONTHLY_PRICES = { basic: 97, pro: 188 }
+const ANNUAL_PRICES = { basic: Math.round(97 * 0.8), pro: Math.round(188 * 0.8) }
+
+const PLANS_CONFIG = [
+  {
+    id: 'basic',
+    name: 'Basico',
+    desc: 'Para operaciones de hasta 10,000 guias',
+    color: 'border-gray-700',
+    badge: null,
+    features: [
+      'Hasta 10,000 guias / mes',
+      '1 bodega',
+      'Escaneo y control de tarimas',
+      'Folios de entrega',
+      'Reportes y exportacion a Excel',
+      'Operadores ilimitados',
+      'Soporte por email',
+    ],
+  },
+  {
+    id: 'pro',
+    name: 'Profesional',
+    desc: 'Para operaciones de alto volumen',
+    color: 'border-blue-500',
+    badge: 'Mas popular',
+    badgeColor: 'bg-blue-600',
+    features: [
+      'Hasta 100,000 guias / mes',
+      '1 bodega',
+      'Escaneo y control de tarimas',
+      'Folios de entrega',
+      'Reportes y exportacion a Excel',
+      'Operadores ilimitados',
+      'Soporte prioritario',
+      'Onboarding incluido',
+    ],
+  },
+  {
+    id: 'custom',
+    name: 'Personalizado',
+    desc: 'Multiples bodegas y volumen a medida',
+    color: 'border-purple-500',
+    badge: 'Empresas grandes',
+    badgeColor: 'bg-purple-600',
+    features: [
+      'Multiples bodegas (proximamente)',
+      'Guias ilimitadas',
+      'Todo lo del plan Profesional',
+      'Integraciones a medida',
+      'SLA garantizado',
+      'Soporte dedicado',
+    ],
+  },
+]
+
+const COUNTRIES = ['Mexico', 'Colombia', 'Chile', 'Peru', 'Argentina', 'Brasil', 'China', 'Otro']
 
 // ── Components ─────────────────────────────────────────────────────────────────
 
@@ -137,7 +162,7 @@ function NavBar() {
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="Kirion" className="w-8 h-8 rounded-lg object-contain" onError={e => { e.currentTarget.style.display = 'none' }} />
           <span className="text-white font-bold text-lg tracking-tight">Kirion</span>
-          <span className="text-blue-400 text-xs font-semibold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">WMS</span>
+          <span className="text-blue-400 text-xs font-semibold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">DropScan</span>
         </div>
         <div className="hidden md:flex items-center gap-6 text-sm text-gray-400">
           {[['funcionalidades', 'Funciones'], ['precios', 'Precios'], ['contacto', 'Contacto']].map(([id, label]) => (
@@ -161,32 +186,31 @@ function HeroSection() {
   }
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-gray-950 via-gray-950 to-gray-900" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(46,87,254,0.15),transparent)]" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-600/5 rounded-full blur-3xl" />
-
-      {/* Grid overlay */}
-      <div className="absolute inset-0 pointer-events-none opacity-[0.025]"
-        style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.5) 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.025]"
+        style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.5) 1px,transparent 1px)', backgroundSize: '40px 40px' }}
+      />
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-xs font-medium mb-6">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-          Sistema de Gestion de Almacen — SaaS
+          Control de guias para dropshipping y paqueteria
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-6">
-          Control total de tu{' '}
+          Deja de controlar guias{' '}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-300 to-cyan-400">
-            operacion logistica
+            en hojas de calculo
           </span>
         </h1>
 
         <p className="text-lg sm:text-xl text-gray-400 leading-relaxed mb-10 max-w-2xl mx-auto">
-          Kirion elimina duplicados, automatiza el registro de guias y da visibilidad en tiempo real a directores de operaciones y jefes de almacen.
-          <span className="text-white font-medium"> Sin hojas de calculo. Sin errores manuales.</span>
+          Kirion DropScan organiza el escaneo, clasificacion y entrega de tus guias de forma sistematizada.
+          <span className="text-white font-medium"> Sin Excel, sin WhatsApp, sin guias perdidas.</span>
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
@@ -206,7 +230,7 @@ function HeroSection() {
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-500">
-          {['Sin tarjeta de credito', 'Setup en menos de 30 min', 'Soporte incluido'].map(t => (
+          {['Sin tarjeta de credito', 'Setup en menos de 30 min', '100+ guias diarias'].map(t => (
             <span key={t} className="flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5 text-emerald-500" />
               {t}
@@ -242,22 +266,22 @@ function ProblemSection() {
         <div className="text-center mb-14">
           <p className="text-blue-400 text-sm font-semibold uppercase tracking-wider mb-3">El problema</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Cada error cuesta dinero y credibilidad
+            Entregar 100+ paquetes al dia sin un sistema es caos
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Los almacenes que trabajan con hojas de calculo y procesos manuales pierden horas, cometen errores y no pueden escalar.
+            La mayoria de empresas de dropshipping controlan sus guias en Excel y WhatsApp. Eso funciona hasta que deja de funcionar.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {PAIN_POINTS.map(({ q, a }) => (
-            <div key={q} className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-500/30 transition-colors">
+          {PAIN_POINTS.map(({ icon: Icon, problem, solution }) => (
+            <div key={problem} className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-500/30 transition-colors">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-red-400 text-xs font-bold">!</span>
+                <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Icon className="w-4 h-4 text-red-400" />
                 </div>
                 <div>
-                  <p className="text-white font-semibold mb-1">{q}</p>
-                  <p className="text-gray-400 text-sm leading-relaxed">{a}</p>
+                  <p className="text-white font-semibold mb-1">{problem}</p>
+                  <p className="text-gray-400 text-sm leading-relaxed">{solution}</p>
                 </div>
               </div>
             </div>
@@ -275,10 +299,10 @@ function FeaturesSection() {
         <div className="text-center mb-14">
           <p className="text-blue-400 text-sm font-semibold uppercase tracking-wider mb-3">Funcionalidades</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Todo lo que necesitas, nada de lo que no
+            Todo lo que necesitas para controlar tus entregas
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Kirion fue construido especificamente para operaciones de mensajeria y logistica en Latinoamerica y Asia.
+            Kirion DropScan fue disenado para empresas que entregan mas de 100 guias diarias y necesitan precision, no improvisation.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -298,25 +322,50 @@ function FeaturesSection() {
 }
 
 function PricingSection() {
+  const [annual, setAnnual] = useState(false)
+
   function scrollTo(id) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
+
+  const prices = annual ? ANNUAL_PRICES : MONTHLY_PRICES
+
   return (
     <section id="precios" className="py-20 bg-gray-950">
       <div className="max-w-5xl mx-auto px-4">
-        <div className="text-center mb-14">
+        <div className="text-center mb-10">
           <p className="text-blue-400 text-sm font-semibold uppercase tracking-wider mb-3">Precios</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             Transparente y sin sorpresas
           </h2>
-          <p className="text-gray-400 text-lg max-w-xl mx-auto">
+          <p className="text-gray-400 text-lg max-w-xl mx-auto mb-8">
             Prueba 7 dias gratis. Cancela cuando quieras. Sin contratos de largo plazo.
           </p>
+
+          {/* Billing toggle */}
+          <div className="inline-flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl p-1.5">
+            <button
+              onClick={() => setAnnual(false)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${!annual ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Mensual
+            </button>
+            <button
+              onClick={() => setAnnual(true)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${annual ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Anual
+              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${annual ? 'bg-blue-500 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                -20%
+              </span>
+            </button>
+          </div>
         </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {PLANS.map((plan, i) => (
+          {PLANS_CONFIG.map((plan, i) => (
             <div
-              key={plan.name}
+              key={plan.id}
               className={`relative bg-gray-900 rounded-2xl border-2 p-6 flex flex-col ${plan.color} ${i === 1 ? 'ring-2 ring-blue-500/30 shadow-xl shadow-blue-500/10' : ''}`}
             >
               {plan.badge && (
@@ -324,20 +373,30 @@ function PricingSection() {
                   {plan.badge}
                 </div>
               )}
+
               <div className="mb-5">
                 <h3 className="text-white font-bold text-lg mb-1">{plan.name}</h3>
                 <p className="text-gray-400 text-sm">{plan.desc}</p>
               </div>
+
               <div className="mb-6">
-                {plan.price ? (
-                  <div className="flex items-end gap-1">
-                    <span className="text-4xl font-black text-white">${plan.price}</span>
-                    <span className="text-gray-400 text-sm mb-1">/mes USD</span>
-                  </div>
+                {plan.id !== 'custom' ? (
+                  <>
+                    <div className="flex items-end gap-1">
+                      <span className="text-4xl font-black text-white">${prices[plan.id]}</span>
+                      <span className="text-gray-400 text-sm mb-1">/mes USD</span>
+                    </div>
+                    {annual && (
+                      <p className="text-emerald-400 text-xs mt-1">
+                        Facturado anualmente — ahorra ${(MONTHLY_PRICES[plan.id] - ANNUAL_PRICES[plan.id]) * 12} USD/ano
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <p className="text-3xl font-black text-white">A consultar</p>
                 )}
               </div>
+
               <ul className="space-y-2.5 mb-6 flex-1">
                 {plan.features.map(f => (
                   <li key={f} className="flex items-start gap-2 text-sm">
@@ -345,13 +404,8 @@ function PricingSection() {
                     <span className="text-gray-300">{f}</span>
                   </li>
                 ))}
-                {plan.excluded.map(f => (
-                  <li key={f} className="flex items-start gap-2 text-sm opacity-40">
-                    <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-gray-600 mt-0.5">—</span>
-                    <span className="text-gray-500 line-through">{f}</span>
-                  </li>
-                ))}
               </ul>
+
               <button
                 onClick={() => scrollTo('contacto')}
                 className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
@@ -362,12 +416,16 @@ function PricingSection() {
                     : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700'
                 }`}
               >
-                {plan.price ? 'Empezar prueba gratis' : 'Contactar ventas'}
+                {plan.id === 'custom' ? 'Contactar ventas' : 'Empezar prueba gratis'}
               </button>
             </div>
           ))}
         </div>
-        <p className="text-center text-gray-600 text-sm mt-6">Todos los precios en USD. IVA segun pais.</p>
+
+        <div className="mt-6 text-center space-y-1">
+          <p className="text-gray-600 text-sm">Todos los precios en USD. IVA segun pais.</p>
+          <p className="text-gray-600 text-sm">Multiples bodegas disponibles en plan Personalizado (funcion en desarrollo).</p>
+        </div>
       </div>
     </section>
   )
@@ -416,19 +474,19 @@ function ContactSection({ form, setForm, loading, success, error, onSubmit }) {
           </select>
         </div>
         <div>
-          <label className={labelCls}>Volumen mensual estimado</label>
+          <label className={labelCls}>Guias diarias estimadas</label>
           <select value={form.volume} onChange={set('volume')} className={inputCls}>
             <option value="">Seleccionar...</option>
-            <option value="lt5k">Menos de 5,000 guias</option>
-            <option value="5k-20k">5,000 – 20,000 guias</option>
-            <option value="20k-100k">20,000 – 100,000 guias</option>
-            <option value="gt100k">Mas de 100,000 guias</option>
+            <option value="100-500">100 – 500 guias/dia</option>
+            <option value="500-2000">500 – 2,000 guias/dia</option>
+            <option value="2000-5000">2,000 – 5,000 guias/dia</option>
+            <option value="gt5000">Mas de 5,000 guias/dia</option>
           </select>
         </div>
       </div>
       <div>
         <label className={labelCls}>Mensaje (opcional)</label>
-        <textarea value={form.message} onChange={set('message')} rows={3} placeholder="Cuentanos mas sobre tu operacion..." className={`${inputCls} resize-none`} />
+        <textarea value={form.message} onChange={set('message')} rows={3} placeholder="Cuentanos mas sobre tu operacion y cuantas guias manejas al dia..." className={`${inputCls} resize-none`} />
       </div>
       {error && (
         <div className="flex items-center gap-2 bg-red-950/40 border border-red-800/40 rounded-xl p-3 text-red-300 text-sm">
@@ -465,10 +523,10 @@ function Footer() {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <img src="/logo.png" alt="Kirion" className="w-7 h-7 rounded-lg object-contain" onError={e => { e.currentTarget.style.display = 'none' }} />
-              <span className="text-white font-bold">Kirion WMS</span>
+              <span className="text-white font-bold">Kirion</span>
             </div>
             <p className="text-gray-500 text-sm leading-relaxed">
-              Sistema de gestion de almacen para operaciones de mensajeria y logistica en Latinoamerica y Asia.
+              Sistema de control de guias para empresas de dropshipping y paqueteria en Latinoamerica y Asia.
             </p>
           </div>
           <div>
@@ -481,13 +539,13 @@ function Footer() {
               </li>
               <li>
                 <a
-                  href="https://wa.me/8618514458054"
+                  href={WA_LINK}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
-                  WhatsApp +86 185 1445 8054
+                  WhatsApp {WA_LABEL}
                 </a>
               </li>
             </ul>
@@ -501,7 +559,7 @@ function Footer() {
           </div>
         </div>
         <div className="pt-6 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-gray-600 text-sm">© 2026 Kirion WMS. Todos los derechos reservados.</p>
+          <p className="text-gray-600 text-sm">© 2026 Kirion. Todos los derechos reservados.</p>
           <p className="text-gray-700 text-xs">Hecho para logistica real</p>
         </div>
       </div>
@@ -509,12 +567,10 @@ function Footer() {
   )
 }
 
-// ── WhatsApp Float ─────────────────────────────────────────────────────────────
-
 function WhatsAppButton() {
   return (
     <a
-      href="https://wa.me/8618514458054?text=Hola,%20me%20interesa%20conocer%20Kirion%20WMS"
+      href={`${WA_LINK}?text=Hola,%20me%20interesa%20conocer%20Kirion%20DropScan`}
       target="_blank"
       rel="noopener noreferrer"
       className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#25D366] hover:bg-[#20b758] text-white font-medium px-4 py-3 rounded-full shadow-lg hover:shadow-xl transition-all group"
@@ -573,7 +629,6 @@ export default function Landing() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-            {/* Benefits */}
             <div className="lg:col-span-2 space-y-4">
               {[
                 { title: 'Trial de 7 dias', desc: 'Acceso completo sin restricciones. Sin tarjeta de credito.' },
@@ -595,13 +650,13 @@ export default function Landing() {
               <div className="mt-6 p-4 bg-gray-800/50 border border-gray-700/50 rounded-xl">
                 <p className="text-white text-sm font-medium mb-1">Contacto directo</p>
                 <a
-                  href="https://wa.me/8618514458054"
+                  href={WA_LINK}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm transition-colors"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  WhatsApp +86 185 1445 8054
+                  WhatsApp {WA_LABEL}
                 </a>
                 <a href="mailto:contacto@kirion.app" className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm transition-colors mt-1.5">
                   contacto@kirion.app
@@ -609,7 +664,6 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* Form */}
             <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-2xl p-6">
               <ContactSection
                 form={form}
