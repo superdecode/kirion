@@ -98,8 +98,8 @@ app.use('/api/dropscan/operadores', tenantContext, moduleGuard('dropscan'), oper
 app.use('/api/inventory', tenantContext, moduleGuard('inventory'), invScanRoutes)
 app.use('/api/inventory', tenantContext, moduleGuard('inventory'), invHistoryRoutes)
 
-// FEP — require fep module
-app.use('/api/fep/folios', tenantContext, moduleGuard('fep'), fepFoliosRoutes)
+// FEP — require dropscan module (FEP is part of dropscan)
+app.use('/api/fep/folios', tenantContext, moduleGuard('dropscan'), fepFoliosRoutes)
 
 // Auto-apply pending migrations (idempotent — each step is independent)
 async function runMigrations() {
@@ -256,11 +256,11 @@ async function runMigrations() {
        timestamp TIMESTAMPTZ DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS idx_fel_folio ON folios_entrega_log(folio_id)`,
-    // FEP permissions — always set (safe upsert by name+expected level)
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"eliminar"}'::jsonb, true) WHERE nombre = 'Administrador'`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"actualizar"}'::jsonb, true) WHERE nombre IN ('Jefe', 'Supervisor')`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"crear"}'::jsonb, true) WHERE nombre = 'Operador'`,
-    `UPDATE roles SET permisos = jsonb_set(permisos, '{fep}', '{"folios":"ver"}'::jsonb, true) WHERE nombre = 'Usuario'`,
+    // FEP folios is part of dropscan module — add folios permission to dropscan
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"eliminar"', true) WHERE nombre = 'Administrador' AND NOT (permisos -> 'dropscan' ? 'folios')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"actualizar"', true) WHERE nombre IN ('Jefe', 'Supervisor') AND NOT (permisos -> 'dropscan' ? 'folios')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"crear"', true) WHERE nombre = 'Operador' AND NOT (permisos -> 'dropscan' ? 'folios')`,
+    `UPDATE roles SET permisos = jsonb_set(permisos, '{dropscan,folios}', '"ver"', true) WHERE nombre = 'Usuario' AND NOT (permisos -> 'dropscan' ? 'folios')`,
   ]
   for (const sql of steps) {
     try {

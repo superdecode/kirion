@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, Printer, ChevronLeft, ChevronRight, Eye, Trash2,
@@ -29,11 +30,15 @@ const ESTADO_COLORS = {
   COMPLETADO: 'bg-primary-100 text-primary-700',
 }
 
+// Always use Mexico City TZ for FEP wizard dates — matches backend's hardcoded TZ
+const getMXToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date())
+
 export default function Folios() {
   const qc = useQueryClient()
   const toast = useToastStore.getState()
   const { t } = useI18nStore()
   const { canView, canDelete, getPermissionLevel, user } = useAuthStore()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const defaultEnd = getToday()
   const defaultStart = subtractDays(defaultEnd, 30)
@@ -70,7 +75,7 @@ export default function Folios() {
   // Wizard state
   const [wizStep, setWizStep] = useState(1)
   const [wizParams, setWizParams] = useState({
-    empresa_id: '', canales: [], fecha_desde: getToday(), fecha_hasta: getToday(), estatus_tarima: 'FINALIZADA'
+    empresa_id: '', canales: [], fecha_desde: getMXToday(), fecha_hasta: getMXToday(), estatus_tarima: 'FINALIZADA'
   })
   const [wizTarimaPage, setWizTarimaPage] = useState(1)
   const [selectedTarimas, setSelectedTarimas] = useState([])
@@ -307,17 +312,35 @@ export default function Folios() {
 
   const openWizard = () => {
     setWizStep(1)
-    setWizParams({ empresa_id: '', canales: [], fecha_desde: getToday(), fecha_hasta: getToday(), estatus_tarima: 'FINALIZADA' })
+    setWizParams({ empresa_id: '', canales: [], fecha_desde: getMXToday(), fecha_hasta: getMXToday(), estatus_tarima: 'FINALIZADA' })
     setSelectedTarimas([]); setWizTarimaPage(1); setExpandedTarima(null); setCreatedFolio(null)
     setShowWizard(true)
   }
 
+  // Auto-open folio when navigating from Historial with ?folio_id=<id>
+  useEffect(() => {
+    const folioId = searchParams.get('folio_id')
+    if (folioId) {
+      openFolioDetail(parseInt(folioId))
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [copiedCode, setCopiedCode] = useState(null)
+  const [copiedFolioHeader, setCopiedFolioHeader] = useState(false)
   const copyToClipboard = (text, e) => {
     e.stopPropagation()
     navigator.clipboard.writeText(text).then(() => {
       setCopiedCode(text)
       setTimeout(() => setCopiedCode(null), 1500)
+    })
+  }
+  const copyFolioHeader = (e) => {
+    e?.stopPropagation()
+    if (!detailFolio) return
+    navigator.clipboard.writeText(detailFolio.folio_numero).then(() => {
+      setCopiedFolioHeader(true)
+      setTimeout(() => setCopiedFolioHeader(false), 1500)
     })
   }
 
@@ -667,8 +690,19 @@ export default function Folios() {
         icon={FileText}
         size="full"
         title={
-          <div className="flex items-center gap-2.5">
-            <span>{detailFolio ? detailFolio.folio_numero : 'Cargando...'}</span>
+          <div className="flex items-center gap-2.5 group/fheader">
+            <span className="font-mono font-bold">{detailFolio ? detailFolio.folio_numero : 'Cargando...'}</span>
+            {detailFolio && (
+              <button
+                onClick={copyFolioHeader}
+                className="opacity-0 group-hover/fheader:opacity-100 p-0.5 rounded hover:bg-primary-100/60 text-warm-400 hover:text-primary-600 transition-all"
+                title="Copiar folio"
+              >
+                {copiedFolioHeader
+                  ? <CheckCircle className="w-3.5 h-3.5 text-success-500" />
+                  : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            )}
             {detailFolio && (
               <span className={`badge text-xs px-2.5 py-1 ${ESTADO_COLORS[detailFolio.estado] || 'bg-warm-100 text-warm-600'}`}>
                 {t(`fep.${detailFolio.estado.toLowerCase()}`)}

@@ -143,15 +143,22 @@ export default function SearchBar() {
                           <span className="text-[10px] font-semibold text-primary-600 shrink-0">Pos #{g.posicion}</span>
                         </div>
                       </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
-                        g.tarima_estado === 'FINALIZADA'
-                          ? 'bg-success-100 text-success-700'
-                          : g.tarima_estado === 'CANCELADA'
-                            ? 'bg-danger-100 text-danger-700'
-                            : 'bg-warning-100 text-warning-700'
-                      }`}>
-                        {g.tarima_estado}
-                      </span>
+                      {(() => {
+                        const ds = g.folio_asignado ? 'ENVIADA' : g.tarima_estado
+                        const clr = ds === 'ENVIADA'
+                          ? 'bg-accent-100 text-accent-700'
+                          : ds === 'FINALIZADA'
+                            ? 'bg-success-100 text-success-700'
+                            : ds === 'CANCELADA'
+                              ? 'bg-danger-100 text-danger-700'
+                              : 'bg-warning-100 text-warning-700'
+                        const label = ds === 'ENVIADA' ? 'Enviada' : ds
+                        return (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${clr}`}>
+                            {label}
+                          </span>
+                        )
+                      })()}
                       <ArrowRight className="w-3.5 h-3.5 text-warm-300 group-hover:text-primary-500 transition-colors shrink-0" />
                     </motion.div>
                   ))}

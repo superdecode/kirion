@@ -9,10 +9,10 @@ const MODULE_ROUTES = [
   { module: 'dropscan.historial', path: '/dropscan/historial' },
   { module: 'dropscan.reportes', path: '/dropscan/reportes' },
   { module: 'dropscan.configuracion', path: '/dropscan/configuracion' },
+  { module: 'dropscan.folios', path: '/dropscan/folios' },
   { module: 'inventory.escaneo', path: '/inventory/escaneo' },
   { module: 'inventory.historial', path: '/inventory/historial' },
   { module: 'inventory.reportes', path: '/inventory/reportes' },
-  { module: 'fep.folios', path: '/dropscan/folios' },
   { module: 'global.wms', path: '/wms' },
   { module: 'global.administracion', path: '/admin' },
 ]
