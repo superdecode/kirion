@@ -29,9 +29,8 @@ async function reseedDatabase() {
         descripcion: 'Acceso total al sistema',
         permisos: {
           global: { inicio: 'eliminar', administracion: 'eliminar', wms: 'eliminar' },
-          dropscan: { dashboard: 'eliminar', escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar', configuracion: 'eliminar' },
+          dropscan: { dashboard: 'eliminar', escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar', configuracion: 'eliminar', folios: 'eliminar' },
           inventory: { escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar' },
-          fep: { folios: 'eliminar' },
         }
       },
       {
@@ -39,9 +38,8 @@ async function reseedDatabase() {
         descripcion: 'Supervisor de operaciones',
         permisos: {
           global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'ver' },
-          dropscan: { dashboard: 'ver', escaneo: 'actualizar', historial: 'actualizar', reportes: 'crear', configuracion: 'ver' },
+          dropscan: { dashboard: 'ver', escaneo: 'actualizar', historial: 'actualizar', reportes: 'crear', configuracion: 'ver', folios: 'actualizar' },
           inventory: { escaneo: 'actualizar', historial: 'actualizar', reportes: 'crear' },
-          fep: { folios: 'actualizar' },
         }
       },
       {
@@ -49,9 +47,8 @@ async function reseedDatabase() {
         descripcion: 'Operador de escaneo',
         permisos: {
           global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
-          dropscan: { dashboard: 'ver', escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
+          dropscan: { dashboard: 'ver', escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso', configuracion: 'sin_acceso', folios: 'crear' },
           inventory: { escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso' },
-          fep: { folios: 'crear' },
         }
       },
       {
@@ -59,9 +56,8 @@ async function reseedDatabase() {
         descripcion: 'Consulta operativa',
         permisos: {
           global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
-          dropscan: { dashboard: 'ver', escaneo: 'sin_acceso', historial: 'ver', reportes: 'ver', configuracion: 'sin_acceso' },
+          dropscan: { dashboard: 'ver', escaneo: 'sin_acceso', historial: 'ver', reportes: 'ver', configuracion: 'sin_acceso', folios: 'ver' },
           inventory: { escaneo: 'sin_acceso', historial: 'ver', reportes: 'ver' },
-          fep: { folios: 'ver' },
         }
       }
     ]
