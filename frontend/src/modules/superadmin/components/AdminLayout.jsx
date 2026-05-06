@@ -36,12 +36,12 @@ export default function AdminLayout() {
         {/* Collapse toggle — floating on sidebar edge */}
         <button
           onClick={() => setCollapsed(v => !v)}
-          className="absolute -right-3 top-[4.5rem] z-10 w-6 h-6 rounded-full bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:border-gray-500 flex items-center justify-center transition-colors shadow-md"
+          className="absolute -right-4 top-24 z-50 w-8 h-8 rounded-full bg-white border-2 border-blue-300 hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center transition-all duration-300 hover:shadow-lg shadow-md"
           title={collapsed ? 'Expandir' : 'Colapsar'}
         >
-          {collapsed
-            ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-            : <ChevronLeft className="w-3.5 h-3.5 text-gray-400" />}
+          <div className={`transition-transform duration-300 ${collapsed ? '' : 'rotate-180'}`}>
+            <ChevronRight className="w-4 h-4 text-blue-600" />
+          </div>
         </button>
         {/* Logo */}
         <div className={`h-16 flex items-center border-b border-gray-800 ${collapsed ? 'justify-center px-3' : 'px-5 gap-3'}`}>
