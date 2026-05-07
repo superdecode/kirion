@@ -183,7 +183,15 @@ router.get('/tenants', authenticateAdmin, async (req, res) => {
     const base = `
       SELECT t.*, p.name as plan_name,
              (SELECT COUNT(*) FROM usuarios u WHERE u.tenant_id = t.id) as user_count,
-             (SELECT MAX(u.ultimo_acceso) FROM usuarios u WHERE u.tenant_id = t.id) as last_access
+             (SELECT MAX(u.ultimo_acceso) FROM usuarios u WHERE u.tenant_id = t.id) as last_access,
+             (SELECT COUNT(*) FROM guias g WHERE g.tenant_id = t.id) as guias_count,
+             (SELECT s2.expires_at FROM subscriptions s2
+              WHERE s2.tenant_id = t.id AND s2.status = 'active'
+              ORDER BY s2.expires_at DESC LIMIT 1) as active_sub_expires_at,
+             (SELECT p2.name FROM subscriptions s2
+              JOIN plans p2 ON p2.id = s2.plan_id
+              WHERE s2.tenant_id = t.id AND s2.status = 'active'
+              ORDER BY s2.expires_at DESC LIMIT 1) as active_plan_name
       FROM tenants t
       LEFT JOIN plans p ON t.current_plan_id = p.id
     `
@@ -198,6 +206,38 @@ router.get('/tenants', authenticateAdmin, async (req, res) => {
   }
 })
 
+// GET /api/admin/tenants/:id/stats — MUST come before /:id (more specific route first)
+router.get('/tenants/:id/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // Simple queries without tenant filter first to test connectivity
+    const [totalGuias, guias30d, tarimas, folios, scanners, users] = await Promise.all([
+      query(`SELECT COUNT(*) AS total FROM guias WHERE tenant_id = $1`, [id]).catch(err => { console.error('[guias query]', err.message); return { rows: [{ total: 0 }] } }),
+      query(`SELECT COUNT(*) AS total FROM guias WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id]).catch(err => { console.error('[guias 30d]', err.message); return { rows: [{ total: 0 }] } }),
+      query(`SELECT COUNT(*) AS total FROM tarimas WHERE tenant_id = $1`, [id]).catch(err => { console.error('[tarimas]', err.message); return { rows: [{ total: 0 }] } }),
+      query(`SELECT COUNT(*) AS total FROM folios_entrega WHERE tenant_id = $1`, [id]).catch(err => { console.error('[folios_entrega]', err.message); return { rows: [{ total: 0 }] } }),
+      query(`SELECT COUNT(*) AS total FROM usuarios_internos WHERE tenant_id = $1 AND activo = true`, [id]).catch(err => { console.error('[usuarios_internos]', err.message); return { rows: [{ total: 0 }] } }),
+      query(`SELECT COUNT(*) AS total FROM usuarios WHERE tenant_id = $1`, [id]).catch(err => { console.error('[usuarios]', err.message); return { rows: [{ total: 0 }] } }),
+    ])
+
+    res.json({
+      success: true,
+      data: {
+        total_guias: Number(totalGuias.rows[0]?.total ?? 0),
+        guias_last_30d: Number(guias30d.rows[0]?.total ?? 0),
+        total_tarimas: Number(tarimas.rows[0]?.total ?? 0),
+        total_folios: Number(folios.rows[0]?.total ?? 0),
+        active_scanners: Number(scanners.rows[0]?.total ?? 0),
+        total_users: Number(users.rows[0]?.total ?? 0),
+      },
+    })
+  } catch (err) {
+    console.error('[admin/tenants/:id/stats]', err.message)
+    res.status(500).json({ error: 'Error interno', details: err.message })
+  }
+})
+
 // GET /api/admin/tenants/:id
 router.get('/tenants/:id', authenticateAdmin, async (req, res) => {
   try {
@@ -205,15 +245,18 @@ router.get('/tenants/:id', authenticateAdmin, async (req, res) => {
     const [tenantRes, logRes, subRes] = await Promise.all([
       query('SELECT t.*, p.name as plan_name FROM tenants t LEFT JOIN plans p ON t.current_plan_id = p.id WHERE t.id = $1', [id]),
       query('SELECT * FROM provisioning_log WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50', [id]),
-      query('SELECT s.*, p.name as plan_name FROM subscriptions s JOIN plans p ON s.plan_id = p.id WHERE s.tenant_id = $1 ORDER BY s.started_at DESC', [id]),
+      query('SELECT s.*, p.name as plan_name, p.duration_days FROM subscriptions s JOIN plans p ON s.plan_id = p.id WHERE s.tenant_id = $1 ORDER BY s.expires_at DESC', [id]),
     ])
     if (tenantRes.rows.length === 0) return res.status(404).json({ error: 'Tenant no encontrado' })
+
+    const activeSub = subRes.rows.find(s => s.status === 'active') || null
 
     res.json({
       success: true,
       tenant: tenantRes.rows[0],
       provisioning_log: logRes.rows,
       subscriptions: subRes.rows,
+      active_subscription: activeSub,
     })
   } catch (err) {
     console.error('[admin/tenants/:id]', err)
@@ -225,16 +268,17 @@ router.get('/tenants/:id', authenticateAdmin, async (req, res) => {
 router.patch('/tenants/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params
-    const { legal_name, contact_email, contact_phone, country } = req.body
+    const { legal_name, contact_email, contact_phone, country, notes } = req.body
     await query(
       `UPDATE tenants SET
          legal_name = COALESCE($1, legal_name),
          contact_email = COALESCE($2, contact_email),
          contact_phone = COALESCE($3, contact_phone),
          country = COALESCE($4, country),
+         notes = $5,
          updated_at = now()
-       WHERE id = $5`,
-      [legal_name || null, contact_email || null, contact_phone || null, country || null, id]
+       WHERE id = $6`,
+      [legal_name || null, contact_email || null, contact_phone || null, country || null, notes ?? null, id]
     )
     adminAudit(req.admin.id, 'UPDATE_TENANT', 'tenant', id, { legal_name, contact_email, contact_phone, country })
     res.json({ success: true })
@@ -371,7 +415,7 @@ router.get('/usage-stats', authenticateAdmin, async (_req, res) => {
   try {
     const safeQuery = async (sql, params) => {
       try { return (await query(sql, params)).rows }
-      catch { return [] }
+      catch (err) { console.error('[usage-stats query]', sql.slice(0, 60), err.message); return [] }
     }
 
     const [totalGuias, guias30d, topTenants, dbSize, tarimas, folios, usersInternos] = await Promise.all([
@@ -387,7 +431,7 @@ router.get('/usage-stats', authenticateAdmin, async (_req, res) => {
       `),
       safeQuery(`SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size`),
       safeQuery(`SELECT COUNT(*) AS total FROM tarimas`),
-      safeQuery(`SELECT COUNT(*) AS total FROM folios_fep`),
+      safeQuery(`SELECT COUNT(*) AS total FROM folios_entrega`),
       safeQuery(`SELECT COUNT(*) AS total FROM usuarios_internos WHERE activo = true`),
     ])
 
@@ -403,6 +447,72 @@ router.get('/usage-stats', authenticateAdmin, async (_req, res) => {
     })
   } catch (err) {
     console.error('[admin/usage-stats]', err)
+    res.status(500).json({ error: 'Error interno' })
+  }
+})
+
+// GET /api/admin/analytics/landing — landing page event aggregates
+router.get('/analytics/landing', authenticateAdmin, async (_req, res) => {
+  try {
+    const safeQuery = async (sql, params) => {
+      try { return (await query(sql, params)).rows }
+      catch { return [] }
+    }
+
+    const [totals, planStats, recentEvents, dailyVisits] = await Promise.all([
+      safeQuery(`
+        SELECT
+          COUNT(*) FILTER (WHERE event_type = 'page_visit')  AS total_visits,
+          COUNT(*) FILTER (WHERE event_type = 'form_submit') AS total_submissions,
+          COUNT(*) FILTER (WHERE event_type = 'cta_click')   AS total_cta_clicks,
+          COUNT(*) FILTER (WHERE event_type = 'plan_select') AS total_plan_selects,
+          COUNT(*) FILTER (WHERE event_type = 'page_visit'  AND created_at >= now() - INTERVAL '7 days') AS visits_7d,
+          COUNT(*) FILTER (WHERE event_type = 'form_submit' AND created_at >= now() - INTERVAL '7 days') AS submissions_7d
+        FROM landing_events
+      `),
+      safeQuery(`
+        SELECT payload->>'plan' AS plan, COUNT(*) AS count
+        FROM landing_events
+        WHERE event_type = 'plan_select' AND payload->>'plan' IS NOT NULL
+        GROUP BY payload->>'plan'
+        ORDER BY count DESC
+      `),
+      safeQuery(`
+        SELECT event_type, payload, created_at
+        FROM landing_events
+        ORDER BY created_at DESC LIMIT 50
+      `),
+      safeQuery(`
+        SELECT DATE(created_at) AS date, COUNT(*) AS visits
+        FROM landing_events
+        WHERE event_type = 'page_visit' AND created_at >= now() - INTERVAL '14 days'
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `),
+    ])
+
+    const t = totals[0] || {}
+    const visits = Number(t.total_visits ?? 0)
+    const submissions = Number(t.total_submissions ?? 0)
+    const conversionRate = visits > 0 ? ((submissions / visits) * 100).toFixed(1) : '0'
+
+    res.json({
+      success: true,
+      data: {
+        total_visits: visits,
+        total_submissions: submissions,
+        total_cta_clicks: Number(t.total_cta_clicks ?? 0),
+        total_plan_selects: Number(t.total_plan_selects ?? 0),
+        visits_7d: Number(t.visits_7d ?? 0),
+        submissions_7d: Number(t.submissions_7d ?? 0),
+        conversion_rate: conversionRate,
+        plan_stats: planStats,
+        recent_events: recentEvents,
+        daily_visits: dailyVisits,
+      },
+    })
+  } catch (err) {
+    console.error('[admin/analytics/landing]', err)
     res.status(500).json({ error: 'Error interno' })
   }
 })

@@ -18,6 +18,7 @@ import AdminSolicitudes from './modules/superadmin/pages/AdminSolicitudes'
 import AdminTenants from './modules/superadmin/pages/AdminTenants'
 import AdminTenantDetalle from './modules/superadmin/pages/AdminTenantDetalle'
 import AdminNotificaciones from './modules/superadmin/pages/AdminNotificaciones'
+import AdminAnalytics from './modules/superadmin/pages/AdminAnalytics'
 import { useAdminAuthStore } from './modules/superadmin/stores/adminAuthStore'
 
 // Landing page
@@ -116,6 +117,7 @@ function AppRoutes() {
         <Route path="tenants" element={<AdminTenants />} />
         <Route path="tenants/:id" element={<AdminTenantDetalle />} />
         <Route path="notificaciones" element={<AdminNotificaciones />} />
+        <Route path="analytics" element={<AdminAnalytics />} />
       </Route>
 
       {/* TENANT APP — path="/" so this layout only activates for its own child routes,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { Search, RefreshCw, Building2, ChevronRight, AlertCircle, CheckCircle2, Clock, XCircle, PauseCircle, Users, Calendar } from 'lucide-react'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { Search, RefreshCw, Building2, ChevronRight, AlertCircle, CheckCircle2, Clock, XCircle, PauseCircle, Users, Calendar, Database, Zap } from 'lucide-react'
 import adminApi from '../services/adminApi'
 
 const STATUS_CFG = {
@@ -27,12 +27,14 @@ const STATUSES = ['', 'trial', 'active', 'trial_expired', 'expired', 'suspended'
 const STATUS_LABELS = { '': 'Todos', trial: 'Trial', active: 'Activo', trial_expired: 'Trial vencido', expired: 'Vencido', suspended: 'Suspendido' }
 
 export default function AdminTenants() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [tenants, setTenants] = useState([])
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [dbSize, setDbSize] = useState(null)
 
   function load() {
     setLoading(true)
@@ -43,6 +45,12 @@ export default function AdminTenants() {
       .catch(() => setError('Error cargando tenants'))
       .finally(() => setLoading(false))
   }
+
+  useEffect(() => {
+    adminApi.get('/usage-stats')
+      .then(r => setDbSize(r.data.data?.db_size ?? null))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => { load() }, [statusFilter])
 
@@ -64,10 +72,19 @@ export default function AdminTenants() {
           <h1 className="text-xl font-bold text-white">Tenants</h1>
           <p className="text-gray-500 text-sm mt-0.5">{tenants.length} organizaciones registradas</p>
         </div>
-        <button onClick={load} className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm rounded-lg transition-colors border border-gray-700">
-          <RefreshCw className="w-3.5 h-3.5" />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-3">
+          {dbSize && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg">
+              <span className="w-2 h-2 rounded-full bg-blue-400" />
+              <span className="text-gray-400 text-xs">DB</span>
+              <span className="text-white text-xs font-semibold">{dbSize}</span>
+            </div>
+          )}
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm rounded-lg transition-colors border border-gray-700">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Search + filters */}
@@ -130,16 +147,20 @@ export default function AdminTenants() {
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3 hidden md:table-cell">Estado</th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3 hidden lg:table-cell">Plan</th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3 hidden lg:table-cell">Usuarios</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3 hidden xl:table-cell">Guias</th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-4 py-3 hidden xl:table-cell">Vencimiento</th>
                 <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/60">
               {filtered.map(t => {
-                const exp = t.subscription_expires_at ? new Date(t.subscription_expires_at) : null
+                const expAt = t.active_sub_expires_at || t.subscription_expires_at || t.trial_expires_at
+                const isTrial = !t.active_sub_expires_at && !t.subscription_expires_at && !!t.trial_expires_at
+                const exp = expAt ? new Date(expAt) : null
                 const daysLeft = exp ? Math.ceil((exp - Date.now()) / 86400000) : null
+                const planLabel = t.active_plan_name || t.plan_name
                 return (
-                  <tr key={t.id} className="hover:bg-gray-800/30 transition-colors group">
+                  <tr key={t.id} className="hover:bg-gray-800/30 transition-colors group cursor-pointer" onClick={() => navigate(`/super-admin/tenants/${t.id}`)}>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center flex-shrink-0 font-bold text-gray-400 text-sm">
@@ -155,7 +176,7 @@ export default function AdminTenants() {
                       <StatusBadge status={t.status} />
                     </td>
                     <td className="px-4 py-4 hidden lg:table-cell">
-                      <span className="text-gray-300 text-sm">{t.plan_name || '—'}</span>
+                      <span className="text-gray-300 text-sm">{planLabel || '—'}</span>
                     </td>
                     <td className="px-4 py-4 hidden lg:table-cell">
                       <div className="flex items-center gap-1.5 text-gray-400">
@@ -164,21 +185,30 @@ export default function AdminTenants() {
                       </div>
                     </td>
                     <td className="px-4 py-4 hidden xl:table-cell">
+                      <div className="flex items-center gap-1.5 text-gray-400">
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>{Number(t.guias_count ?? 0).toLocaleString()}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 hidden xl:table-cell">
                       {exp ? (
-                        <span className={`text-xs font-medium ${daysLeft < 7 ? 'text-red-400' : daysLeft < 30 ? 'text-amber-400' : 'text-gray-400'}`}>
-                          {daysLeft > 0 ? `${daysLeft}d restantes` : `Vencido`}
-                        </span>
+                        <div>
+                          <span className={`text-xs font-medium ${daysLeft !== null && daysLeft < 7 ? 'text-red-400' : daysLeft !== null && daysLeft < 30 ? 'text-amber-400' : 'text-gray-300'}`}>
+                            {daysLeft !== null && daysLeft > 0 ? `${daysLeft}d restantes` : 'Vencido'}
+                          </span>
+                          <p className="text-gray-600 text-xs mt-0.5">
+                            {exp.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {isTrial && <span className="ml-1 text-blue-500">(trial)</span>}
+                          </p>
+                        </div>
                       ) : (
                         <span className="text-gray-600 text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-4">
-                      <Link
-                        to={`/super-admin/tenants/${t.id}`}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-800 hover:bg-blue-600 border border-gray-700 hover:border-blue-500 text-gray-400 hover:text-white transition-colors"
-                      >
+                    <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-800 group-hover:bg-blue-600 border border-gray-700 group-hover:border-blue-500 text-gray-400 group-hover:text-white transition-colors">
                         <ChevronRight className="w-4 h-4" />
-                      </Link>
+                      </div>
                     </td>
                   </tr>
                 )

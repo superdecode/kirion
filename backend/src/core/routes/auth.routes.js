@@ -103,14 +103,21 @@ router.post('/login', async (req, res) => {
 
     const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
 
-    const subRes = await query(
-      `SELECT p.modules FROM subscriptions s
-       JOIN plans p ON s.plan_id = p.id
-       WHERE s.tenant_id = $1 AND s.status = 'active'
-       ORDER BY s.started_at DESC LIMIT 1`,
-      [tenant.id]
-    )
+    const [subRes, tenantRes] = await Promise.all([
+      query(
+        `SELECT p.modules FROM subscriptions s
+         JOIN plans p ON s.plan_id = p.id
+         WHERE s.tenant_id = $1 AND s.status = 'active'
+         ORDER BY s.started_at DESC LIMIT 1`,
+        [tenant.id]
+      ),
+      query(
+        `SELECT status, trial_expires_at, subscription_expires_at, legal_name, contact_email, contact_phone, current_plan_id FROM tenants WHERE id = $1`,
+        [tenant.id]
+      ),
+    ])
     const modules = subRes.rows.length > 0 ? subRes.rows[0].modules : ['dropscan']
+    const tenantInfo = tenantRes.rows[0] || {}
 
     const jti = crypto.randomBytes(16).toString('hex')
     const payload = {
@@ -120,7 +127,7 @@ router.post('/login', async (req, res) => {
       rol_id: user.rol_id,
       rol_nombre: user.rol_nombre,
       tenant_id: tenant.id,
-      tenant_status: tenant.status,
+      tenant_status: tenantInfo.status || tenant.status,
       must_change_password: user.must_change_password || false,
       modules,
       jti,
@@ -145,6 +152,11 @@ router.post('/login', async (req, res) => {
         zona_horaria: user.zona_horaria || 'America/Mexico_City',
         must_change_password: user.must_change_password || false,
         modules,
+        tenant_status: tenantInfo.status || tenant.status,
+        tenant_name: tenantInfo.legal_name || '',
+        tenant_contact_email: tenantInfo.contact_email || user.email,
+        subscription_expires_at: tenantInfo.subscription_expires_at || null,
+        trial_expires_at: tenantInfo.trial_expires_at || null,
       }
     })
   } catch (error) {
@@ -156,21 +168,27 @@ router.post('/login', async (req, res) => {
 // GET /api/auth/me
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const result = await query(
-      `SELECT u.id, u.codigo, u.nombre_completo, u.email, u.rol_id, u.estado,
-              u.avatar_url, u.permisos_override, u.ultimo_acceso,
-              r.nombre as rol_nombre, r.permisos as rol_permisos
-       FROM usuarios u
-       LEFT JOIN roles r ON u.rol_id = r.id
-       WHERE u.id = $1`,
-      [req.user.id]
-    )
+    const [result, tenantRes] = await Promise.all([
+      query(
+        `SELECT u.id, u.codigo, u.nombre_completo, u.email, u.rol_id, u.estado,
+                u.avatar_url, u.permisos_override, u.ultimo_acceso, u.zona_horaria,
+                r.nombre as rol_nombre, r.permisos as rol_permisos
+         FROM usuarios u
+         LEFT JOIN roles r ON u.rol_id = r.id
+         WHERE u.id = $1`,
+        [req.user.id]
+      ),
+      req.user.tenant_id
+        ? query(`SELECT status, trial_expires_at, subscription_expires_at, legal_name, contact_email FROM tenants WHERE id = $1`, [req.user.tenant_id])
+        : Promise.resolve({ rows: [] }),
+    ])
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' })
     }
 
     const user = result.rows[0]
+    const tenantInfo = tenantRes.rows[0] || {}
     const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
 
     res.json({
@@ -185,6 +203,11 @@ router.get('/me', authenticateToken, async (req, res) => {
       estado: user.estado,
       ultimo_acceso: user.ultimo_acceso,
       zona_horaria: user.zona_horaria || 'America/Mexico_City',
+      tenant_status: tenantInfo.status || req.user.tenant_status,
+      tenant_name: tenantInfo.legal_name || '',
+      tenant_contact_email: tenantInfo.contact_email || user.email,
+      subscription_expires_at: tenantInfo.subscription_expires_at || null,
+      trial_expires_at: tenantInfo.trial_expires_at || null,
     })
   } catch (error) {
     console.error('Auth/me error:', error)

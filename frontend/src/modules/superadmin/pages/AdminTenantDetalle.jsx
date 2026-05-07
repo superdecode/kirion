@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, RefreshCw, CheckCircle2, XCircle, PauseCircle, PlayCircle,
   Edit2, Save, X, Plus, Calendar, Users, CreditCard, Activity,
-  AlertCircle, Check, Clock, Building2
+  AlertCircle, Check, Clock, Building2, FileText, Package, Zap
 } from 'lucide-react'
 import adminApi from '../services/adminApi'
 
@@ -37,13 +37,14 @@ function Field({ label, children }) {
 const inputCls = "w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
 const disabledCls = "w-full bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2.5 text-gray-400 text-sm"
 
-function EditInfoCard({ tenant, onSaved }) {
+function EditInfoCard({ tenant, activeSub, onSaved }) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
     legal_name: tenant.legal_name || '',
     contact_email: tenant.contact_email || '',
     contact_phone: tenant.contact_phone || '',
     country: tenant.country || '',
+    notes: tenant.notes || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -135,11 +136,65 @@ function EditInfoCard({ tenant, onSaved }) {
           <p className={disabledCls}>{new Date(tenant.created_at).toLocaleString('es-MX')}</p>
         </Field>
         <Field label="Trial vence">
-          <p className={disabledCls}>{tenant.trial_expires_at ? new Date(tenant.trial_expires_at).toLocaleDateString('es-MX') : '—'}</p>
+          {(() => {
+            if (!tenant.trial_expires_at) return <p className={disabledCls}>—</p>
+            const d = new Date(tenant.trial_expires_at)
+            const days = Math.ceil((d - Date.now()) / 86400000)
+            const color = days < 0 ? 'text-red-400' : days <= 7 ? 'text-amber-400' : 'text-emerald-400'
+            return (
+              <p className={`${disabledCls} ${color}`}>
+                {d.toLocaleDateString('es-MX')}{' '}
+                <span className="text-xs">({days < 0 ? 'vencido' : `${days}d restantes`})</span>
+              </p>
+            )
+          })()}
         </Field>
-        <Field label="Suscripcion vence">
-          <p className={disabledCls}>{tenant.subscription_expires_at ? new Date(tenant.subscription_expires_at).toLocaleDateString('es-MX') : '—'}</p>
+        <Field label="Suscripcion vigente">
+          {(() => {
+            const expiresAt = activeSub?.expires_at || tenant.subscription_expires_at
+            if (!expiresAt) return <p className={disabledCls}>Sin suscripcion activa</p>
+            const d = new Date(expiresAt)
+            const days = Math.ceil((d - Date.now()) / 86400000)
+            const color = days < 0 ? 'text-red-400' : days <= 7 ? 'text-amber-400' : 'text-emerald-400'
+            return (
+              <div className={`${disabledCls} ${color} space-y-0.5`}>
+                <div className="flex items-center gap-2">
+                  {activeSub?.plan_name && (
+                    <span className="text-xs bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 px-2 py-0.5 rounded-full font-medium">
+                      {activeSub.plan_name}
+                    </span>
+                  )}
+                  <span className="text-xs">({days < 0 ? 'vencido' : `${days}d restantes`})</span>
+                </div>
+                <p className="text-xs text-gray-500">{d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              </div>
+            )
+          })()}
         </Field>
+      </div>
+
+      <Field label="Notas / Observaciones">
+        {editing
+          ? <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Observaciones importantes sobre este tenant..." className={`${inputCls} resize-none`} />
+          : <p className={`${disabledCls} min-h-[3.5rem] py-2 whitespace-pre-wrap`}>{form.notes || '—'}</p>}
+      </Field>
+    </div>
+  )
+}
+
+function StatCard({ icon: Icon, label, value, color, loading = false }) {
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-lg ${color} bg-opacity-10 flex items-center justify-center flex-shrink-0`}>
+          <Icon className={`w-5 h-5 ${color}`} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-gray-500 text-xs uppercase tracking-wider">{label}</p>
+          <p className="text-white font-bold text-lg leading-none mt-0.5">
+            {loading ? '...' : value}
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -260,6 +315,8 @@ function SubscriptionCard({ tenantId, subscriptions, plans, onSaved }) {
 export default function AdminTenantDetalle() {
   const { id } = useParams()
   const [data, setData] = useState(null)
+  const [stats, setStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(true)
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
@@ -278,10 +335,24 @@ export default function AdminTenantDetalle() {
       ])
       setData(detailRes.data)
       setPlans(plansRes.data.data)
-    } catch {
-      /* noop */
+    } catch (err) {
+      console.error('[admin/tenants/:id load error]', err)
     } finally {
       setLoading(false)
+    }
+
+    // Load stats separately
+    setStatsLoading(true)
+    try {
+      const statsRes = await adminApi.get(`/tenants/${id}/stats`)
+      const statsData = statsRes.data.data
+      console.log('[stats loaded]', statsData)
+      setStats(statsData)
+    } catch (err) {
+      console.error('[stats load error]', err.response?.data || err.message)
+      setStats(null)
+    } finally {
+      setStatsLoading(false)
     }
   }
 
@@ -314,7 +385,7 @@ export default function AdminTenantDetalle() {
     </div>
   )
 
-  const { tenant, provisioning_log, subscriptions } = data
+  const { tenant, provisioning_log, subscriptions, active_subscription } = data
   const statusCfg = STATUS_CFG[tenant.status] || { label: tenant.status, bg: 'bg-gray-700', text: 'text-gray-300', border: 'border-gray-600' }
 
   return (
@@ -388,9 +459,27 @@ export default function AdminTenantDetalle() {
         </div>
       </div>
 
+      {/* Stats section */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard icon={Zap} label="Guias totales" value={stats?.total_guias.toLocaleString() ?? '—'} color="text-blue-400" loading={statsLoading} />
+        <StatCard icon={Package} label="Tarimas" value={stats?.total_tarimas.toLocaleString() ?? '—'} color="text-purple-400" loading={statsLoading} />
+        <StatCard icon={FileText} label="Folios" value={stats?.total_folios.toLocaleString() ?? '—'} color="text-cyan-400" loading={statsLoading} />
+        <StatCard icon={Users} label="Escaneadores activos" value={stats?.active_scanners.toLocaleString() ?? '—'} color="text-amber-400" loading={statsLoading} />
+      </div>
+      {!statsLoading && stats ? (
+        <div className="flex items-center gap-2 text-xs text-gray-500 -mt-2">
+          <Activity className="w-3.5 h-3.5" />
+          <span>{stats.guias_last_30d.toLocaleString()} guias en los ultimos 30 dias</span>
+          <span className="text-gray-700">·</span>
+          <span>{stats.total_users} usuarios registrados</span>
+        </div>
+      ) : !statsLoading && !stats ? (
+        <p className="text-xs text-gray-600 -mt-2">Abre consola (F12) → pestaña Console para ver errores. Verifica que las migraciones se hayan ejecutado.</p>
+      ) : null}
+
       {/* Main grid */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <EditInfoCard tenant={tenant} onSaved={(msg) => { showToast(msg); load() }} />
+        <EditInfoCard tenant={tenant} activeSub={active_subscription} onSaved={(msg) => { showToast(msg); load() }} />
         <SubscriptionCard tenantId={id} subscriptions={subscriptions} plans={plans} onSaved={(msg) => { showToast(msg); load() }} />
       </div>
 

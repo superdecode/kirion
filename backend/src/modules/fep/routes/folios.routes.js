@@ -242,12 +242,12 @@ router.post('/',
       const folioRes = await client.query(
         `INSERT INTO folios_entrega
            (folio_numero, empresa_id, canales, fecha_tarimas_desde, fecha_tarimas_hasta,
-            estatus_tarima_filtro, estado, hora_inicio, creado_por)
-         VALUES ($1,$2,$3,$4,$5,$6,'ACTIVO',now(),$7)
+            estatus_tarima_filtro, estado, hora_inicio, creado_por, tenant_id)
+         VALUES ($1,$2,$3,$4,$5,$6,'ACTIVO',now(),$7,$8)
          RETURNING *`,
         [folioNumero, empresa_id, canalIds, fecha_desde || new Date().toISOString().slice(0,10),
          fecha_hasta || new Date().toISOString().slice(0,10),
-         estatus_tarima || 'FINALIZADA', req.fullUser.id]
+         estatus_tarima || 'FINALIZADA', req.fullUser.id, req.tenantId]
       )
       const folio = folioRes.rows[0]
 

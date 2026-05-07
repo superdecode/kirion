@@ -13,6 +13,13 @@ const signupLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes, intenta mas tarde' },
 })
 
+const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
 async function verifyTurnstile(token, ip) {
   if (env.NODE_ENV !== 'production') return true
   if (!env.TURNSTILE_SECRET) return true
@@ -94,6 +101,40 @@ router.post('/signup-requests', signupLimiter, async (req, res) => {
   } catch (err) {
     console.error('[public/signup-requests]', err)
     res.status(500).json({ error: 'Error interno. Intenta de nuevo.' })
+  }
+})
+
+// POST /api/public/track — landing page analytics (fire and forget)
+router.post('/track', trackLimiter, async (req, res) => {
+  try {
+    const { event_type, payload } = req.body
+    if (!event_type || typeof event_type !== 'string') return res.json({ ok: true })
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip
+    const userAgent = req.headers['user-agent'] || null
+    await query(
+      `INSERT INTO landing_events (event_type, payload, ip, user_agent) VALUES ($1, $2, $3, $4)`,
+      [event_type.slice(0, 50), payload ? JSON.stringify(payload) : null, ip, userAgent]
+    )
+  } catch { /* non-blocking */ }
+  res.json({ ok: true })
+})
+
+// POST /api/public/renewal-request — tenant subscription renewal request
+router.post('/renewal-request', async (req, res) => {
+  try {
+    const { tenant_name, contact_name, contact_email, current_plan, message } = req.body
+    if (!contact_email) return res.status(400).json({ error: 'Email requerido' })
+
+    if (env.SUPER_ADMIN_EMAIL) {
+      await query(
+        `INSERT INTO notifications_outbox (recipient_email, template_code, payload)
+         VALUES ($1, 'renewal_request', $2)`,
+        [env.SUPER_ADMIN_EMAIL, JSON.stringify({ tenant_name, contact_name, contact_email, current_plan, message })]
+      ).catch(() => {})
+    }
+    res.json({ success: true })
+  } catch {
+    res.json({ success: true })
   }
 })
 

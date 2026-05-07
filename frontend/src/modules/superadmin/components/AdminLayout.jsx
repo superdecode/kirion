@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAdminAuthStore } from '../stores/adminAuthStore'
 import {
   LayoutDashboard, Building2, FileText, Bell, LogOut,
-  ChevronLeft, ChevronRight, Settings, Shield
+  ChevronLeft, ChevronRight, Settings, Shield, BarChart3
 } from 'lucide-react'
 
 const NAV = [
@@ -11,6 +11,7 @@ const NAV = [
   { to: '/super-admin/tenants', label: 'Tenants', icon: Building2 },
   { to: '/super-admin/solicitudes', label: 'Solicitudes', icon: FileText },
   { to: '/super-admin/notificaciones', label: 'Notificaciones', icon: Bell },
+  { to: '/super-admin/analytics', label: 'Analiticas', icon: BarChart3 },
 ]
 
 export default function AdminLayout() {
@@ -28,21 +29,23 @@ export default function AdminLayout() {
     : 'SA'
 
   return (
-    <div className="min-h-screen bg-gray-950 flex">
+    <div className="min-h-screen bg-gray-950 flex relative">
+      {/* Collapse toggle — floating between sidebar and content */}
+      <button
+        onClick={() => setCollapsed(v => !v)}
+        className="absolute left-auto right-auto top-24 z-50 w-8 h-8 rounded-full bg-white border-2 border-blue-300 hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center transition-all duration-300 hover:shadow-lg shadow-md"
+        style={{ left: collapsed ? 'calc(4rem - 16px)' : 'calc(15rem - 16px)' }}
+        title={collapsed ? 'Expandir' : 'Colapsar'}
+      >
+        <div className={`transition-transform duration-300 ${collapsed ? '' : 'rotate-180'}`}>
+          <ChevronRight className="w-4 h-4 text-blue-600" />
+        </div>
+      </button>
+
       {/* Sidebar */}
       <aside
-        className={`relative ${collapsed ? 'w-16' : 'w-60'} bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 flex-shrink-0`}
+        className={`${collapsed ? 'w-16' : 'w-60'} bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-200 flex-shrink-0`}
       >
-        {/* Collapse toggle — floating on sidebar edge */}
-        <button
-          onClick={() => setCollapsed(v => !v)}
-          className="absolute -right-4 top-24 z-50 w-8 h-8 rounded-full bg-white border-2 border-blue-300 hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center transition-all duration-300 hover:shadow-lg shadow-md"
-          title={collapsed ? 'Expandir' : 'Colapsar'}
-        >
-          <div className={`transition-transform duration-300 ${collapsed ? '' : 'rotate-180'}`}>
-            <ChevronRight className="w-4 h-4 text-blue-600" />
-          </div>
-        </button>
         {/* Logo */}
         <div className={`h-16 flex items-center border-b border-gray-800 ${collapsed ? 'justify-center px-3' : 'px-5 gap-3'}`}>
           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">

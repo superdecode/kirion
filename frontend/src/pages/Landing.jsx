@@ -1,15 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
+
+function track(eventType, payload) {
+  fetch('/api/public/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_type: eventType, payload: payload || {} }),
+  }).catch(() => {})
+}
 import {
-  Check, ChevronRight, ArrowRight, MessageCircle,
+  Check, ChevronRight, ArrowRight,
   ScanLine, Package, FileText, BarChart3, Users, ShieldCheck,
   AlertTriangle, X, Layers, Clock, Smartphone,
 } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const WA_LINK = 'https://wa.me/8618514458054'
-const WA_LABEL = '+86 185 1445 8054'
+const CONTACT_PHONE = '+86 185 1445 8054'
 
 const FEATURES = [
   {
@@ -65,23 +72,23 @@ const FEATURES = [
 const PAIN_POINTS = [
   {
     icon: AlertTriangle,
-    problem: 'Hojas de calculo interminables',
-    solution: 'Un sistema centralizado reemplaza decenas de Excel. Cada guia queda registrada, trazable y auditable sin copiar y pegar.',
-  },
-  {
-    icon: MessageCircle,
-    problem: 'Coordinar entregas por WhatsApp',
-    solution: 'Nada de capturas y mensajes de voz. Todo el equipo ve el mismo sistema en tiempo real, con el estatus de cada tarima y operador.',
+    problem: 'Sin visibilidad, sin control',
+    solution: 'Las entregas sin sistema son caos — no sabes que paquete va donde, quien lo escaneo, o si se perdio. Kirion te da visibilidad total en tiempo real de cada guia.',
   },
   {
     icon: X,
-    problem: 'Guias duplicadas o perdidas',
-    solution: 'Kirion detecta duplicados al instante con alerta sonora. Si la guia ya fue escaneada, el sistema lo avisa antes de que cause problemas.',
+    problem: 'Errores que cuestan dinero',
+    solution: 'Guias duplicadas, paquetes perdidos, entregas incompletas. Cada error es un cliente insatisfecho y costo operativo. Kirion previene errores con validacion automatica y rastreo.',
   },
   {
     icon: Clock,
-    problem: 'Cierres de turno que toman horas',
-    solution: 'El folio de entrega se genera automaticamente con todas las guias de la tarima. Cierre documentado en segundos.',
+    problem: 'Procesos lentos y manuales',
+    solution: 'Registros en papel, hojas de calculo, coordinacion por mensajes. Todo es lento y propenso a errores. Con Kirion, escanea, agrupa, entrega — sin pasos extras.',
+  },
+  {
+    icon: BarChart3,
+    problem: 'Sin metricas, sin mejora',
+    solution: 'Si no mides, no mejoras. Kirion captura datos de cada entrega — productividad por operador, tasa de error, tiempos. Usa esos datos para optimizar operaciones.',
   },
 ]
 
@@ -210,12 +217,12 @@ function HeroSection() {
 
         <p className="text-lg sm:text-xl text-gray-400 leading-relaxed mb-10 max-w-2xl mx-auto">
           Kirion DropScan organiza el escaneo, clasificacion y entrega de tus guias de forma sistematizada.
-          <span className="text-white font-medium"> Sin Excel, sin WhatsApp, sin guias perdidas.</span>
+          <span className="text-white font-medium"> Sin hojas de calculo, sin improvisacion, sin guias perdidas.</span>
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
           <button
-            onClick={() => scrollTo('contacto')}
+            onClick={() => { track('cta_click', { location: 'hero' }); scrollTo('contacto') }}
             className="flex items-center justify-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:shadow-blue-600/25 text-base"
           >
             Empezar prueba de 7 dias gratis
@@ -266,10 +273,10 @@ function ProblemSection() {
         <div className="text-center mb-14">
           <p className="text-blue-400 text-sm font-semibold uppercase tracking-wider mb-3">El problema</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Entregar 100+ paquetes al dia sin un sistema es caos
+            Sin control, pierdes dinero y credibilidad
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            La mayoria de empresas de dropshipping controlan sus guias en Excel y WhatsApp. Eso funciona hasta que deja de funcionar.
+            Entregar 100+ paquetes diarios sin un sistema robusto genera errores, demoras y perdidas. Cada guia duplicada o mal registrada es un cliente perdido.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -345,13 +352,13 @@ function PricingSection() {
           {/* Billing toggle */}
           <div className="inline-flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl p-1.5">
             <button
-              onClick={() => setAnnual(false)}
+              onClick={() => { setAnnual(false); track('billing_toggle', { billing: 'monthly' }) }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${!annual ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
             >
               Mensual
             </button>
             <button
-              onClick={() => setAnnual(true)}
+              onClick={() => { setAnnual(true); track('billing_toggle', { billing: 'annual' }) }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${annual ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
             >
               Anual
@@ -407,7 +414,7 @@ function PricingSection() {
               </ul>
 
               <button
-                onClick={() => scrollTo('contacto')}
+                onClick={() => { track('plan_select', { plan: plan.id }); scrollTo('contacto') }}
                 className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
                   i === 1
                     ? 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-lg hover:shadow-blue-600/25'
@@ -463,7 +470,7 @@ function ContactSection({ form, setForm, loading, success, error, onSubmit }) {
           <input required type="email" value={form.contact_email} onChange={set('contact_email')} placeholder="juan@empresa.com" className={inputCls} />
         </div>
         <div>
-          <label className={labelCls}>Telefono / WhatsApp</label>
+          <label className={labelCls}>Telefono</label>
           <input value={form.contact_phone} onChange={set('contact_phone')} placeholder="+52 55 1234 5678" className={inputCls} />
         </div>
         <div>
@@ -538,15 +545,7 @@ function Footer() {
                 </a>
               </li>
               <li>
-                <a
-                  href={WA_LINK}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  WhatsApp {WA_LABEL}
-                </a>
+                <span className="text-gray-400">{CONTACT_PHONE}</span>
               </li>
             </ul>
           </div>
@@ -567,20 +566,6 @@ function Footer() {
   )
 }
 
-function WhatsAppButton() {
-  return (
-    <a
-      href={`${WA_LINK}?text=Hola,%20me%20interesa%20conocer%20Kirion%20DropScan`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#25D366] hover:bg-[#20b758] text-white font-medium px-4 py-3 rounded-full shadow-lg hover:shadow-xl transition-all group"
-    >
-      <MessageCircle className="w-5 h-5" />
-      <span className="text-sm group-hover:scale-105 transition-transform">WhatsApp</span>
-    </a>
-  )
-}
-
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function Landing() {
@@ -592,12 +577,15 @@ export default function Landing() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => { track('page_visit', {}) }, [])
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
       await axios.post('/api/public/signup-requests', form)
+      track('form_submit', { plan: form.volume || null })
       setSuccess(true)
     } catch (err) {
       setError(err.response?.data?.error || 'Error al enviar la solicitud. Intenta de nuevo.')
@@ -649,15 +637,7 @@ export default function Landing() {
 
               <div className="mt-6 p-4 bg-gray-800/50 border border-gray-700/50 rounded-xl">
                 <p className="text-white text-sm font-medium mb-1">Contacto directo</p>
-                <a
-                  href={WA_LINK}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm transition-colors"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  WhatsApp {WA_LABEL}
-                </a>
+                <p className="text-gray-400 text-sm">{CONTACT_PHONE}</p>
                 <a href="mailto:contacto@kirion.app" className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm transition-colors mt-1.5">
                   contacto@kirion.app
                 </a>
@@ -679,7 +659,6 @@ export default function Landing() {
       </section>
 
       <Footer />
-      <WhatsAppButton />
     </div>
   )
 }
