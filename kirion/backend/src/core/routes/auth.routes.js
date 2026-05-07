@@ -43,8 +43,8 @@ async function resolveTenantIdFromRequest(req) {
     return { id: tenant.id, status: tenant.status }
   }
 
-  // Dev fallback: no subdomain and no header — use legacy tenant so local login works
-  if (env.NODE_ENV !== 'production' && env.LEGACY_TENANT_ID) {
+  // Fallback: no subdomain — use legacy tenant (single-tenant production or local dev)
+  if (env.LEGACY_TENANT_ID) {
     const res = await query(
       'SELECT id, status FROM tenants WHERE id = $1 LIMIT 1',
       [env.LEGACY_TENANT_ID]
