@@ -28,8 +28,8 @@ export async function tenantContext(req, res, next) {
     extractSlugFromHost(host) ||
     (env.NODE_ENV !== 'production' ? req.headers['x-tenant-slug'] : null)
 
-  // Dev fallback: no subdomain and no header — use legacy tenant
-  const useDevFallback = !slug && env.NODE_ENV !== 'production' && env.LEGACY_TENANT_ID
+  // Fallback: no subdomain — use legacy tenant (single-domain production or local dev)
+  const useDevFallback = !slug && !!env.LEGACY_TENANT_ID
 
   if (!slug && !useDevFallback) {
     return res.status(400).json({ error: 'Tenant no identificado' })
