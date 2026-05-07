@@ -10,6 +10,21 @@ import ErrorBoundary from './core/components/common/ErrorBoundary'
 import Login from './core/components/auth/Login'
 import ProtectedRoute, { PermissionRoute } from './core/components/auth/ProtectedRoute'
 
+// Super Admin panel
+import AdminLogin from './modules/superadmin/pages/AdminLogin'
+import AdminLayout from './modules/superadmin/components/AdminLayout'
+import AdminDashboard from './modules/superadmin/pages/AdminDashboard'
+import AdminSolicitudes from './modules/superadmin/pages/AdminSolicitudes'
+import AdminTenants from './modules/superadmin/pages/AdminTenants'
+import AdminTenantDetalle from './modules/superadmin/pages/AdminTenantDetalle'
+import AdminNotificaciones from './modules/superadmin/pages/AdminNotificaciones'
+import AdminAnalytics from './modules/superadmin/pages/AdminAnalytics'
+import { useAdminAuthStore } from './modules/superadmin/stores/adminAuthStore'
+
+// Landing page
+import Landing from './pages/Landing'
+import NotFound from './pages/NotFound'
+
 // Pages
 import GlobalDashboard from './pages/GlobalDashboard'
 import Administracion from './pages/Administracion'
@@ -54,7 +69,7 @@ const MODULE_ROUTES = [
   { module: 'inventory.escaneo', path: '/inventory/escaneo' },
   { module: 'inventory.historial', path: '/inventory/historial' },
   { module: 'inventory.reportes', path: '/inventory/reportes' },
-  { module: 'fep.folios', path: '/dropscan/folios' },
+  { module: 'dropscan.folios', path: '/dropscan/folios' },
   { module: 'global.wms', path: '/wms' },
   { module: 'global.administracion', path: '/admin' },
 ]
@@ -67,77 +82,105 @@ function SmartRedirect() {
   return <GlobalDashboard />
 }
 
+function AdminProtectedRoute({ children }) {
+  const { isAuthenticated } = useAdminAuthStore()
+  if (!isAuthenticated) return <Navigate to="/super-admin/login" replace />
+  return children
+}
+
 function AppRoutes() {
   const { isAuthenticated } = useAuthStore()
 
   return (
     <Routes>
-      {/* Public */}
+      {/* PUBLIC ROUTES — No auth required, outside all protected layouts */}
+
+      {/* Landing page */}
+      <Route path="/landing" element={<Landing />} />
+
+      {/* Super Admin Login — Completely public, no auth required */}
+      <Route path="/super-admin/login" element={<AdminLogin />} />
+
+      {/* Tenant Login — Redirects to dashboard if already authenticated as normal user */}
       <Route
         path="/login"
         element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
       />
 
-      {/* Protected */}
+      {/* SUPER ADMIN PANEL — Requires super_admin auth */}
       <Route
+        path="/super-admin"
+        element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="solicitudes" element={<AdminSolicitudes />} />
+        <Route path="tenants" element={<AdminTenants />} />
+        <Route path="tenants/:id" element={<AdminTenantDetalle />} />
+        <Route path="notificaciones" element={<AdminNotificaciones />} />
+        <Route path="analytics" element={<AdminAnalytics />} />
+      </Route>
+
+      {/* TENANT APP — path="/" so this layout only activates for its own child routes,
+          never for public routes like /landing or /super-admin/* */}
+      <Route
+        path="/"
         element={
           <ProtectedRoute>
             <MainLayout />
           </ProtectedRoute>
         }
       >
-        {/* Global — smart redirect if no dashboard access */}
-        <Route path="/" element={<ErrorBoundary><SmartRedirect /></ErrorBoundary>} />
+        <Route index element={<ErrorBoundary><SmartRedirect /></ErrorBoundary>} />
 
         {/* DropScan Module */}
-        <Route path="/dropscan" element={
+        <Route path="dropscan" element={
           <PermissionRoute module="dropscan.dashboard"><ErrorBoundary><DropScanDashboard /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/escaneo" element={
+        <Route path="dropscan/escaneo" element={
           <PermissionRoute module="dropscan.escaneo"><ErrorBoundary><Escaneo /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/historial" element={
+        <Route path="dropscan/historial" element={
           <PermissionRoute module="dropscan.historial"><ErrorBoundary><Historial /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/reportes" element={
+        <Route path="dropscan/reportes" element={
           <PermissionRoute module="dropscan.reportes"><ErrorBoundary><Reportes /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/configuracion" element={
+        <Route path="dropscan/configuracion" element={
           <PermissionRoute module="dropscan.configuracion"><ErrorBoundary><Configuracion /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* Inventory Module */}
-        <Route path="/inventory/escaneo" element={
+        <Route path="inventory/escaneo" element={
           <PermissionRoute module="inventory.escaneo"><ErrorBoundary><InvEscaneo /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/inventory/historial" element={
+        <Route path="inventory/historial" element={
           <PermissionRoute module="inventory.historial"><ErrorBoundary><InvHistorial /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/inventory/reportes" element={
+        <Route path="inventory/reportes" element={
           <PermissionRoute module="inventory.reportes"><ErrorBoundary><InvReportes /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* FEP — embedded inside DropScan */}
-        <Route path="/dropscan/folios" element={
-          <PermissionRoute module="fep.folios"><ErrorBoundary><Folios /></ErrorBoundary></PermissionRoute>
+        <Route path="dropscan/folios" element={
+          <PermissionRoute module="dropscan.folios"><ErrorBoundary><Folios /></ErrorBoundary></PermissionRoute>
         } />
-        <Route path="/dropscan/folios/:id" element={
-          <PermissionRoute module="fep.folios"><ErrorBoundary><FolioDetalle /></ErrorBoundary></PermissionRoute>
+        <Route path="dropscan/folios/:id" element={
+          <PermissionRoute module="dropscan.folios"><ErrorBoundary><FolioDetalle /></ErrorBoundary></PermissionRoute>
         } />
 
         {/* WMS Hub */}
-        <Route path="/wms" element={
+        <Route path="wms" element={
           <PermissionRoute module="global.wms"><ErrorBoundary><WmsHub /></ErrorBoundary></PermissionRoute>
         } />
 
-        {/* Administration (unified users + roles) */}
-        <Route path="/admin" element={
+        {/* Administration */}
+        <Route path="admin" element={
           <PermissionRoute module="global.administracion"><ErrorBoundary><Administracion /></ErrorBoundary></PermissionRoute>
         } />
-
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
+
+      {/* 404 — shown for any unmatched route, completely public */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

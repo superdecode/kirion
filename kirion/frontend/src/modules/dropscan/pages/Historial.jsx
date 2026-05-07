@@ -770,7 +770,7 @@ export default function Historial() {
                     ? <CheckCircle className="w-3.5 h-3.5 text-success-500" />
                     : <Copy className="w-3.5 h-3.5" />}
                 </button>
-                <span className={`badge text-xs ${estadoColors[getDisplayEstado(detail)] || 'bg-warm-100 text-warm-600'}`}>
+                <span className={`badge text-[10px] px-2 py-0.5 ${estadoColors[getDisplayEstado(detail)] || 'bg-warm-100 text-warm-600'}`}>
                   {estadoLabels[getDisplayEstado(detail)] || getDisplayEstado(detail)}
                 </span>
               </div>
@@ -779,7 +779,7 @@ export default function Historial() {
                   onClick={() => { setSelectedTarima(null); setEditMode(false); navigate(`/dropscan/folios?folio_id=${detail.folio_id}`) }}
                   className="text-[11px] font-semibold text-primary-600 hover:text-primary-800 hover:underline text-left leading-tight"
                 >
-                  {detail.folio_asignado}
+                  Folio Entrega: {detail.folio_asignado}
                 </button>
               )}
             </div>
@@ -1052,18 +1052,18 @@ export default function Historial() {
 
       {/* Blocked delete modal — tarima tiene folio activo */}
       <Modal isOpen={!!blockedDeleteTarima} onClose={() => setBlockedDeleteTarima(null)}
-        title="无法删除" icon={AlertTriangle} size="sm"
+        title="No se puede eliminar" icon={AlertTriangle} size="sm"
         footer={
-          <button onClick={() => setBlockedDeleteTarima(null)} className="btn-ghost">知道了</button>
+          <button onClick={() => setBlockedDeleteTarima(null)} className="btn-ghost">Entendido</button>
         }>
         <div className="p-4 rounded-xl bg-warning-50 border border-warning-200 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-warning-500 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-bold text-warning-800">托盘已包含在活跃批次中</p>
+            <p className="text-sm font-bold text-warning-800">Tarima incluida en folio activo</p>
             <p className="text-xs text-warning-600 mt-1">
-              托盘 <span className="font-bold font-mono">{blockedDeleteTarima?.codigo}</span> 已包含在批次{' '}
-              <span className="font-bold">{blockedDeleteTarima?.folio_asignado}</span> 中。
-              如需删除，请先删除或取消相应的批次。
+              La tarima <span className="font-bold font-mono">{blockedDeleteTarima?.codigo}</span> está
+              incluida en el folio <span className="font-bold">{blockedDeleteTarima?.folio_asignado}</span>.
+              Para eliminarla, primero elimina o cancela el folio correspondiente.
             </p>
           </div>
         </div>

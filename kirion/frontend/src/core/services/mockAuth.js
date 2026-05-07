@@ -8,9 +8,8 @@ const mockUsers = [
     rol_nombre: 'Administrador',
     permisos: {
       global: { inicio: 'eliminar', administracion: 'eliminar', wms: 'eliminar' },
-      dropscan: { dashboard: 'eliminar', escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar', configuracion: 'eliminar' },
+      dropscan: { dashboard: 'eliminar', escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar', configuracion: 'eliminar', folios: 'eliminar' },
       inventory: { escaneo: 'eliminar', historial: 'eliminar', reportes: 'eliminar' },
-      fep: { folios: 'eliminar' },
       despacho: { ordenes: 'eliminar', validacion: 'eliminar' },
       rastreo: { consulta: 'eliminar' },
       integraciones: { config: 'eliminar' },
@@ -25,9 +24,8 @@ const mockUsers = [
     rol_nombre: 'Operador',
     permisos: {
       global: { inicio: 'ver', administracion: 'sin_acceso', wms: 'sin_acceso' },
-      dropscan: { dashboard: 'ver', escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso', configuracion: 'sin_acceso' },
+      dropscan: { dashboard: 'ver', escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso', configuracion: 'sin_acceso', folios: 'ver' },
       inventory: { escaneo: 'crear', historial: 'ver', reportes: 'sin_acceso' },
-      fep: { folios: 'ver' },
       despacho: { ordenes: 'ver', validacion: 'sin_acceso' },
       rastreo: { consulta: 'ver' },
       integraciones: { config: 'sin_acceso' },

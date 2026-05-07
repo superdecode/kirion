@@ -20,7 +20,46 @@ function normalizePermisos(obj) {
 
 const router = Router()
 
+async function resolveTenantIdFromRequest(req) {
+  const host = req.headers['host'] || ''
+  const baseDomain = env.TENANT_BASE_DOMAIN
+  const withoutPort = host.split(':')[0]
+
+  let slug = null
+  if (withoutPort.endsWith(`.${baseDomain}`)) {
+    slug = withoutPort.slice(0, -(baseDomain.length + 1))
+  } else if (env.NODE_ENV !== 'production' && req.headers['x-tenant-slug']) {
+    slug = req.headers['x-tenant-slug']
+  }
+
+  if (slug) {
+    const res = await query(
+      'SELECT id, status FROM tenants WHERE slug = $1 LIMIT 1',
+      [slug]
+    )
+    if (res.rows.length === 0) return null
+    const tenant = res.rows[0]
+    if (['suspended', 'rejected', 'pending'].includes(tenant.status)) return { blocked: true, status: tenant.status }
+    return { id: tenant.id, status: tenant.status }
+  }
+
+  // Dev fallback: no subdomain and no header — use legacy tenant so local login works
+  if (env.NODE_ENV !== 'production' && env.LEGACY_TENANT_ID) {
+    const res = await query(
+      'SELECT id, status FROM tenants WHERE id = $1 LIMIT 1',
+      [env.LEGACY_TENANT_ID]
+    )
+    if (res.rows.length === 0) return null
+    const tenant = res.rows[0]
+    if (['suspended', 'rejected', 'pending'].includes(tenant.status)) return { blocked: true, status: tenant.status }
+    return { id: tenant.id, status: tenant.status }
+  }
+
+  return null
+}
+
 // POST /api/auth/login
+// Resolves tenant from subdomain (Host header). Users are scoped to their tenant.
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
@@ -29,12 +68,20 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email y contraseña son requeridos' })
     }
 
+    const tenant = await resolveTenantIdFromRequest(req)
+    if (!tenant) {
+      return res.status(401).json({ error: 'Credenciales inválidas' })
+    }
+    if (tenant.blocked) {
+      return res.status(403).json({ error: 'Cuenta no disponible. Contacta a soporte.' })
+    }
+
     const result = await query(
       `SELECT u.*, r.nombre as rol_nombre, r.permisos as rol_permisos
        FROM usuarios u
        LEFT JOIN roles r ON u.rol_id = r.id
-       WHERE u.email = $1`,
-      [email.toLowerCase().trim()]
+       WHERE u.email = $1 AND u.tenant_id = $2`,
+      [email.toLowerCase().trim(), tenant.id]
     )
 
     if (result.rows.length === 0) {
@@ -52,11 +99,25 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' })
     }
 
-    // Update last access
     await query('UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1', [user.id])
 
-    // Build permissions from role or override
     const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
+
+    const [subRes, tenantRes] = await Promise.all([
+      query(
+        `SELECT p.modules FROM subscriptions s
+         JOIN plans p ON s.plan_id = p.id
+         WHERE s.tenant_id = $1 AND s.status = 'active'
+         ORDER BY s.started_at DESC LIMIT 1`,
+        [tenant.id]
+      ),
+      query(
+        `SELECT status, trial_expires_at, subscription_expires_at, legal_name, contact_email, contact_phone, current_plan_id FROM tenants WHERE id = $1`,
+        [tenant.id]
+      ),
+    ])
+    const modules = subRes.rows.length > 0 ? subRes.rows[0].modules : ['dropscan']
+    const tenantInfo = tenantRes.rows[0] || {}
 
     const jti = crypto.randomBytes(16).toString('hex')
     const payload = {
@@ -65,13 +126,16 @@ router.post('/login', async (req, res) => {
       email: user.email,
       rol_id: user.rol_id,
       rol_nombre: user.rol_nombre,
+      tenant_id: tenant.id,
+      tenant_status: tenantInfo.status || tenant.status,
+      must_change_password: user.must_change_password || false,
+      modules,
       jti,
     }
 
     const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN })
 
-    // Audit: login
-    auditLog(req, 'LOGIN', 'usuario', user.id, { email: user.email, rol: user.rol_nombre })
+    auditLog(req, 'LOGIN', 'usuario', user.id, { email: user.email, rol: user.rol_nombre, tenant_id: tenant.id })
 
     res.json({
       success: true,
@@ -86,6 +150,13 @@ router.post('/login', async (req, res) => {
         permisos,
         avatar_url: user.avatar_url,
         zona_horaria: user.zona_horaria || 'America/Mexico_City',
+        must_change_password: user.must_change_password || false,
+        modules,
+        tenant_status: tenantInfo.status || tenant.status,
+        tenant_name: tenantInfo.legal_name || '',
+        tenant_contact_email: tenantInfo.contact_email || user.email,
+        subscription_expires_at: tenantInfo.subscription_expires_at || null,
+        trial_expires_at: tenantInfo.trial_expires_at || null,
       }
     })
   } catch (error) {
@@ -97,21 +168,27 @@ router.post('/login', async (req, res) => {
 // GET /api/auth/me
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const result = await query(
-      `SELECT u.id, u.codigo, u.nombre_completo, u.email, u.rol_id, u.estado,
-              u.avatar_url, u.permisos_override, u.ultimo_acceso,
-              r.nombre as rol_nombre, r.permisos as rol_permisos
-       FROM usuarios u
-       LEFT JOIN roles r ON u.rol_id = r.id
-       WHERE u.id = $1`,
-      [req.user.id]
-    )
+    const [result, tenantRes] = await Promise.all([
+      query(
+        `SELECT u.id, u.codigo, u.nombre_completo, u.email, u.rol_id, u.estado,
+                u.avatar_url, u.permisos_override, u.ultimo_acceso, u.zona_horaria,
+                r.nombre as rol_nombre, r.permisos as rol_permisos
+         FROM usuarios u
+         LEFT JOIN roles r ON u.rol_id = r.id
+         WHERE u.id = $1`,
+        [req.user.id]
+      ),
+      req.user.tenant_id
+        ? query(`SELECT status, trial_expires_at, subscription_expires_at, legal_name, contact_email FROM tenants WHERE id = $1`, [req.user.tenant_id])
+        : Promise.resolve({ rows: [] }),
+    ])
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' })
     }
 
     const user = result.rows[0]
+    const tenantInfo = tenantRes.rows[0] || {}
     const permisos = normalizePermisos(user.permisos_override || user.rol_permisos || {})
 
     res.json({
@@ -126,6 +203,11 @@ router.get('/me', authenticateToken, async (req, res) => {
       estado: user.estado,
       ultimo_acceso: user.ultimo_acceso,
       zona_horaria: user.zona_horaria || 'America/Mexico_City',
+      tenant_status: tenantInfo.status || req.user.tenant_status,
+      tenant_name: tenantInfo.legal_name || '',
+      tenant_contact_email: tenantInfo.contact_email || user.email,
+      subscription_expires_at: tenantInfo.subscription_expires_at || null,
+      trial_expires_at: tenantInfo.trial_expires_at || null,
     })
   } catch (error) {
     console.error('Auth/me error:', error)
@@ -154,7 +236,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
       return res.status(401).json({ error: 'Contraseña actual incorrecta' })
     }
 
-    const newHash = await bcrypt.hash(new_password, 10)
+    const newHash = await bcrypt.hash(new_password, 12)
     await query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [newHash, req.user.id])
     auditLog(req, 'CHANGE_PASSWORD', 'usuario', req.user.id, null)
     res.json({ success: true })
