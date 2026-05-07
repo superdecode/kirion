@@ -102,7 +102,15 @@ router.get('/',
                 t.fecha_inicio, t.fecha_cierre, t.tiempo_armado_segundos,
                 e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
-                COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
+                COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo,
+                (SELECT fe2.folio_numero FROM folios_entrega_tarimas fet2
+                 JOIN folios_entrega fe2 ON fe2.id = fet2.folio_id
+                 WHERE fet2.tarima_id = t.id AND fet2.eliminado_en IS NULL AND fe2.estado = 'ACTIVO'
+                 LIMIT 1) AS folio_asignado,
+                (SELECT fe2.id FROM folios_entrega_tarimas fet2
+                 JOIN folios_entrega fe2 ON fe2.id = fet2.folio_id
+                 WHERE fet2.tarima_id = t.id AND fet2.eliminado_en IS NULL AND fe2.estado = 'ACTIVO'
+                 LIMIT 1) AS folio_id
          FROM tarimas t
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id
@@ -148,7 +156,15 @@ router.get('/:id',
       const tarimaRes = await query(
         `SELECT t.*, e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                 c.nombre as canal_nombre, c.codigo as canal_codigo,
-                COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo
+                COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo,
+                (SELECT fe2.folio_numero FROM folios_entrega_tarimas fet2
+                 JOIN folios_entrega fe2 ON fe2.id = fet2.folio_id
+                 WHERE fet2.tarima_id = t.id AND fet2.eliminado_en IS NULL AND fe2.estado = 'ACTIVO'
+                 LIMIT 1) AS folio_asignado,
+                (SELECT fe2.id FROM folios_entrega_tarimas fet2
+                 JOIN folios_entrega fe2 ON fe2.id = fet2.folio_id
+                 WHERE fet2.tarima_id = t.id AND fet2.eliminado_en IS NULL AND fe2.estado = 'ACTIVO'
+                 LIMIT 1) AS folio_id
          FROM tarimas t
          JOIN configuraciones e ON t.empresa_id = e.id
          JOIN configuraciones c ON t.canal_id = c.id

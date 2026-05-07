@@ -54,8 +54,10 @@ export default function Historial() {
   const guiaSearchRef = useRef(null)
   const guiaDebounceRef = useRef(null)
   const [copiedGuia, setCopiedGuia] = useState(null)
+  const [copiedTarimaCode, setCopiedTarimaCode] = useState(null)
   const [selectedTarima, setSelectedTarima] = useState(null)
   const [deletingTarima, setDeletingTarima] = useState(null)
+  const [blockedDeleteTarima, setBlockedDeleteTarima] = useState(null)
   const [deletingGuia, setDeletingGuia] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
@@ -247,14 +249,25 @@ export default function Historial() {
     'EN_PROCESO': 'bg-warning-100 text-warning-700',
     'FINALIZADA': 'bg-success-100 text-success-700',
     'CANCELADA': 'bg-danger-100 text-danger-700',
+    'ENVIADA': 'bg-accent-100 text-accent-700',
   }
 
   const getEstadoLabels = (t) => ({
     'EN_PROCESO': t('status.EN_PROCESO'),
     'FINALIZADA': t('status.FINALIZADA'),
     'CANCELADA': t('status.CANCELADA'),
+    'ENVIADA': t('status.ENVIADA'),
   })
   const estadoLabels = getEstadoLabels(t)
+
+  const getDisplayEstado = (row) => row?.folio_asignado ? 'ENVIADA' : row?.estado
+
+  const copyTarimaCode = (code) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedTarimaCode(code)
+      setTimeout(() => setCopiedTarimaCode(null), 1500)
+    })
+  }
 
   const canReopen = user && ['Supervisor', 'Jefe', 'Administrador'].includes(user.rol_nombre)
 
@@ -655,10 +668,10 @@ export default function Historial() {
                           </td>
                           <td className="table-cell text-center">
                             <div className="flex items-center justify-center gap-1 flex-wrap">
-                              <span className={`badge text-[10px] ${estadoColors[row.estado] || 'bg-warm-100 text-warm-600'}`}>
-                                {estadoLabels[row.estado] || row.estado}
+                              <span className={`badge text-[10px] ${estadoColors[getDisplayEstado(row)] || 'bg-warm-100 text-warm-600'}`}>
+                                {estadoLabels[getDisplayEstado(row)] || getDisplayEstado(row)}
                               </span>
-                              {row.forzado_cierre && (
+                              {row.forzado_cierre && !row.folio_asignado && (
                                 <span className="badge text-[9px] bg-warning-100 text-warning-600 flex items-center gap-0.5">
                                   <Lock className="w-2.5 h-2.5" /> Forzado
                                 </span>
@@ -684,8 +697,11 @@ export default function Historial() {
                                 </button>
                               )}
                               {canDelete('dropscan.historial') && (
-                                <button onClick={() => setDeletingTarima(row)}
-                                  className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all" title="Eliminar">
+                                <button
+                                  onClick={() => row.folio_asignado ? setBlockedDeleteTarima(row) : setDeletingTarima(row)}
+                                  className="p-2 rounded-xl hover:bg-danger-50 text-warm-400 hover:text-danger-500 transition-all"
+                                  title={row.folio_asignado ? `Bloqueado — folio ${row.folio_asignado}` : 'Eliminar'}
+                                >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
@@ -740,7 +756,36 @@ export default function Historial() {
 
       {/* Detail Modal */}
       <Modal isOpen={!!selectedTarima} onClose={() => { setSelectedTarima(null); setEditMode(false) }} icon={Package}
-        title={detail ? `${detail.codigo}` : t('common.loading')} size="xl"
+        title={
+          detail ? (
+            <div className="flex flex-col gap-0.5 leading-tight">
+              <div className="flex items-center gap-2 group/tcode">
+                <span className="font-mono font-bold">{detail.codigo}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); copyTarimaCode(detail.codigo) }}
+                  className="opacity-0 group-hover/tcode:opacity-100 p-0.5 rounded hover:bg-primary-100/60 text-warm-400 hover:text-primary-600 transition-all"
+                  title="Copiar código"
+                >
+                  {copiedTarimaCode === detail.codigo
+                    ? <CheckCircle className="w-3.5 h-3.5 text-success-500" />
+                    : <Copy className="w-3.5 h-3.5" />}
+                </button>
+                <span className={`badge text-xs ${estadoColors[getDisplayEstado(detail)] || 'bg-warm-100 text-warm-600'}`}>
+                  {estadoLabels[getDisplayEstado(detail)] || getDisplayEstado(detail)}
+                </span>
+              </div>
+              {detail.folio_asignado && (
+                <button
+                  onClick={() => { setSelectedTarima(null); setEditMode(false); navigate(`/dropscan/folios?folio_id=${detail.folio_id}`) }}
+                  className="text-[11px] font-semibold text-primary-600 hover:text-primary-800 hover:underline text-left leading-tight"
+                >
+                  {detail.folio_asignado}
+                </button>
+              )}
+            </div>
+          ) : t('common.loading')
+        }
+        size="xl"
         headerAction={detail && canExportHistorial && (
           <button onClick={handleExportTarimaExcel}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-success-50 text-success-700 rounded-lg hover:bg-success-100 font-semibold transition-all border border-success-200">
@@ -1002,6 +1047,25 @@ export default function Historial() {
               </div>
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Blocked delete modal — tarima tiene folio activo */}
+      <Modal isOpen={!!blockedDeleteTarima} onClose={() => setBlockedDeleteTarima(null)}
+        title="无法删除" icon={AlertTriangle} size="sm"
+        footer={
+          <button onClick={() => setBlockedDeleteTarima(null)} className="btn-ghost">知道了</button>
+        }>
+        <div className="p-4 rounded-xl bg-warning-50 border border-warning-200 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-warning-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-warning-800">托盘已包含在活跃批次中</p>
+            <p className="text-xs text-warning-600 mt-1">
+              托盘 <span className="font-bold font-mono">{blockedDeleteTarima?.codigo}</span> 已包含在批次{' '}
+              <span className="font-bold">{blockedDeleteTarima?.folio_asignado}</span> 中。
+              如需删除，请先删除或取消相应的批次。
+            </p>
+          </div>
         </div>
       </Modal>
 

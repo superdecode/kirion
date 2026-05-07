@@ -251,14 +251,24 @@ router.post('/',
       )
       const folio = folioRes.rows[0]
 
+      // Verify all tarimas belong to the requested empresa (cross-empresa contamination guard)
+      const ownershipRes = await client.query(
+        `SELECT id FROM tarimas WHERE id = ANY($1) AND empresa_id = $2`,
+        [tarima_ids, Number(empresa_id)]
+      )
+      if (ownershipRes.rows.length !== tarima_ids.length) {
+        await client.query('ROLLBACK')
+        return res.status(400).json({ error: 'Una o más tarimas no pertenecen a la empresa indicada' })
+      }
+
       // Verify tarimas are not already in an active folio
       const conflictRes = await client.query(
         `SELECT t.id, t.codigo, fe.folio_numero
          FROM tarimas t
          JOIN folios_entrega_tarimas fet ON fet.tarima_id = t.id AND fet.eliminado_en IS NULL
          JOIN folios_entrega fe ON fe.id = fet.folio_id AND fe.estado = 'ACTIVO'
-         WHERE t.id = ANY($1)`,
-        [tarima_ids]
+         WHERE t.id = ANY($1) AND t.empresa_id = $2`,
+        [tarima_ids, Number(empresa_id)]
       )
       if (conflictRes.rows.length > 0) {
         const codes = conflictRes.rows.map(r => `${r.codigo} (${r.folio_numero})`).join(', ')
