@@ -19,8 +19,4 @@
       "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     }
   ],
-  "crons": [
-    { "path": "/api/cron/notifications", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/lifecycle",     "schedule": "0 * * * *" }
-  ]
 }
