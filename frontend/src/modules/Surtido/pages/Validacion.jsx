@@ -220,6 +220,11 @@ function findLooseCandidates(code, packageMap, productMap) {
 function validateOrderBoxData(detailData) {
   const detail = detailData?.data ?? detailData
   if (!detail) return { ok: false, reason: 'no_data' }
+  // getOutboundDetail couldn't confirm it has the full box list for this order (the
+  // shared sheet cache is still partial after retrying a forced full refresh — usually
+  // a transient connectivity blip). Starting anyway would show a wrong expected count
+  // and reject genuinely valid boxes that fell outside the partial slice.
+  if (detailData?.partial) return { ok: false, reason: 'partial' }
   const packageList = detail.packageList ?? detail.details ?? detail.items ?? []
   if (packageList.length === 0) return { ok: false, reason: 'no_boxes' }
   const noCode = packageList.filter(p => !p.customizeCode && !p.boxType && !p.boxCode)
@@ -553,6 +558,7 @@ function PreviewStep({ obc, detailData, isLoadingDetail, onStart, onBack, isStar
             <div>
               <p className="font-semibold text-sm text-danger-700 mb-1">{t('surtido.validacion.box_validation_error')}</p>
               <p className="text-xs text-danger-600">
+                {validation.reason === 'partial'   && t('surtido.validacion.error_partial_data')}
                 {validation.reason === 'no_boxes'  && t('surtido.validacion.error_no_boxes')}
                 {validation.reason === 'no_codes'  && t('surtido.validacion.error_no_codes')}
                 {validation.reason === 'no_data'   && t('surtido.validacion.error_no_data')}
@@ -1760,6 +1766,8 @@ const { data: reasonsData } = useQuery({
       toast.error(
         isOffline
           ? t('surtido.validacion.offline_order_not_cached')
+          : validation.reason === 'partial'
+          ? t('surtido.validacion.error_partial_data')
           : validation.reason === 'no_boxes'
           ? t('surtido.validacion.error_no_boxes')
           : validation.reason === 'no_codes'

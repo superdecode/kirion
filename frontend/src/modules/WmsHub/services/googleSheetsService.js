@@ -763,12 +763,25 @@ export async function getOutboundDetail(orderNo) {
   // detail validation reject boxes that legitimately belong to the order
   // ("codigo no corresponde"). Force a full fetch when partial, both when the
   // order was missing entirely and when it was found from an incomplete slice.
-  if (getCacheStatus('outbound').partial) {
+  //
+  // A single forced attempt isn't enough: when it fails on a transient network
+  // error (ERR_NETWORK_CHANGED, a timeout), loadSheet's own catch silently
+  // re-serves the same old partial rows instead of throwing — which looks
+  // identical to "already complete" unless we re-check the cache's partial
+  // flag afterwards. Without this, an order whose boxes fall outside the
+  // partial slice's first-3000-rows window would silently keep a truncated
+  // packageList forever, showing a wrong expected count and rejecting real
+  // scans as "not in this order". Retry a few times with backoff before
+  // giving up and flagging the result as unconfirmed.
+  let confirmedComplete = !getCacheStatus('outbound').partial
+  for (let attempt = 0; !confirmedComplete && attempt < 3; attempt++) {
     const fullRows = await findRows(true)
     if (fullRows.length > orderRows.length) orderRows = fullRows
+    confirmedComplete = !getCacheStatus('outbound').partial
+    if (!confirmedComplete && attempt < 2) await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)))
   }
 
-  if (orderRows.length === 0) return { success: true, data: null }
+  if (orderRows.length === 0) return { success: true, data: null, partial: !confirmedComplete }
 
   const base = { ...orderRows[0] }
   const SPARSE_FIELDS = ['thirdOrderNo', 'logisticsTrackNo', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
@@ -787,6 +800,7 @@ export async function getOutboundDetail(orderNo) {
 
   return {
     success: true,
+    partial: !confirmedComplete,
     data: {
       ...base,
       outboundBoxCount: base.outboundBoxCount || orderRows.length,
