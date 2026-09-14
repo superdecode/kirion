@@ -4,7 +4,7 @@ import helmet from 'helmet'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 import env from './config/env.js'
-import { query, tenantDB } from './config/database.js'
+import { query, tenantDB, isDatabaseUnavailableError } from './config/database.js'
 
 // Core routes
 import authRoutes from './core/routes/auth.routes.js'
@@ -308,6 +308,13 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err)
   recordBackendError(req, err)
+  // A burst of traffic can exhaust the DB pool checkout (ECHECKOUTTIMEOUT) faster
+  // than a route's own try/catch expects — tell the client to back off and retry
+  // instead of a flat 500, which the browser/caller can't distinguish from a bug.
+  if (isDatabaseUnavailableError(err)) {
+    res.set('Retry-After', '2')
+    return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo' })
+  }
   res.status(500).json({ error: 'Error interno del servidor' })
 })
 

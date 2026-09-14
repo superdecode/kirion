@@ -35,6 +35,24 @@ const DB_CONNECTION_TIMEOUT_MS = parseInt(process.env.DB_CONNECTION_TIMEOUT_MS, 
 const DB_QUERY_TIMEOUT_MS = parseInt(process.env.DB_QUERY_TIMEOUT_MS, 10) || 12000
 const DB_STATEMENT_TIMEOUT_MS = parseInt(process.env.DB_STATEMENT_TIMEOUT_MS, 10) || 12000
 
+// Under a traffic burst the pool (max 4 in prod — this runs as a single Vercel
+// function) can have every connection checked out when a new request arrives,
+// so pool.connect() throws ECHECKOUTTIMEOUT well before the DB itself is in
+// trouble. tenantQuery already retried this once; tenantTransaction and the
+// manual-client helpers below did not, so a burst turned pool contention into
+// flat 500s on every write endpoint instead of the request just waiting out a
+// still-brief backlog. This gives every pool.connect() call one retry with a
+// short jittered backoff before giving up.
+async function connectWithRetry(targetPool) {
+  try {
+    return await targetPool.connect()
+  } catch (err) {
+    if (err.code !== 'ECHECKOUTTIMEOUT') throw err
+    await new Promise(r => setTimeout(r, 200 + Math.random() * 200))
+    return targetPool.connect()
+  }
+}
+
 function assertTenantId(tenantId) {
   if (!tenantId || !UUID_RE.test(tenantId)) {
     throw new Error(`Invalid tenantId: ${String(tenantId).slice(0, 40)}`)
@@ -136,8 +154,9 @@ export async function tenantQuery(tenantId, text, params) {
 
 // Run multiple statements in a transaction scoped to a tenant.
 // cb receives a client already configured with SET LOCAL app.tenant_id.
+// Retries the initial checkout once on ECHECKOUTTIMEOUT (see connectWithRetry).
 export async function tenantTransaction(tenantId, cb) {
-  const client = await pool.connect()
+  const client = await connectWithRetry(pool)
   try {
     await client.query('BEGIN')
     assertTenantId(tenantId)
@@ -178,7 +197,7 @@ export function tenantDB(req, res, next) {
   // The client has BEGIN + SET LOCAL already executed.
   // Caller does COMMIT/ROLLBACK themselves.
   req.tGetClient = async () => {
-    const client = await pool.connect()
+    const client = await connectWithRetry(pool)
     try {
       await client.query('BEGIN')
       assertTenantId(tid)

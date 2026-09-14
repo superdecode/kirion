@@ -6,6 +6,16 @@ import { instantDateInTZ } from '../../../shared/utils/dateUtils.js'
 import { checkModuleLimit } from '../../middleware/usageGuard.js'
 
 const router = Router()
+
+// Sentinel outbound_order_no used to bucket boxes that are force-scanned in
+// por_destino validation with no matching order/destination at all (as opposed
+// to a known order number that just isn't in this folio yet, which gets its
+// own fallback_manual row keyed by that real order number). Without a
+// dispatch_folio_orders row to attach to, these scans have no folio_order_id
+// and getFolioDetail drops them — they'd show up live during scanning but
+// vanish from the folio detail/print once the folio is confirmed.
+const UNASSIGNED_ORDER_NO = 'SIN-ORDEN'
+
 const requireDespachoValidar = (action) => requireAnyPermission([
   { modulePath: 'despacho.validar', action },
   { modulePath: 'despacho.folios', action },
@@ -859,6 +869,29 @@ router.post('/:id/scans',
             )
             ensuredOrderId = insertedOrder.rows[0]?.id || null
           }
+        } else {
+          // No order/destination match at all: force-add still must be kept,
+          // so it goes into the shared "sin orden" bucket for this folio with
+          // only the basic scan info — no system order data to fill in.
+          const unassignedRes = await client.query(
+            `SELECT id FROM dispatch_folio_orders
+             WHERE tenant_id = $1 AND folio_id = $2 AND outbound_order_no = $3
+             FOR UPDATE`,
+            [req.tenantId, req.params.id, UNASSIGNED_ORDER_NO]
+          )
+          if (unassignedRes.rows.length > 0) {
+            ensuredOrderId = unassignedRes.rows[0].id
+          } else {
+            const insertedUnassigned = await client.query(
+              `INSERT INTO dispatch_folio_orders
+                 (tenant_id, folio_id, outbound_order_no, destinatario, bultos, bultos_esperados, notas, outbound_date, estado)
+               VALUES ($1,$2,$3,NULL,0,NULL,$4,NULL,'pendiente')
+               ON CONFLICT (tenant_id, folio_id, outbound_order_no) DO UPDATE SET updated_at = now()
+               RETURNING id`,
+              [req.tenantId, req.params.id, UNASSIGNED_ORDER_NO, JSON.stringify({ forced_no_order: true })]
+            )
+            ensuredOrderId = insertedUnassigned.rows[0]?.id || null
+          }
         }
 
         const insertRes = await client.query(
@@ -887,38 +920,38 @@ router.post('/:id/scans',
              WHERE o.folio_id = $1 AND o.outbound_order_no = $2 AND o.tenant_id = $3`,
             [req.params.id, normalizedOrderNo, req.tenantId]
           )
-          if (ensuredOrderId) {
-            await client.query(
-              `WITH target AS (
-                 SELECT id, folio_id, outbound_order_no
-                 FROM dispatch_folio_orders
-                 WHERE id = $1 AND tenant_id = $2
-               ),
-               counts AS (
-                 SELECT COUNT(*)::int AS scanned
-                 FROM dispatch_order_scans s
-                 JOIN target t ON true
-                 WHERE s.tenant_id = $2
-                   AND (
-                     s.folio_order_id = t.id
-                     OR (
-                       s.folio_id = t.folio_id
-                       AND s.matched_order_no = t.outbound_order_no
-                     )
+        }
+        if (ensuredOrderId) {
+          await client.query(
+            `WITH target AS (
+               SELECT id, folio_id, outbound_order_no
+               FROM dispatch_folio_orders
+               WHERE id = $1 AND tenant_id = $2
+             ),
+             counts AS (
+               SELECT COUNT(*)::int AS scanned
+               FROM dispatch_order_scans s
+               JOIN target t ON true
+               WHERE s.tenant_id = $2
+                 AND (
+                   s.folio_order_id = t.id
+                   OR (
+                     s.folio_id = t.folio_id
+                     AND s.matched_order_no = t.outbound_order_no
                    )
-               )
-               UPDATE dispatch_folio_orders o
-               SET bultos = counts.scanned,
-                   estado = CASE
-                     WHEN o.estado IN ('entregado', 'devolucion') THEN o.estado
-                     WHEN COALESCE(o.bultos_esperados, 0) > 0 AND counts.scanned >= o.bultos_esperados THEN 'cargado'
-                     ELSE 'pendiente'
-                   END
-               FROM counts
-               WHERE o.id = $1 AND o.tenant_id = $2`,
-              [ensuredOrderId, req.tenantId]
-            )
-          }
+                 )
+             )
+             UPDATE dispatch_folio_orders o
+             SET bultos = counts.scanned,
+                 estado = CASE
+                   WHEN o.estado IN ('entregado', 'devolucion') THEN o.estado
+                   WHEN COALESCE(o.bultos_esperados, 0) > 0 AND counts.scanned >= o.bultos_esperados THEN 'cargado'
+                   ELSE 'pendiente'
+                 END
+             FROM counts
+             WHERE o.id = $1 AND o.tenant_id = $2`,
+            [ensuredOrderId, req.tenantId]
+          )
         }
 
         await client.query(
