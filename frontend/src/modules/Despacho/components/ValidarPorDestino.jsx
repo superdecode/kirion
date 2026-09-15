@@ -1036,13 +1036,20 @@ export default function ValidarPorDestino({ folioId }) {
     const matchedOrderNo = match.orderNo
     const matchedMeta = orderMetaByNo.get(matchedOrderNo) || {}
 
+    // The WMS remark describes the relabel as a single old->new pair for the whole
+    // order (same as the SKU change), not one per physical box — there's no
+    // per-box "expected new label" to compare against for orders with several
+    // boxes. So once ANY box on this order has confirmed the relabel, the
+    // order-level requirement is done and later boxes skip the gate entirely.
+    const relabelAlreadySatisfied = scans.some(s => s.matched_order_no === matchedOrderNo && s.reetiquetado)
+
     // Relabel gate: checked first — a box that still needs its new label must get
     // that confirmed before anything else, including the SKU. Only when the folio
     // requires it, the match did NOT come from the new-label field itself
     // (logisticsTrackNo) or the product/SKU code, and the order actually needs
     // relabeling (old/new label bases differ). A box already scanned on its new
     // label passes straight through — there's nothing left to compare it against.
-    if (folio?.validar_etiquetado && match.field !== 'logisticsTrackNo' && match.field !== 'productSku' && orderNeedsRelabel(matchedMeta)) {
+    if (folio?.validar_etiquetado && !relabelAlreadySatisfied && match.field !== 'logisticsTrackNo' && match.field !== 'productSku' && orderNeedsRelabel(matchedMeta)) {
       setPendingRelabel({ rawCode: code, matchedOrderNo, expectedNewBase: newLabelBase(matchedMeta) })
       return
     }
@@ -1819,10 +1826,12 @@ export default function ValidarPorDestino({ folioId }) {
                 const enrich = meta
                 const complete = esperadas > 0 && validadas >= esperadas
                 const needsRelabelFlag = orderNeedsRelabel(meta)
-                // The relabel gate enforces correctness box-by-box already — "done" for
-                // this indicator means the whole order finished (every box that needed
-                // relabeling went through it), not just "at least one".
-                const relabelDone = needsRelabelFlag && complete
+                // Relabel is an order-level requirement (one old->new pair per the WMS
+                // remark, not one per physical box) — done once ANY box on the order
+                // confirms it, same as the SKU chip below.
+                const relabelDone = needsRelabelFlag && scans.some(s => (
+                  (s.matched_order_no === order.outbound_order_no || s.folio_order_id === order.id) && s.reetiquetado
+                ))
                 const needsProductLabel = orderNeedsProductLabel(meta)
                 const skuSatisfied = needsProductLabel && scans.some(s => (
                   (s.matched_order_no === order.outbound_order_no || s.folio_order_id === order.id)

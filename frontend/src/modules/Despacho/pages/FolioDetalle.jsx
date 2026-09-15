@@ -297,7 +297,9 @@ export default function FolioDetalle() {
     const meta = parseOrderNotasMeta(o.notas)
     const needsRelabel = orderNeedsRelabel(meta)
     const bultosEsperados = o.bultos_esperados || 0
-    const relabelDone = needsRelabel && bultosEsperados > 0 && scanCount >= bultosEsperados
+    // Relabel is an order-level requirement (one old->new pair per the WMS remark,
+    // not one per physical box) — done once ANY box on the order confirms it.
+    const relabelDone = needsRelabel && orderScans.some(s => s.reetiquetado)
     const needsSku = orderNeedsProductLabel(meta)
     // Once ANY box on this order has a recorded SKU value, the order-level
     // requirement is done — one validation per order is enough.
