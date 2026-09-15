@@ -16,19 +16,28 @@ function fmtPrint(dt) {
   return new Date(dt).toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
-// Group scanned codes by base code → [ [base, count], ... ] sorted by base
-// SKU-cascade scans document a box already listed right before them — never a
-// physical box on its own, so the printed packing list excludes them.
+// Group scanned codes by base code → [ [base, count, sku], ... ] sorted by base.
+// SKU-cascade scans document a box already listed right before them, so they're
+// folded into that box's line as an "(SKU: X)" annotation instead of a separate
+// entry — the box code is always the primary value, never replaced by the SKU.
 function getOrderCodes(order) {
   const scans = (order.scans ?? []).filter(s => !s.es_sku)
   if (scans.length === 0) return []
+  const skuByBase = new Map()
+  for (const s of order.scans ?? []) {
+    if (!s.es_sku || !s.codigo_caja_previo) continue
+    const base = extractBaseCode(s.codigo_caja_previo) || s.codigo_caja_previo
+    if (base) skuByBase.set(base, s.codigo_caja)
+  }
   const map = new Map()
   for (const s of scans) {
     const base = extractBaseCode(s.codigo_caja) || s.codigo_caja
     if (!base) continue
     map.set(base, (map.get(base) || 0) + 1)
   }
-  return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([base, count]) => [base, count, skuByBase.get(base) || null])
 }
 
 export function printFolio({ folio, orders }) {
@@ -40,8 +49,8 @@ export function printFolio({ folio, orders }) {
   const orderRows = orders.map((o, i) => {
     const codes = getOrderCodes(o)
     const codesHtml = codes.length > 0
-      ? codes.map(([base, count]) =>
-          `<div class="code-row"><span class="code-base">${esc(base)}</span><span class="code-count">${count}</span></div>`
+      ? codes.map(([base, count, sku]) =>
+          `<div class="code-row"><span class="code-base">${esc(base)}</span>${sku ? `<span class="code-sku">(SKU: ${esc(sku)})</span>` : ''}<span class="code-count">${count}</span></div>`
         ).join('')
       : '<span style="color:#94a3b8">—</span>'
     return `
@@ -89,6 +98,7 @@ export function printFolio({ folio, orders }) {
     .code-count { font-size: 8pt; color: #64748b; white-space: nowrap; }
     .code-count::before { content: '('; }
     .code-count::after  { content: ')'; }
+    .code-sku { font-family: monospace; font-size: 8pt; font-weight: 600; color: #15803d; white-space: nowrap; }
     tfoot td { background: #ffedd5 !important; font-weight: 700; font-size: 9pt; padding: 6px; }
     .section-title { background: #ffedd5; color: #9a3412; padding: 5px 8px; font-weight: 700; font-size: 10pt; border: 1px solid #fed7aa; margin-bottom: 8px; }
     .firmas { display: flex; justify-content: space-between; margin-top: 36px; }

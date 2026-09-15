@@ -29,21 +29,39 @@ function fmtDateTime(dt) {
 }
 
 // SKU-cascade scans document a box already listed right before them — never a
-// physical box on its own, so the printed packing list excludes them.
+// physical box on its own, so the printed packing list counts them as part of that
+// box's line instead of a separate entry.
 function boxScansOf(order) {
   return (order.scans ?? []).filter(s => !s.es_sku)
 }
 
+// base(box code) -> SKU value, from every SKU-cascade scan chained onto that box.
+function skuByBoxBase(order) {
+  const map = new Map()
+  for (const s of order.scans ?? []) {
+    if (!s.es_sku || !s.codigo_caja_previo) continue
+    const base = extractBaseCode(s.codigo_caja_previo) || s.codigo_caja_previo
+    if (base) map.set(base, s.codigo_caja)
+  }
+  return map
+}
+
+// Returns [base, count, sku] — sku is the product code validated for that box, or
+// null when the box didn't need one. Always keeps the real box code as the primary
+// value; the SKU is an annotation on it, never a replacement for it.
 export function getOrderCodes(order) {
   const scans = boxScansOf(order)
   if (scans.length === 0) return []
+  const skuByBase = skuByBoxBase(order)
   const map = new Map()
   for (const s of scans) {
     const base = extractBaseCode(s.codigo_caja) || s.codigo_caja
     if (!base) continue
     map.set(base, (map.get(base) || 0) + 1)
   }
-  return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([base, count]) => [base, count, skuByBase.get(base) || null])
 }
 
 export function getOrderTarimas(order) {
@@ -172,9 +190,10 @@ export default function PrintFolioContent({ folio, orders }) {
                 </td>
                 <td style={TD}>
                   {codes.length > 0
-                    ? codes.map(([base, count]) => (
+                    ? codes.map(([base, count, sku]) => (
                         <div key={base} style={{ display: 'flex', alignItems: 'baseline', gap: '6px', lineHeight: '1.65' }}>
                           <span style={{ fontFamily: 'monospace', fontSize: '9px', fontWeight: '700', color: '#1e3a5f' }}>{base}</span>
+                          {sku && <span style={{ fontFamily: 'monospace', fontSize: '8.5px', color: '#15803d', fontWeight: '600' }}>(SKU: {sku})</span>}
                           <span style={{ fontSize: '8.5px', color: '#64748b' }}>({count})</span>
                         </div>
                       ))

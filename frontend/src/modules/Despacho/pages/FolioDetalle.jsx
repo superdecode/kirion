@@ -5,7 +5,7 @@ import {
   Truck, User, Loader2, Trash2, CheckCircle2, XCircle, Clock,
   FileText, Edit3, ArrowLeft, CalendarDays, StickyNote, AlertCircle,
   Printer, Layers, MapPin, ScanLine, Package, Copy, Check, Download,
-  Search, X, ScanBarcode, RefreshCw, History, Tag, Barcode,
+  Search, X, ScanBarcode, RefreshCw, History, Tag, Barcode, ChevronDown,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Header from '../../../core/components/layout/Header'
@@ -34,6 +34,30 @@ function parseOrderNotasMeta(notas) {
   } catch {
     return {}
   }
+}
+
+// `notas` holds two unrelated things depending on how the order got here: our own
+// JSON metadata blob (destino/tracking/remark, written when the order is added) or
+// a genuine human-typed note (e.g. a cancellation reason). Only the first case
+// should render as organized fields — the second must stay a plain, visible note.
+function isStructuredNotas(notas) {
+  if (!notas || typeof notas !== 'string') return false
+  try {
+    const parsed = JSON.parse(notas)
+    return !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
+function MetaField({ label, value, mono = false, wide = false }) {
+  if (!value) return null
+  return (
+    <div className={wide ? 'col-span-2 sm:col-span-3' : ''}>
+      <p className="text-[9px] font-semibold uppercase tracking-wide text-warm-400">{label}</p>
+      <p className={`text-xs text-warm-700 break-words ${mono ? 'font-mono' : ''}`}>{value}</p>
+    </div>
+  )
 }
 
 const FOLIO_ESTADO_META = {
@@ -733,7 +757,35 @@ export default function FolioDetalle() {
                                 </div>
                               </td>
                             </tr>
-                            {order.notas && (
+                            {order.notas && isStructuredNotas(order.notas) && (() => {
+                              const meta = parseOrderNotasMeta(order.notas)
+                              return (
+                                <tr key={`${order.id || order.outbound_order_no}-meta`} className="bg-primary-50/25">
+                                  <td colSpan={7} className="px-3 py-2 border-t border-primary-100">
+                                    <details className="group">
+                                      <summary className="flex items-center gap-2 text-xs font-semibold text-primary-700 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                                        <StickyNote className="w-3.5 h-3.5 shrink-0" />
+                                        {t('desp.folioDetalle.metaPrefix')}
+                                        <ChevronDown className="w-3 h-3 text-primary-400 transition-transform group-open:rotate-180" />
+                                      </summary>
+                                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 pl-5">
+                                        <MetaField label={t('desp.folioDetalle.metaDestino')} value={meta.destino} />
+                                        <MetaField label={t('desp.folioDetalle.metaTracking')} value={meta.logisticsTrackNo} mono />
+                                        <MetaField label={t('desp.folioDetalle.metaReferencia')} value={meta.thirdOrderNo} mono />
+                                        <MetaField label={t('desp.folioDetalle.metaFba')} value={meta.fbaShipmentId} mono />
+                                        <MetaField label={t('desp.folioDetalle.metaRemark')} value={meta.remark} wide />
+                                        <MetaField
+                                          label={t('desp.folioDetalle.metaCodigos')}
+                                          value={Array.isArray(meta.allCustomizeCodes) && meta.allCustomizeCodes.length > 0 ? meta.allCustomizeCodes.join(', ') : null}
+                                          mono wide
+                                        />
+                                      </div>
+                                    </details>
+                                  </td>
+                                </tr>
+                              )
+                            })()}
+                            {order.notas && !isStructuredNotas(order.notas) && (
                               <tr key={`${order.id || order.outbound_order_no}-notas`} className="bg-danger-50/45">
                                 <td colSpan={7} className="px-3 py-2 border-t border-danger-100">
                                   <div className="flex items-start gap-2 text-xs text-danger-700">

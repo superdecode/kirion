@@ -27,7 +27,7 @@ function printHtml(nodeId) {
 function exportExcel(folio, orders) {
   const rows = orders.map((o, i) => {
     const codes = getOrderCodes(o)
-    const codesStr = codes.map(([base, count]) => `${base} (${count})`).join('\n')
+    const codesStr = codes.map(([base, count, sku]) => `${base}${sku ? ` (SKU: ${sku})` : ''} (${count})`).join('\n')
     return [
       i + 1,
       o.outbound_order_no || '',
