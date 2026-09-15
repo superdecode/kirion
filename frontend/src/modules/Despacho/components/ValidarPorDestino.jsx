@@ -1515,63 +1515,48 @@ export default function ValidarPorDestino({ folioId }) {
                       ? 'border-success-200 bg-gradient-to-br from-success-50/60 via-white to-white'
                       : 'border-warm-200/90 bg-white hover:border-primary-100 hover:shadow-[0_14px_28px_-18px_rgba(37,99,235,0.3)]'
                   }`}>
-                    {/* Order header */}
-                    <div className="flex items-start justify-between gap-2.5 mb-2.5">
-                      <button
-                        type="button"
-                        onClick={async (event) => {
-                          event.stopPropagation()
-                          try {
-                            await navigator.clipboard.writeText(String(order.outbound_order_no))
-                            addToast('Orden copiada', 'success')
-                          } catch {}
-                        }}
-                        title="Copiar orden"
-                        className="group inline-flex min-w-0 items-start gap-2 text-left"
-                      >
-                        <span className="min-w-0 font-mono text-xs font-black leading-snug text-primary-700 break-all">
-                          {order.outbound_order_no}
-                        </span>
-                        <span className="shrink-0 rounded p-0.5 text-warm-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-warm-100 hover:text-primary-600">
-                          <Copy className="h-3 w-3" />
-                        </span>
-                      </button>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
-                          complete ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-600'
-                        }`}>
-                          {complete && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          {validadas}/{esperadas || '?'}
-                        </span>
-                        {canUpdate && isActive && (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setRemoveOrderModal({ open: true, order })
-                            }}
-                            title={t('desp.validar.destino.removeOrderTooltip')}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-danger-100 bg-white text-danger-500 transition-colors hover:bg-danger-50 hover:text-danger-700"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
+                    {/* OBC — full code, own row */}
+                    <button
+                      type="button"
+                      onClick={async (event) => {
+                        event.stopPropagation()
+                        try {
+                          await navigator.clipboard.writeText(String(order.outbound_order_no))
+                          addToast('Orden copiada', 'success')
+                        } catch {}
+                      }}
+                      title="Copiar orden"
+                      className="group flex w-full items-start gap-2 text-left mb-1.5"
+                    >
+                      <span className="min-w-0 flex-1 font-mono text-sm font-black leading-snug text-primary-700 break-all">
+                        {order.outbound_order_no}
+                      </span>
+                      <span className="shrink-0 mt-0.5 rounded p-0.5 text-warm-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-warm-100 hover:text-primary-600">
+                        <Copy className="h-3 w-3" />
+                      </span>
+                    </button>
+
+                    {/* Destinatario + counter chip */}
+                    <div className="flex items-start justify-between gap-2 mb-2.5">
+                      {order.destinatario ? (
+                        <p className="min-w-0 flex-1 text-[11px] leading-[1.1rem] text-warm-500 font-medium break-words">
+                          {order.destinatario}
+                        </p>
+                      ) : <span />}
+                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
+                        complete ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-600'
+                      }`}>
+                        {complete && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        {validadas}/{esperadas || '?'}
+                      </span>
                     </div>
 
-                    {/* Destinatario */}
-                    {order.destinatario && (
-                      <p className="text-[11px] leading-[1.1rem] text-warm-500 font-medium break-words min-h-[2.25rem] mb-2">
-                        {order.destinatario}
-                      </p>
-                    )}
-
-                    {/* Tracking + Reference */}
-                    <div className="flex min-h-[1.75rem] flex-nowrap items-start gap-1.5 mb-2.5 overflow-hidden">
+                    {/* Tracking + Reference — stacked rows, full width */}
+                    <div className="flex flex-col gap-1.5 mb-2.5">
                       {enrich?.logisticsTrackNo ? (
                         <CopyMetaPill value={enrich.logisticsTrackNo} tone="primary" />
                       ) : (
-                        <span className="shrink-0 text-[10px] text-warm-300 italic">{t('desp.validar.destino.sinTracking')}</span>
+                        <span className="text-[10px] text-warm-300 italic">{t('desp.validar.destino.sinTracking')}</span>
                       )}
                       {enrich?.thirdOrderNo && (
                         <CopyMetaPill label="Ref:" value={enrich.thirdOrderNo} tone="warm" />
@@ -1580,21 +1565,38 @@ export default function ValidarPorDestino({ folioId }) {
 
                     {/* Progress bar */}
                     {pct !== null && (
-                      <>
-                        <div className="w-full h-1.5 bg-warm-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${complete ? 'bg-success-500' : 'bg-primary-500'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        {!complete && (
-                          <div className="flex justify-between mt-0.5">
+                      <div className="w-full h-1.5 bg-warm-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${complete ? 'bg-success-500' : 'bg-primary-500'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Bottom row: progress readout (left) + delete (right) */}
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-2">
+                        {pct !== null && !complete && (
+                          <>
                             <span className="text-[10px] text-warm-400">{pct}%</span>
                             <span className="text-[10px] text-danger-500">{Math.max(0, esperadas - validadas)} pend.</span>
-                          </div>
+                          </>
                         )}
-                      </>
-                    )}
+                      </div>
+                      {canUpdate && isActive && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setRemoveOrderModal({ open: true, order })
+                          }}
+                          title={t('desp.validar.destino.removeOrderTooltip')}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-danger-100 bg-white text-danger-500 transition-colors hover:bg-danger-50 hover:text-danger-700"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
