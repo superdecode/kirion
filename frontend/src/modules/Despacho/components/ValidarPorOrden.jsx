@@ -219,6 +219,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       codigo_caja: code,
       tarima_ref: tarimaRef,
       ...(codigoCajaPrevio ? { codigo_caja_previo: codigoCajaPrevio, reetiquetado: !!reetiquetado, es_sku: !!esSku } : {}),
+      ...(!codigoCajaPrevio && reetiquetado ? { reetiquetado: true } : {}),
     }),
     onSuccess: (data, { code }) => {
       pendingOnlineRef.current.delete(code)
@@ -373,6 +374,13 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       return
     }
 
+    // A box scanned directly by its new-label code already satisfies the relabel
+    // requirement in one step (no old-label prompt needed) — flag it the same as a
+    // two-step relabel so the Validación icon shows it as done.
+    const directNewLabelMatch = !!(
+      validarEtiquetado && matchedField === 'logisticsTrackNo' && orderDetail && orderNeedsRelabel(orderDetail)
+    )
+
     // SKU gate: the box scan itself is recorded as its own normal scan first — never
     // discarded — then this chains into asking for the SKU as a second, separate
     // record. Keeping the box's own code as a real scan (instead of replacing it
@@ -384,13 +392,13 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         if (isOffline) {
           useOfflineStore.getState().enqueueModule({
             type: 'despacho_order_scan',
-            payload: { folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef },
+            payload: { folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef, ...(directNewLabelMatch ? { reetiquetado: true } : {}) },
           })
           setPendingOfflineScans(p => [...p, code])
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
         } else {
           pendingOnlineRef.current.add(code)
-          doAddScan({ code, tarimaRef: currentTarimaRef })
+          doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch })
         }
         setPendingSku({ rawCode: code })
         return
@@ -401,14 +409,14 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     if (isOffline) {
       useOfflineStore.getState().enqueueModule({
         type: 'despacho_order_scan',
-        payload: { folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef },
+        payload: { folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef, ...(directNewLabelMatch ? { reetiquetado: true } : {}) },
       })
       setPendingOfflineScans(p => [...p, code])
       addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
       return
     }
     pendingOnlineRef.current.add(code)
-    doAddScan({ code, tarimaRef: currentTarimaRef })
+    doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch })
   }, [pendingSku, pendingRelabel, scans, validCodes, validCodeFields, validarEtiquetado, orderDetail, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, addToast, folioId, order.id, currentTarimaRef, t])
 
   const pct = expected && expected > 0 ? Math.round((boxScans.length / expected) * 100) : null

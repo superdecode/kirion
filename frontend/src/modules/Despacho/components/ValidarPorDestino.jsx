@@ -987,6 +987,14 @@ export default function ValidarPorDestino({ folioId }) {
       return
     }
 
+    // A box scanned directly by its new-label code already satisfies the relabel
+    // requirement in one step (no old-label prompt needed) — flag it the same as a
+    // two-step relabel so the Validación icon shows it as done.
+    const directNewLabelMatch = !!(
+      folio?.validar_etiquetado && match.field === 'logisticsTrackNo' && orderNeedsRelabel(matchedMeta)
+    )
+    const relabelFlag = directNewLabelMatch ? { reetiquetado: true } : {}
+
     // SKU gate: the box scan itself is recorded as its own normal scan first — never
     // discarded — then this chains into asking for the SKU as a second, separate
     // record. Keeping the box's own code as a real scan (instead of replacing it
@@ -1000,12 +1008,12 @@ export default function ValidarPorDestino({ folioId }) {
         if (isOffline) {
           useOfflineStore.getState().enqueueModule({
             type: 'despacho_folio_scan',
-            payload: { folioId, body: { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo } },
+            payload: { folioId, body: { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag } },
           })
           setPendingOfflineScans(p => [...p, { code, matchedOrderNo }])
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
         } else {
-          requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo })
+          requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag })
         }
         setPendingSku({ matchedOrderNo, rawCode: code })
         return
@@ -1013,7 +1021,7 @@ export default function ValidarPorDestino({ folioId }) {
     }
 
     if (isOffline) {
-      const offlineBody = { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo }
+      const offlineBody = { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag }
       useOfflineStore.getState().enqueueModule({
         type: 'despacho_folio_scan',
         payload: { folioId, body: offlineBody },
@@ -1023,7 +1031,7 @@ export default function ValidarPorDestino({ folioId }) {
       return
     }
 
-    requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo })
+    requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag })
   }, [pendingSku, pendingRelabel, scans, scannedCodeVariants, orderCodeLookup, externalCodeLookup, orderMetaByNo, folio?.destino, folio?.validar_etiquetado, currentTarimaRef, isOffline, folioId, requestAddScan, addToast, t])
 
   const openForceModal = useCallback((code) => {
