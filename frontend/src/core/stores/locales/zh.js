@@ -3869,6 +3869,8 @@ export default {
     'desp.folioDetalle.colEscaneadas': '已扫描',
     'desp.folioDetalle.colDespachadas': '已发货',
     'desp.folioDetalle.colValidacion': '验证',
+    'desp.folioDetalle.chipSkuPendiente': 'SKU 待处理',
+    'desp.folioDetalle.chipSkuOk': 'SKU 已验证',
     'desp.folioDetalle.sinOrdenesEnFolio': '此发货单没有订单',
     'desp.folioDetalle.notaPrefix': '备注：',
     'desp.folioDetalle.sinEscaneosRegistrados': '此发货单没有扫描记录',

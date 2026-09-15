@@ -302,6 +302,12 @@ export default function FolioDetalle() {
     : scans
   , [scans, scanSearch])
 
+  const metaByOrderNo = useMemo(() => {
+    const map = new Map()
+    orders.forEach(o => { map.set(o.outbound_order_no, parseOrderNotasMeta(o.notas)) })
+    return map
+  }, [orders])
+
   const scansByTarima = useMemo(() => filteredScans.reduce((acc, s) => {
     const key = s.tarima_ref || t('desp.folioDetalle.sinTarima')
     if (!acc[key]) acc[key] = []
@@ -696,19 +702,29 @@ export default function FolioDetalle() {
                               <td className="px-3 py-2.5">
                                 <div className="flex flex-wrap items-center gap-1">
                                   {order._needsRelabel && (
-                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                                      order._relabelDone ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-500'
-                                    }`}>
+                                    <span
+                                      title={order._relabelDone ? t('desp.validar.destino.etiquetadoCompleto') : t('desp.validar.destino.requiereEtiquetado')}
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-bold ${
+                                        order._relabelDone
+                                          ? 'bg-success-100 border-success-200 text-success-700'
+                                          : 'bg-warning-100 border-warning-200 text-warning-700'
+                                      }`}
+                                    >
                                       <Tag className="w-2.5 h-2.5" />
                                       {order._relabelDone ? t('desp.validar.destino.etiquetadoCompleto') : t('desp.validar.destino.requiereEtiquetado')}
                                     </span>
                                   )}
                                   {order._needsSku && (
-                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                                      order._skuSatisfied ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-500'
-                                    }`}>
+                                    <span
+                                      title={order._skuSatisfied ? t('desp.validar.destino.skuValidado') : t('desp.validar.destino.requiereSku')}
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-bold ${
+                                        order._skuSatisfied
+                                          ? 'bg-success-100 border-success-200 text-success-700'
+                                          : 'bg-warning-100 border-warning-200 text-warning-700'
+                                      }`}
+                                    >
                                       <Barcode className="w-2.5 h-2.5" />
-                                      {order._skuSatisfied ? t('desp.validar.destino.skuValidado') : t('desp.validar.destino.requiereSku')}
+                                      {order._skuSatisfied ? t('desp.folioDetalle.chipSkuOk') : t('desp.folioDetalle.chipSkuPendiente')}
                                     </span>
                                   )}
                                   {!order._needsRelabel && !order._needsSku && (
@@ -768,7 +784,12 @@ export default function FolioDetalle() {
                       <div className="flex items-center gap-2 px-4 py-3 border-b border-warm-100/80 bg-warm-50/60">
                         <Layers className="w-3.5 h-3.5 text-accent-500 shrink-0" />
                         <span className="text-xs font-bold text-accent-700">{tarima}</span>
-                        <span className="text-[11px] text-warm-400">— {scansByTarima[tarima].length} {scansByTarima[tarima].length !== 1 ? t('desp.folioDetalle.cajaPlural') : t('desp.folioDetalle.cajaSingular')}</span>
+                        {(() => {
+                          const cajaCount = scansByTarima[tarima].filter(s => !s.es_sku).length
+                          return (
+                            <span className="text-[11px] text-warm-400">— {cajaCount} {cajaCount !== 1 ? t('desp.folioDetalle.cajaPlural') : t('desp.folioDetalle.cajaSingular')}</span>
+                          )
+                        })()}
                       </div>
                       <table className="w-full text-sm">
                         <thead>
@@ -776,16 +797,28 @@ export default function FolioDetalle() {
                             <th className={TH}>#</th>
                             <th className={TH}>{t('desp.folioDetalle.colCodigoCaja')}</th>
                             <th className={TH}>{t('desp.folioDetalle.colOrden')}</th>
+                            <th className={TH}>{t('desp.folioDetalle.colValidacion')}</th>
                             <th className={TH}>{t('desp.folioDetalle.usuario')}</th>
                             <th className={TH}>{t('desp.folioDetalle.colFecha')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-warm-50">
-                          {scansByTarima[tarima].map((s, i) => (
+                          {scansByTarima[tarima].map((s, i) => {
+                            const meta = s.matched_order_no ? (metaByOrderNo.get(s.matched_order_no) || {}) : {}
+                            const isSku = s.matched_order_no && matchesProductSku(meta, s.codigo_caja)
+                            return (
                             <tr key={`${tarima}-${s.id || s.codigo_caja}-${i}`} className="table-row">
                               <td className="px-3 py-2.5 text-warm-400 text-xs tabular-nums">{i + 1}</td>
                               <td className="px-3 py-2.5">
-                                <CopyInline value={s.codigo_caja} mono />
+                                {isSku && s.codigo_caja_previo ? (
+                                  <span className="text-xs font-mono">
+                                    <span className="text-warm-700">{t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}</span>
+                                    <span className="text-warm-300 mx-1">·</span>
+                                    <span className="text-success-700 font-semibold">SKU: {s.codigo_caja}</span>
+                                  </span>
+                                ) : (
+                                  <CopyInline value={s.codigo_caja} mono />
+                                )}
                               </td>
                               <td className="px-3 py-2.5">
                                 {s.matched_order_no ? (
@@ -798,10 +831,31 @@ export default function FolioDetalle() {
                                   </span>
                                 )}
                               </td>
+                              <td className="px-3 py-2.5">
+                                <div className="flex items-center gap-1">
+                                  {s.reetiquetado && (
+                                    <span
+                                      title={t('desp.validar.destino.reetiquetada')}
+                                      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-success-100 text-success-700"
+                                    >
+                                      <Tag className="h-3 w-3" />
+                                    </span>
+                                  )}
+                                  {isSku && (
+                                    <span
+                                      title={t('desp.folioDetalle.chipSkuOk')}
+                                      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-success-100 text-success-700"
+                                    >
+                                      <Barcode className="h-3 w-3" />
+                                    </span>
+                                  )}
+                                  {!s.reetiquetado && !isSku && <span className="text-xs text-warm-300">—</span>}
+                                </div>
+                              </td>
                               <td className="px-3 py-2.5 text-xs text-warm-500">{s.validated_by_nombre || '—'}</td>
                               <td className="px-3 py-2.5 text-xs text-warm-500">{fmtDateTime(s.validated_at)}</td>
                             </tr>
-                          ))}
+                          )})}
                         </tbody>
                       </table>
                     </div>
