@@ -16,6 +16,7 @@ import { useI18nStore } from '../../../core/stores/i18nStore'
 import { fmtDateTime, toDateKey } from '../../../core/utils/dateFormat'
 import { generateCodeVariations, normalizeCodeFast, normalizeScanCode } from '../../Shared/Wms/normalizeCode'
 import { extractBaseCode } from '../../Shared/Wms/extractBaseCode'
+import { orderNeedsRelabel, newLabelBase } from '../../Shared/Wms/relabelUtils'
 import {
   getFolio, getFolioScans, addFolioScan, deleteFolioScan,
   moveFolioScanTarima, cerrarFolio, cancelarFolio, getOutboundList, removeDestinationOrder, addOrder, findOrderByBarcode,
@@ -263,6 +264,10 @@ export default function ValidarPorDestino({ folioId }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [forceModal, setForceModal] = useState({ open: false, code: '', orderNo: '' })
+  // Two-scan relabel flow: set when the first scan matched an order that still needs
+  // relabeling and did NOT come in on the new-label field itself. The next scan into
+  // the same input is then treated as the second scan instead of a fresh box.
+  const [pendingRelabel, setPendingRelabel] = useState(null)
   const [overLimitModal, setOverLimitModal] = useState({ open: false, payload: null, scanned: 0, expected: 0 })
   const [moveModal, setMoveModal] = useState({ open: false, scan: null, target: '' })
   const [removeOrderModal, setRemoveOrderModal] = useState({ open: false, order: null })
@@ -408,27 +413,32 @@ export default function ValidarPorDestino({ folioId }) {
     )
   }, [orderMetaByNo, validatedCountByOrderNo])
 
+  // Each entry carries { orderNo, field } — field is which WMS column the match came
+  // from (outbound_order_no / logisticsTrackNo / thirdOrderNo / customizeCode), needed
+  // to tell "matched by the new label already" apart from every other match.
   const orderCodeLookup = useMemo(() => {
     const variants = new Map()
     const bases = new Map()
     orders.forEach((order) => {
       const meta = orderMetaByNo.get(order.outbound_order_no) || {}
-      const rawCodes = [
-        order.outbound_order_no,
-        meta.logisticsTrackNo,
-        meta.thirdOrderNo,
-        ...(Array.isArray(meta.allCustomizeCodes) ? meta.allCustomizeCodes : []),
+      const fieldSources = [
+        ['outbound_order_no', order.outbound_order_no],
+        ['logisticsTrackNo', meta.logisticsTrackNo],
+        ['thirdOrderNo', meta.thirdOrderNo],
+        ...(Array.isArray(meta.allCustomizeCodes) ? meta.allCustomizeCodes.map(c => ['customizeCode', c]) : []),
       ]
-      rawCodes.filter(Boolean).forEach((rawCode) => {
+      fieldSources.forEach(([field, rawCode]) => {
+        if (!rawCode) return
+        const matchInfo = { orderNo: order.outbound_order_no, field }
         const normalized = normalizeCodeFast(rawCode)
         if (normalized) {
           generateCodeVariations(normalized, false).forEach((variant) => {
-            if (!variants.has(variant)) variants.set(variant, order.outbound_order_no)
+            if (!variants.has(variant)) variants.set(variant, matchInfo)
           })
         }
 
         const base = normalizeBaseCode(rawCode)
-        if (base && !bases.has(base)) bases.set(base, order.outbound_order_no)
+        if (base && !bases.has(base)) bases.set(base, matchInfo)
       })
     })
     return { variants, bases }
@@ -763,6 +773,11 @@ export default function ValidarPorDestino({ folioId }) {
     setTimeout(() => focusScan(), 100)
   }, [doAddScan, overLimitModal.payload])
 
+  const cancelPendingRelabel = useCallback(() => {
+    setPendingRelabel(null)
+    setTimeout(() => focusScan(), 80)
+  }, [focusScan])
+
   const handleScan = useCallback((rawInput) => {
     const raw = String(rawInput || '').trim()
     if (!raw) return
@@ -770,6 +785,39 @@ export default function ValidarPorDestino({ folioId }) {
     const code = variants[0] || ''
     focusScan()
     if (!code) return
+
+    // Second scan of a pending relabel: this input is now dedicated to matching the
+    // new-label code, not to picking up a fresh box.
+    if (pendingRelabel) {
+      const scannedBase = normalizeBaseCode(code)
+      if (!scannedBase || scannedBase !== pendingRelabel.expectedNewBase) {
+        addToast(t('desp.validar.destino.etiquetaNoCoincide'), 'error')
+        return
+      }
+      if (hasCodeVariant(scannedCodeVariants, variants) || pendingOnlineRef.current.has(code)) {
+        setErrorModal({ type: 'duplicate', code })
+        return
+      }
+      const relabelPayload = {
+        codigo_caja: code,
+        tarima_ref: currentTarimaRef,
+        matched_order_no: pendingRelabel.matchedOrderNo,
+        codigo_caja_previo: pendingRelabel.rawCode,
+        reetiquetado: true,
+      }
+      if (isOffline) {
+        useOfflineStore.getState().enqueueModule({
+          type: 'despacho_folio_scan',
+          payload: { folioId, body: relabelPayload },
+        })
+        setPendingOfflineScans(p => [...p, { code, matchedOrderNo: pendingRelabel.matchedOrderNo }])
+        addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+      } else {
+        requestAddScan(relabelPayload)
+      }
+      setPendingRelabel(null)
+      return
+    }
 
     // Duplicate check (server scans + offline queue + locally pending)
     if (hasCodeVariant(scannedCodeVariants, variants) || pendingOnlineRef.current.has(code)) {
@@ -781,12 +829,12 @@ export default function ValidarPorDestino({ folioId }) {
 
     // Match by outbound_order_no, logisticsTrackNo, thirdOrderNo, or scanned base
     // against a prebuilt index for orders already inside this folio.
-    const matchedOrderNo =
+    const match =
       findFirstVariantMatch(orderCodeLookup.variants, variants) ||
       orderCodeLookup.bases.get(baseCode) ||
       null
 
-    if (!matchedOrderNo) {
+    if (!match) {
       const externalMatch = findFirstVariantMatch(externalCodeLookup.variants, variants)
       const activeDate = [...orderMetaByNo.values()].find(meta => meta.outboundDate)?.outboundDate || ''
       const activeDestino = String(folio?.destino || '').trim()
@@ -809,6 +857,21 @@ export default function ValidarPorDestino({ folioId }) {
       return
     }
 
+    const matchedOrderNo = match.orderNo
+
+    // Relabel gate: only when the folio requires it, the match did NOT come from the
+    // new-label field itself (thirdOrderNo), and the order actually needs relabeling
+    // (old/new label bases differ). A box already scanned on its new label passes
+    // straight through — there's nothing left to compare it against.
+    if (folio?.validar_etiquetado && match.field !== 'thirdOrderNo') {
+      const meta = orderMetaByNo.get(matchedOrderNo) || {}
+      if (orderNeedsRelabel(meta)) {
+        const expectedNewBase = newLabelBase(meta)
+        setPendingRelabel({ rawCode: code, matchedOrderNo, expectedNewBase })
+        return
+      }
+    }
+
     if (isOffline) {
       const offlineBody = { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo }
       useOfflineStore.getState().enqueueModule({
@@ -821,7 +884,7 @@ export default function ValidarPorDestino({ folioId }) {
     }
 
     requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo })
-  }, [scannedCodeVariants, orderCodeLookup, externalCodeLookup, orderMetaByNo, folio?.destino, currentTarimaRef, isOffline, folioId, requestAddScan, addToast])
+  }, [pendingRelabel, scannedCodeVariants, orderCodeLookup, externalCodeLookup, orderMetaByNo, folio?.destino, folio?.validar_etiquetado, currentTarimaRef, isOffline, folioId, requestAddScan, addToast, t])
 
   const openForceModal = useCallback((code) => {
     setErrorModal(null)
@@ -1094,6 +1157,26 @@ export default function ValidarPorDestino({ folioId }) {
           {loadingScans && <Loader2 className="w-3.5 h-3.5 animate-spin text-warm-400 self-center" />}
         </div>
 
+        {/* Relabel gate — waiting on the second scan (new label) */}
+        {pendingRelabel && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-warning-300 bg-warning-50 px-3 py-2.5">
+            <AlertCircle className="w-4 h-4 text-warning-600 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-warning-800">{t('desp.validar.destino.esperandoEtiquetaNueva')}</p>
+              <p className="text-[11px] text-warning-700 truncate">
+                {t('desp.validar.destino.ordenLabel')}: <span className="font-mono font-semibold">{pendingRelabel.matchedOrderNo}</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={cancelPendingRelabel}
+              className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg border border-warning-300 bg-white px-2.5 text-[11px] font-semibold text-warning-700 hover:bg-warning-100 transition-colors"
+            >
+              <X className="w-3 h-3" />{t('common.cancel')}
+            </button>
+          </div>
+        )}
+
         {/* Row 3: scan input — desktop only; phones/PDAs use the pinned bottom bar */}
         <div className="hidden sm:block">
           <ScanInputBar
@@ -1180,6 +1263,11 @@ export default function ValidarPorDestino({ folioId }) {
                               </span>
                             ) : (
                               <span className="text-[10px] text-accent-600 font-mono">{s.matched_order_no}</span>
+                            )}
+                            {s.reetiquetado && (
+                              <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
+                                {t('desp.validar.destino.reetiquetada')}
+                              </span>
                             )}
                           </div>
                           <span className="text-[10px] text-warm-400">{fmtDateTime(s.validated_at)}</span>

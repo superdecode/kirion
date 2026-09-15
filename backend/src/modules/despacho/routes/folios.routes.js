@@ -439,7 +439,7 @@ router.post('/',
         })
       }
 
-      const { conductor_id = null, unidad_id = null, notas = '', tipo = 'por_orden', destino = null, orders = [] } = req.body
+      const { conductor_id = null, unidad_id = null, notas = '', tipo = 'por_orden', destino = null, orders = [], validar_etiquetado = true } = req.body
       const fecha_salida = req.body.fecha_salida === '' ? null : (req.body.fecha_salida ?? null)
       if (!conductor_id || !unidad_id || !fecha_salida) {
         return res.status(400).json({ error: 'Conductor, unidad y fecha de salida son obligatorios para crear el folio' })
@@ -447,10 +447,10 @@ router.post('/',
       const folio_numero = await generateFolioNumero(req)
       const result = await req.tTransaction(async (client) => {
         const folioInsert = await client.query(
-          `INSERT INTO dispatch_folios (tenant_id, folio_numero, conductor_id, unidad_id, operador_id, fecha_salida, notas, tipo, destino)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          `INSERT INTO dispatch_folios (tenant_id, folio_numero, conductor_id, unidad_id, operador_id, fecha_salida, notas, tipo, destino, validar_etiquetado)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            RETURNING *`,
-          [req.tenantId, folio_numero, conductor_id, unidad_id, req.user.id, fecha_salida, notas || null, tipo, destino || null]
+          [req.tenantId, folio_numero, conductor_id, unidad_id, req.user.id, fecha_salida, notas || null, tipo, destino || null, validar_etiquetado !== false]
         )
         const folio = folioInsert.rows[0]
 
@@ -636,6 +636,11 @@ router.put('/:id',
         params.push(req.body.validar_por_tarimas ?? false)
         setClauses.push(`validar_por_tarimas = $${params.length}`)
       }
+      // validar_etiquetado only for active folios (same rationale as validar_por_tarimas)
+      if ('validar_etiquetado' in req.body && ['borrador', 'en_proceso'].includes(estado)) {
+        params.push(req.body.validar_etiquetado ?? true)
+        setClauses.push(`validar_etiquetado = $${params.length}`)
+      }
 
       params.push(req.params.id, req.tenantId)
       const result = await req.tQuery(
@@ -645,7 +650,7 @@ router.put('/:id',
         params
       )
       if (result.rows.length === 0) return res.status(404).json({ error: 'Folio no encontrado' })
-      const editedFields = ['conductor_id', 'unidad_id', 'notas', 'fecha_salida', 'validar_por_tarimas']
+      const editedFields = ['conductor_id', 'unidad_id', 'notas', 'fecha_salida', 'validar_por_tarimas', 'validar_etiquetado']
         .filter(field => field in req.body)
       if (editedFields.length > 0) {
         auditLog(req, 'DESPACHO_FOLIO_EDIT', 'dispatch_folio', req.params.id, {
@@ -754,7 +759,7 @@ router.post('/:id/scans',
   requireDespachoValidar('actualizar'),
   async (req, res) => {
     try {
-      const { codigo_caja, tarima_ref = null, matched_order_no = null } = req.body
+      const { codigo_caja, tarima_ref = null, matched_order_no = null, codigo_caja_previo = null, reetiquetado = false } = req.body
       if (!codigo_caja?.trim()) return res.status(400).json({ error: 'codigo_caja requerido' })
 
       const folioRes = await req.tQuery(
@@ -896,10 +901,10 @@ router.post('/:id/scans',
 
         const insertRes = await client.query(
           `INSERT INTO dispatch_order_scans
-             (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, matched_order_no, validated_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)
+             (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, matched_order_no, validated_by, codigo_caja_previo, reetiquetado)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
            RETURNING id`,
-          [req.tenantId, req.params.id, ensuredOrderId, codigoCaja, tarima_ref || null, normalizedOrderNo || null, req.user.id]
+          [req.tenantId, req.params.id, ensuredOrderId, codigoCaja, tarima_ref || null, normalizedOrderNo || null, req.user.id, codigo_caja_previo || null, reetiquetado === true]
         )
 
         if (normalizedOrderNo) {
@@ -1169,7 +1174,7 @@ router.post('/:id/orders/:orderId/scans',
   requireDespachoValidar('actualizar'),
   async (req, res) => {
     try {
-      const { codigo_caja, tarima_ref = null } = req.body
+      const { codigo_caja, tarima_ref = null, codigo_caja_previo = null, reetiquetado = false } = req.body
       if (!codigo_caja?.trim()) return res.status(400).json({ error: 'codigo_caja requerido' })
       const codigoCaja = normalizeScanCode(codigo_caja)
       if (!codigoCaja) return res.status(400).json({ error: 'codigo_caja inválido' })
@@ -1183,9 +1188,9 @@ router.post('/:id/orders/:orderId/scans',
       }
 
       await req.tQuery(
-        `INSERT INTO dispatch_order_scans (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, validated_by)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [req.tenantId, req.params.id, req.params.orderId, codigoCaja, tarima_ref || null, req.user.id]
+        `INSERT INTO dispatch_order_scans (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, validated_by, codigo_caja_previo, reetiquetado)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [req.tenantId, req.params.id, req.params.orderId, codigoCaja, tarima_ref || null, req.user.id, codigo_caja_previo || null, reetiquetado === true]
       )
       await syncOrderProgressById(req, req.params.orderId)
       const detail = await getFolioDetail(req, req.params.id)

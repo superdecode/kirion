@@ -15,6 +15,7 @@ import { useAuthStore } from '../../../core/stores/authStore'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import { fmtDateTime } from '../../../core/utils/dateFormat'
 import { generateCodeVariations, normalizeCodeFast, normalizeScanCode } from '../../Shared/Wms/normalizeCode'
+import { extractBaseCode } from '../../Shared/Wms/extractBaseCode'
 import { playSound, initAudio } from '../../Shared/Wms/playSound'
 import {
   getFolio, addOrder, updateOrder, removeOrder,
@@ -22,6 +23,7 @@ import {
   addOrderScan, deleteLastOrderScan,
 } from '../services/despachoService'
 import { getOutboundDetail } from '../../WmsHub/services/googleSheetsService'
+import { orderNeedsRelabel, newLabelBase } from '../../Shared/Wms/relabelUtils'
 import ScanInputBar from '../../Shared/Wms/ScanInputBar'
 import { useOfflineStore } from '../../../core/stores/offlineStore'
 import OfflineBlockedModal from '../../../core/components/common/OfflineBlockedModal'
@@ -44,8 +46,24 @@ function buildLookupCodeSet(rawCodes = []) {
   return codes
 }
 
+// Same coverage as buildLookupCodeSet, but keeps which field each code variant came
+// from — needed to tell "matched by the new label already" (thirdOrderNo) apart from
+// every other match for the relabel gate.
+function buildLookupFieldMap(fieldSources = []) {
+  const map = new Map()
+  fieldSources.forEach(([field, rawCode]) => {
+    if (!rawCode) return
+    const normalized = normalizeCodeFast(rawCode)
+    if (!normalized) return
+    generateCodeVariations(normalized, false).forEach((variant) => {
+      if (!map.has(variant)) map.set(variant, field)
+    })
+  })
+  return map
+}
+
 // ── Validation panel (per order) ─────────────────────────────────────────────
-function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onClose, validarPorTarimas, detailCache }) {
+function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onClose, validarPorTarimas, validarEtiquetado, detailCache }) {
   const { addToast } = useToastStore()
   const { t } = useI18nStore()
   const scanRef = useRef(null)
@@ -55,6 +73,8 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   const [currentTarimaNum, setCurrentTarimaNum] = useState(1)
   const [pendingOfflineScans, setPendingOfflineScans] = useState([])
   const [forceModal, setForceModal] = useState({ open: false, code: '' })
+  // Two-scan relabel flow — same shape and flow as ValidarPorDestino's pendingRelabel.
+  const [pendingRelabel, setPendingRelabel] = useState(null)
   const pendingOnlineRef = useRef(new Set())
   const isOffline = useOfflineStore((s) => s.status === 'offline')
 
@@ -120,17 +140,34 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
 
   // Built once per order detail instead of on every shot: a PDA burst on a large
   // order was regenerating the whole variant set per scan.
+  // Accept any of the identifiers that reference this order: per-box customize code,
+  // the order-level thirdOrderNo (NEW label — "Reference order No._参考单号") or
+  // logisticsTrackNo (OLD label — "货件追踪码/Reference ID"), or the OBC order number
+  // itself. allCustomizeCodes is spread defensively for callers that pass an
+  // aggregated order; getOutboundDetail already lists every box in packageList.
+  // The map form (field per code) drives the relabel gate below; validCodes stays a
+  // flat Set for the existing "known code at all?" check.
+  const validCodeFields = useMemo(() => {
+    if (!orderDetail) return new Map()
+    const fieldSources = []
+    ;(orderDetail.packageList ?? orderDetail.outboundBoxList ?? []).forEach((p) => {
+      fieldSources.push(['customizeCode', p.customizeCode], ['boxType', p.boxType], ['customizeCode', p.boxCode])
+    })
+    fieldSources.push(
+      ['thirdOrderNo', orderDetail.thirdOrderNo],
+      ['logisticsTrackNo', orderDetail.logisticsTrackNo],
+      ['outboundOrderNo', orderDetail.outboundOrderNo],
+      ...((orderDetail.allCustomizeCodes ?? []).map(c => ['customizeCode', c])),
+    )
+    return buildLookupFieldMap(fieldSources)
+  }, [orderDetail])
+
   const validCodes = useMemo(() => {
     if (!orderDetail) return new Set()
     const rawCodes = []
     ;(orderDetail.packageList ?? orderDetail.outboundBoxList ?? []).forEach((p) => {
       rawCodes.push(p.customizeCode, p.boxType, p.boxCode)
     })
-    // Accept any of the identifiers that reference this order: box code (old
-    // code, stored in the sheet), trucking/reference id (new code), reference
-    // order no, or the OBC order number itself.
-    // allCustomizeCodes is spread defensively for callers that pass an
-    // aggregated order; getOutboundDetail already lists every box in packageList.
     rawCodes.push(
       orderDetail.thirdOrderNo,
       orderDetail.logisticsTrackNo,
@@ -155,7 +192,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   ) || null
 
   const { mutate: doAddScan, isPending: scanning } = useMutation({
-    mutationFn: ({ code, tarimaRef }) => addOrderScan(folioId, order.id, { codigo_caja: code, tarima_ref: tarimaRef }),
+    mutationFn: ({ code, tarimaRef, codigoCajaPrevio, reetiquetado }) => addOrderScan(folioId, order.id, {
+      codigo_caja: code,
+      tarima_ref: tarimaRef,
+      ...(codigoCajaPrevio ? { codigo_caja_previo: codigoCajaPrevio, reetiquetado: !!reetiquetado } : {}),
+    }),
     onSuccess: (data, { code }) => {
       pendingOnlineRef.current.delete(code)
       onUpdate(data)
@@ -191,9 +232,49 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     onError: (err) => addToast(err?.response?.data?.error || 'Error eliminando escaneo', 'error'),
   })
 
+  const cancelPendingRelabel = useCallback(() => {
+    setPendingRelabel(null)
+    setTimeout(() => scanRef.current?.focus(), 80)
+  }, [])
+
   const handleScan = useCallback((rawInput) => {
     const code = normalizeScanCode(rawInput)
     if (!code) return
+
+    // Second scan of a pending relabel: this input is now dedicated to matching the
+    // new-label code, not to picking up a fresh box.
+    if (pendingRelabel) {
+      const scannedBase = extractBaseCode(code) || code
+      if (!scannedBase || scannedBase !== pendingRelabel.expectedNewBase) {
+        playSound('error')
+        addToast(t('desp.validar.destino.etiquetaNoCoincide'), 'error')
+        return
+      }
+      const allScannedCodes = new Set([...Array.from(alreadyScanned), ...pendingOfflineScans])
+      if (allScannedCodes.has(code) || pendingOnlineRef.current.has(code)) {
+        playSound('duplicate')
+        addToast('Código ya escaneado en esta orden', 'warning')
+        return
+      }
+      scanRef.current?.focus()
+      if (isOffline) {
+        useOfflineStore.getState().enqueueModule({
+          type: 'despacho_order_scan',
+          payload: {
+            folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef,
+            codigo_caja_previo: pendingRelabel.rawCode, reetiquetado: true,
+          },
+        })
+        setPendingOfflineScans(p => [...p, code])
+        addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+      } else {
+        pendingOnlineRef.current.add(code)
+        doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true })
+      }
+      setPendingRelabel(null)
+      return
+    }
+
     const allScannedCodes = new Set([...Array.from(alreadyScanned), ...pendingOfflineScans])
     if (allScannedCodes.has(code) || pendingOnlineRef.current.has(code)) {
       playSound('duplicate')
@@ -206,6 +287,17 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       setForceModal({ open: true, code })
       return
     }
+
+    // Relabel gate: only when the folio requires it, the match did NOT come from the
+    // new-label field itself (thirdOrderNo), and the order actually needs relabeling
+    // (old/new label bases differ). A box already scanned on its new label passes
+    // straight through — there's nothing left to compare it against.
+    const matchedField = validCodeFields.get(code)
+    if (validarEtiquetado && matchedField !== 'thirdOrderNo' && orderDetail && orderNeedsRelabel(orderDetail)) {
+      setPendingRelabel({ rawCode: code, expectedNewBase: newLabelBase(orderDetail) })
+      return
+    }
+
     scanRef.current?.focus()
     if (isOffline) {
       useOfflineStore.getState().enqueueModule({
@@ -218,7 +310,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     }
     pendingOnlineRef.current.add(code)
     doAddScan({ code, tarimaRef: currentTarimaRef })
-  }, [validCodes, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, addToast, folioId, order.id, currentTarimaRef])
+  }, [pendingRelabel, validCodes, validCodeFields, validarEtiquetado, orderDetail, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, addToast, folioId, order.id, currentTarimaRef, t])
 
   const pct = expected && expected > 0 ? Math.round((scans.length / expected) * 100) : null
 
@@ -339,6 +431,20 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         </div>
       </div>
 
+      {pendingRelabel && (
+        <div className="mb-2 flex items-center gap-2.5 rounded-xl border border-warning-300 bg-warning-50 px-3 py-2.5">
+          <AlertCircle className="w-4 h-4 text-warning-600 shrink-0" />
+          <p className="min-w-0 flex-1 text-xs font-bold text-warning-800">{t('desp.validar.destino.esperandoEtiquetaNueva')}</p>
+          <button
+            type="button"
+            onClick={cancelPendingRelabel}
+            className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg border border-warning-300 bg-white px-2.5 text-[11px] font-semibold text-warning-700 hover:bg-warning-100 transition-colors"
+          >
+            <X className="w-3 h-3" />{t('common.cancel')}
+          </button>
+        </div>
+      )}
+
       {canEdit && (
         <div className="mb-3 space-y-2">
           <ScanInputBar
@@ -411,6 +517,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                       <span className="w-5 text-right text-[10px] font-black tabular-nums text-accent-600 shrink-0">{scanIndex + 1}</span>
                       <Check className="w-3 h-3 text-success-500 shrink-0" />
                       <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                      {s.reetiquetado && (
+                        <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
+                          {t('desp.validar.destino.reetiquetada')}
+                        </span>
+                      )}
                       <span className="hidden sm:inline text-warm-400">{s.validated_by_nombre || '—'}</span>
                       <span className="text-warm-400 tabular-nums">{fmtDateTime(s.validated_at)}</span>
                     </div>
@@ -430,6 +541,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                 <span className="w-5 text-right text-[10px] font-black tabular-nums text-primary-500 shrink-0">{i + 1}</span>
                 <Check className="w-3 h-3 text-success-500 shrink-0" />
                 <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                {s.reetiquetado && (
+                  <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
+                    {t('desp.validar.destino.reetiquetada')}
+                  </span>
+                )}
                 <span className="hidden sm:inline text-warm-400">{s.validated_by_nombre || '—'}</span>
                 <span className="text-warm-400 tabular-nums">{fmtDateTime(s.validated_at)}</span>
               </div>
@@ -1140,6 +1256,7 @@ export default function ValidarPorOrden({ folioId }) {
                             onAutoConfirm={(body) => doUpdateOrder({ orderId: order.id, body })}
                             onClose={() => setValidatingOrderId(null)}
                             validarPorTarimas={true}
+                            validarEtiquetado={!!folio?.validar_etiquetado}
                             detailCache={detailCacheRef}
                           />
                         </motion.div>

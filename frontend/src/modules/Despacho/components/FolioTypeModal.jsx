@@ -77,6 +77,7 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
   const { t } = useI18nStore()
   const [tipoSelected, setTipoSelected] = useState(null)
   const [form, setForm] = useState({ conductor_id: '', unidad_id: '', fecha_salida: new Date().toISOString().slice(0, 10) })
+  const [validarEtiquetado, setValidarEtiquetado] = useState(true)
   const [showMissingFieldsError, setShowMissingFieldsError] = useState(false)
   const [showDestinoError, setShowDestinoError] = useState(false)
 
@@ -92,6 +93,7 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
     if (!isOpen) {
       setTipoSelected(null)
       setForm({ conductor_id: '', unidad_id: '', fecha_salida: new Date().toISOString().slice(0, 10) })
+      setValidarEtiquetado(true)
       setShowMissingFieldsError(false)
       setShowDestinoError(false)
       setDestinoSearch('')
@@ -241,6 +243,7 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
       conductor_id: form.conductor_id || null,
       unidad_id: form.unidad_id || null,
       fecha_salida: form.fecha_salida || null,
+      validar_etiquetado: validarEtiquetado,
     }
     if (tipoSelected === 'por_destino') {
       payload.destino = selectedDestinoOption.name
@@ -428,6 +431,19 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
                       {t('desp.validar.modal.debeSelCUF')}
                     </p>
                   )}
+                  <label className="flex items-start gap-2 pt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={validarEtiquetado}
+                      onChange={e => setValidarEtiquetado(e.target.checked)}
+                      className="cb mt-0.5"
+                    />
+                    <span className="text-[11px] text-warm-600 leading-snug">
+                      <span className="font-semibold text-warm-700">{t('desp.validar.modal.validarEtiquetado')}</span>
+                      <br />
+                      {t('desp.validar.modal.validarEtiquetadoDesc')}
+                    </span>
+                  </label>
                 </motion.div>
 
                 {/* Por destino: destino selector */}
