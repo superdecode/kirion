@@ -319,7 +319,14 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         pendingOnlineRef.current.add(code)
         doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true })
       }
+      // The relabel scan just submitted is its own complete record. If this order
+      // also still needs the SKU, chain straight into that request next instead of
+      // making the operator scan a fresh box first.
+      const skuAlreadySatisfied = orderDetail && scans.some(s => matchesProductSku(orderDetail, s.codigo_caja))
       setPendingRelabel(null)
+      if (orderDetail && orderNeedsProductLabel(orderDetail) && !skuAlreadySatisfied) {
+        setPendingSku({ rawCode: code })
+      }
       return
     }
 
@@ -338,25 +345,39 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
 
     const matchedField = validCodeFields.get(code)
 
-    // SKU gate: checked before the relabel gate. Only when this order needs an
-    // internal product-label change, no prior scan has already validated the SKU,
-    // and this particular scan isn't itself the SKU.
-    if (matchedField !== 'productSku' && orderDetail && orderNeedsProductLabel(orderDetail)) {
-      const skuAlreadySatisfied = scans.some(s => matchesProductSku(orderDetail, s.codigo_caja))
-      if (!skuAlreadySatisfied) {
-        setPendingSku({ rawCode: code })
-        return
-      }
-    }
-
-    // Relabel gate: only when the folio requires it, the match did NOT come from the
-    // new-label field itself (logisticsTrackNo) or the product/SKU code (a distinct
-    // requirement, not a box relabel), and the order actually needs relabeling
-    // (old/new label bases differ). A box already scanned on its new label passes
-    // straight through — there's nothing left to compare it against.
+    // Relabel gate: checked first — a box that still needs its new label must get
+    // that confirmed before anything else, including the SKU. Only when the folio
+    // requires it, the match did NOT come from the new-label field itself
+    // (logisticsTrackNo) or the product/SKU code, and the order actually needs
+    // relabeling (old/new label bases differ). A box already scanned on its new
+    // label passes straight through — there's nothing left to compare it against.
     if (validarEtiquetado && matchedField !== 'logisticsTrackNo' && matchedField !== 'productSku' && orderDetail && orderNeedsRelabel(orderDetail)) {
       setPendingRelabel({ rawCode: code, expectedNewBase: newLabelBase(orderDetail) })
       return
+    }
+
+    // SKU gate: the box scan itself is recorded as its own normal scan first — never
+    // discarded — then this chains into asking for the SKU as a second, separate
+    // record. Keeping the box's own code as a real scan (instead of replacing it
+    // with the SKU) is what keeps a later duplicate scan of that same box caught.
+    if (matchedField !== 'productSku' && orderDetail && orderNeedsProductLabel(orderDetail)) {
+      const skuAlreadySatisfied = scans.some(s => matchesProductSku(orderDetail, s.codigo_caja))
+      if (!skuAlreadySatisfied) {
+        scanRef.current?.focus()
+        if (isOffline) {
+          useOfflineStore.getState().enqueueModule({
+            type: 'despacho_order_scan',
+            payload: { folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef },
+          })
+          setPendingOfflineScans(p => [...p, code])
+          addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+        } else {
+          pendingOnlineRef.current.add(code)
+          doAddScan({ code, tarimaRef: currentTarimaRef })
+        }
+        setPendingSku({ rawCode: code })
+        return
+      }
     }
 
     scanRef.current?.focus()

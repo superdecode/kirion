@@ -835,7 +835,10 @@ export default function ValidarPorDestino({ folioId }) {
     if (!code) return
 
     // Second scan of a pending SKU request: this input must be the product's SKU
-    // code, not a fresh box.
+    // code, not a fresh box. Recorded as its own cascaded scan (codigo_caja = the
+    // SKU) — never folded into or replacing the box scan that came before it, so the
+    // SKU itself stays subject to normal duplicate detection (it must only ever be
+    // recorded once).
     if (pendingSku) {
       const meta = orderMetaByNo.get(pendingSku.matchedOrderNo) || {}
       if (!matchesProductSku(meta, code)) {
@@ -850,9 +853,9 @@ export default function ValidarPorDestino({ folioId }) {
         codigo_caja: code,
         tarima_ref: currentTarimaRef,
         matched_order_no: pendingSku.matchedOrderNo,
-        // Reuses the same field the relabel flow stores the old box code in — here it
-        // holds the box code that triggered the SKU request, so the scan row can show
-        // both the box and the SKU instead of just the SKU alone.
+        // Holds whatever code preceded this cascade (the plain box code, or the
+        // new-label code if a relabel happened first) purely for the scan row's
+        // "Caja: X · SKU: Y" display.
         codigo_caja_previo: pendingSku.rawCode,
       }
       if (isOffline) {
@@ -863,7 +866,8 @@ export default function ValidarPorDestino({ folioId }) {
         setPendingOfflineScans(p => [...p, { code, matchedOrderNo: pendingSku.matchedOrderNo }])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
       } else {
-        requestAddScan(skuPayload)
+        // Not a real extra box — skip the over-limit prompt for this companion record.
+        requestAddScan(skuPayload, { skipOverLimit: true })
       }
       setPendingSku(null)
       return
@@ -898,7 +902,18 @@ export default function ValidarPorDestino({ folioId }) {
       } else {
         requestAddScan(relabelPayload)
       }
+      // The relabel scan just submitted is its own complete record. If this order
+      // also still needs the SKU, chain straight into that request next instead of
+      // making the operator scan a fresh box first.
+      const relabelOrderNo = pendingRelabel.matchedOrderNo
+      const meta = orderMetaByNo.get(relabelOrderNo) || {}
+      const skuAlreadySatisfied = scans.some(s => (
+        s.matched_order_no === relabelOrderNo && matchesProductSku(meta, s.codigo_caja)
+      ))
       setPendingRelabel(null)
+      if (orderNeedsProductLabel(meta) && !skuAlreadySatisfied) {
+        setPendingSku({ matchedOrderNo: relabelOrderNo, rawCode: code })
+      }
       return
     }
 
@@ -941,34 +956,40 @@ export default function ValidarPorDestino({ folioId }) {
     }
 
     const matchedOrderNo = match.orderNo
+    const matchedMeta = orderMetaByNo.get(matchedOrderNo) || {}
 
-    // SKU gate: checked before the relabel gate. Only when this order needs an
-    // internal product-label change, no prior scan for it has already validated the
-    // SKU, and this particular scan isn't itself the SKU. Doesn't matter which box
-    // triggers it — once satisfied once, it never gates again for this order.
-    if (match.field !== 'productSku') {
-      const meta = orderMetaByNo.get(matchedOrderNo) || {}
-      if (orderNeedsProductLabel(meta)) {
-        const skuAlreadySatisfied = scans.some(s => (
-          (s.matched_order_no === matchedOrderNo) && matchesProductSku(meta, s.codigo_caja)
-        ))
-        if (!skuAlreadySatisfied) {
-          setPendingSku({ matchedOrderNo, rawCode: code })
-          return
-        }
-      }
+    // Relabel gate: checked first — a box that still needs its new label must get
+    // that confirmed before anything else, including the SKU. Only when the folio
+    // requires it, the match did NOT come from the new-label field itself
+    // (logisticsTrackNo) or the product/SKU code, and the order actually needs
+    // relabeling (old/new label bases differ). A box already scanned on its new
+    // label passes straight through — there's nothing left to compare it against.
+    if (folio?.validar_etiquetado && match.field !== 'logisticsTrackNo' && match.field !== 'productSku' && orderNeedsRelabel(matchedMeta)) {
+      setPendingRelabel({ rawCode: code, matchedOrderNo, expectedNewBase: newLabelBase(matchedMeta) })
+      return
     }
 
-    // Relabel gate: only when the folio requires it, the match did NOT come from the
-    // new-label field itself (logisticsTrackNo) or the product/SKU code (a distinct
-    // requirement, not a box relabel), and the order actually needs relabeling
-    // (old/new label bases differ). A box already scanned on its new label passes
-    // straight through — there's nothing left to compare it against.
-    if (folio?.validar_etiquetado && match.field !== 'logisticsTrackNo' && match.field !== 'productSku') {
-      const meta = orderMetaByNo.get(matchedOrderNo) || {}
-      if (orderNeedsRelabel(meta)) {
-        const expectedNewBase = newLabelBase(meta)
-        setPendingRelabel({ rawCode: code, matchedOrderNo, expectedNewBase })
+    // SKU gate: the box scan itself is recorded as its own normal scan first — never
+    // discarded — then this chains into asking for the SKU as a second, separate
+    // record. Keeping the box's own code as a real scan (instead of replacing it
+    // with the SKU) is what keeps a later duplicate scan of that same box caught by
+    // the ordinary duplicate check above.
+    if (match.field !== 'productSku' && orderNeedsProductLabel(matchedMeta)) {
+      const skuAlreadySatisfied = scans.some(s => (
+        s.matched_order_no === matchedOrderNo && matchesProductSku(matchedMeta, s.codigo_caja)
+      ))
+      if (!skuAlreadySatisfied) {
+        if (isOffline) {
+          useOfflineStore.getState().enqueueModule({
+            type: 'despacho_folio_scan',
+            payload: { folioId, body: { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo } },
+          })
+          setPendingOfflineScans(p => [...p, { code, matchedOrderNo }])
+          addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+        } else {
+          requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo })
+        }
+        setPendingSku({ matchedOrderNo, rawCode: code })
         return
       }
     }
