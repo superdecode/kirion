@@ -71,10 +71,12 @@ export default function ValidacionTypeModal({ isOpen, onClose, onSelect }) {
     return {
       ordenes: pool.orders.length,
       cajas: pool.orders.reduce((sum, o) => sum + o.expectedCount, 0),
+      dateErrors: pool.dateErrors,
     }
   }, [batchData, fecha])
 
-  const puedeContinuar = tipo === 'por_orden' || (tipo === 'por_lote' && Boolean(fecha))
+  const puedeContinuar = tipo === 'por_orden'
+    || (tipo === 'por_lote' && Boolean(fecha) && !resumenFecha?.dateErrors?.length)
 
   function handleSubmit() {
     if (!puedeContinuar) return
@@ -182,6 +184,19 @@ export default function ValidacionTypeModal({ isOpen, onClose, onSelect }) {
                   </div>
                   {resumenFecha.ordenes === 0 && (
                     <p className="col-span-2 text-[11px] text-warning-700">{t('surtido.lote.fecha.sinOrdenes')}</p>
+                  )}
+                  {resumenFecha.dateErrors?.length > 0 && (
+                    <div className="col-span-2 rounded-xl border border-danger-300 bg-danger-50 px-3 py-2.5 space-y-1.5">
+                      <p className="text-[11px] font-bold text-danger-800">
+                        {t('surtido.lote.fecha.formatoError').replace('{n}', String(resumenFecha.dateErrors.length))}
+                      </p>
+                      <ul className="text-[10px] text-danger-700 space-y-0.5 max-h-20 overflow-y-auto">
+                        {resumenFecha.dateErrors.slice(0, 8).map((e, i) => (
+                          <li key={i} className="font-mono">{e.outboundOrderNo}: {e.error}</li>
+                        ))}
+                      </ul>
+                      <p className="text-[10px] text-danger-600">{t('surtido.lote.fecha.formatoErrorHint')}</p>
+                    </div>
                   )}
                 </div>
               )}

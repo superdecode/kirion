@@ -7,7 +7,7 @@ import Modal from '../../../core/components/common/Modal'
 import CatalogEmptyHint from '../../../core/components/common/CatalogEmptyHint'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import { getOutboundList, getOrdenesDispatch } from '../services/despachoService'
-import { getOrderDateKey, getOrderDateTimeRaw } from '../utils/orderDate'
+import { getOrderDateKey, getOrderDateTimeRaw, getOrderDateError } from '../utils/orderDate'
 
 const EASE = [0.16, 1, 0.3, 1]
 
@@ -138,6 +138,22 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
   const allOutboundRecords = outboundRaw?.data?.records ?? []
   const outboundIsPartial = !!outboundRaw?.data?.partial
 
+  // Orders whose raw WMS date breaks the fixed DD/MM/AAAA rule (month position out
+  // of 1-12) never resolve to a dateKey, so they silently vanish from every date
+  // group below instead of landing in the wrong one — block folio creation for
+  // por_destino until the source sheet/DB is fixed, rather than let it proceed
+  // against an incomplete order set.
+  const dateErrors = useMemo(() => {
+    const seen = new Map()
+    allOutboundRecords.forEach(record => {
+      const error = getOrderDateError(record)
+      if (!error) return
+      const key = `${record.outboundOrderNo}::${record.outboundTime || record.expectedTime || ''}`
+      if (!seen.has(key)) seen.set(key, { outboundOrderNo: record.outboundOrderNo, error })
+    })
+    return [...seen.values()]
+  }, [allOutboundRecords])
+
   const destinoOptionsByDate = useMemo(() => {
     const byDate = new Map()
     allOutboundRecords.forEach(record => {
@@ -207,7 +223,7 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
 
   const canCreate = tipoSelected === 'por_orden'
     ? hasRequiredAssignment
-    : (hasRequiredAssignment && !!selectedDestinoOption && derivedOrders.length > 0)
+    : (hasRequiredAssignment && !!selectedDestinoOption && derivedOrders.length > 0 && dateErrors.length === 0)
 
   const requiresFechaEnvio = tipoSelected === 'por_destino' && !fechaEnvio
   const shouldKeepLoadingDestinos = (
@@ -458,6 +474,20 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
                       className="rounded-xl border border-accent-200 bg-accent-50/40 px-3 py-2.5 space-y-2"
                     >
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent-500">{t('desp.validar.modal.selDestino')}</p>
+
+                      {dateErrors.length > 0 && (
+                        <div className="rounded-xl border border-danger-300 bg-danger-50 px-3 py-2.5 space-y-1.5">
+                          <p className="text-[11px] font-bold text-danger-800">
+                            {t('desp.validar.modal.fechaFormatoError').replace('{n}', String(dateErrors.length))}
+                          </p>
+                          <ul className="text-[10px] text-danger-700 space-y-0.5 max-h-20 overflow-y-auto">
+                            {dateErrors.slice(0, 8).map((e, i) => (
+                              <li key={i} className="font-mono">{e.outboundOrderNo}: {e.error}</li>
+                            ))}
+                          </ul>
+                          <p className="text-[10px] text-danger-600">{t('desp.validar.modal.fechaFormatoErrorHint')}</p>
+                        </div>
+                      )}
 
                       {dispatchFailed && (
                         <p className="text-[11px] font-medium text-warning-700">

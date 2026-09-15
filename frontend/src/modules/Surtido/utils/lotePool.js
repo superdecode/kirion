@@ -1,5 +1,6 @@
 import { generateCodeVariations, normalizeCodeFast } from '../../Shared/Wms/normalizeCode'
 import { toDateKey } from '../../../core/utils/dateFormat'
+import { parseDeliveryDate } from '../../Shared/Wms/deliveryDate'
 
 /**
  * Pool de órdenes de una fecha para la validación por lote.
@@ -12,30 +13,29 @@ function compactCanonical(raw) {
   return String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-export function getOrderDateKey(order) {
-  const raw = order?.outboundTime || order?.expectedTime || order?.orderCreateTime || ''
-  if (!raw) return ''
-  const str = String(raw).trim()
-  const isoLike = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
-  if (isoLike) return `${isoLike[1]}-${String(isoLike[2]).padStart(2, '0')}-${String(isoLike[3]).padStart(2, '0')}`
+function rawOrderDate(order) {
+  return String(order?.outboundTime || order?.expectedTime || order?.orderCreateTime || '').trim()
+}
 
-  const slashDate = str.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/)
-  if (slashDate) {
-    const first = Number(slashDate[1])
-    const second = Number(slashDate[2])
-    // first > 12 → D/M/Y sin ambigüedad. second > 12 → M/D/Y sin ambigüedad.
-    // Ambos ≤ 12 → D/M/Y, que es el formato del WMS/MX.
-    let day, month
-    if (first > 12)       { day = first; month = second }
-    else if (second > 12) { month = first; day = second }
-    else                  { day = first; month = second }
-    return `${slashDate[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-  }
+export function getOrderDateKey(order) {
+  const str = rawOrderDate(order)
+  if (!str) return ''
+
+  const { dateKey, error } = parseDeliveryDate(str)
+  if (error) return '' // bad data — see getOrderDateError() for the message
+  if (dateKey) return dateKey
 
   try {
     const k = toDateKey(str)
     return (k && k !== '—') ? k : ''
   } catch { return '' }
+}
+
+/** Human-readable format-violation message for this order's date, or null if valid/absent. */
+export function getOrderDateError(order) {
+  const str = rawOrderDate(order)
+  if (!str) return null
+  return parseDeliveryDate(str).error
 }
 
 export function adjacentDateKeys(dateKey) {
@@ -87,6 +87,7 @@ function toPoolOrder(order) {
     logisticsChannel: order.logisticsChannel || null,
     outboundTime: order.outboundTime || null,
     dateKey: getOrderDateKey(order),
+    dateError: getOrderDateError(order),
     expectedCount: expectedBoxes.reduce((sum, b) => sum + b.quantity, 0),
     packageList,
     expectedBoxes,
@@ -137,12 +138,20 @@ export function buildLotePool(orders, dateKey) {
   const all = (orders || []).map(toPoolOrder).filter(o => o.outboundOrderNo)
   const activeOrders = all.filter(o => o.dateKey === dateKey)
   const adjacentOrders = all.filter(o => o.dateKey === prev || o.dateKey === next)
+  // Orders whose raw WMS date failed the fixed DD/MM/AAAA rule never resolve to any
+  // dateKey, so they silently vanish from every date grouping above instead of just
+  // landing in the wrong one. Surfaced here so the caller can block loading and point
+  // at exactly which orders/dates need fixing in the source sheet.
+  const dateErrors = all
+    .filter(o => o.dateError)
+    .map(o => ({ outboundOrderNo: o.outboundOrderNo, raw: o.outboundTime, error: o.dateError }))
   return {
     dateKey,
     orders: activeOrders,
     adjacentOrders,
     codeIndex: indexOrders(activeOrders),
     adjacentIndex: indexOrders(adjacentOrders),
+    dateErrors,
   }
 }
 

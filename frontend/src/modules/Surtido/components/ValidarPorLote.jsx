@@ -320,6 +320,37 @@ export default function ValidarPorLote({ tabId, fecha, isActive, onSessionChange
     )
   }
 
+  // Orders whose raw WMS date breaks the fixed DD/MM/AAAA rule never resolve to a
+  // dateKey — they silently fall out of this date's pool instead of landing in the
+  // wrong one. Scanning against an incomplete pool would reject real boxes as
+  // "no encontrada", so this blocks the whole lote until the source data is fixed.
+  if (pool.dateErrors.length > 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-danger-50 flex items-center justify-center mb-4">
+          <AlertTriangle className="w-8 h-8 text-danger-500" />
+        </div>
+        <h2 className="text-base font-bold text-warm-800 mb-1">{t('surtido.lote.fechaError.title')}</h2>
+        <p className="text-xs text-warm-500 max-w-sm leading-relaxed mb-3">
+          {t('surtido.lote.fechaError.desc').replace('{n}', String(pool.dateErrors.length))}
+        </p>
+        <ul className="text-[11px] text-danger-700 font-mono space-y-1 mb-4 max-h-40 overflow-y-auto text-left">
+          {pool.dateErrors.map((e, i) => (
+            <li key={i}>{e.outboundOrderNo}: {e.error}</li>
+          ))}
+        </ul>
+        <button
+          onClick={handleRefreshSheet}
+          disabled={isFetching}
+          className="btn-secondary inline-flex items-center gap-2 text-sm disabled:opacity-40"
+        >
+          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
+          {t('surtido.lote.vacio.refrescar')}
+        </button>
+      </div>
+    )
+  }
+
   if (pool.orders.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
