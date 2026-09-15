@@ -74,15 +74,22 @@ export function parseDateValue(value) {
   // Normalize: strip AM/PM suffix (Google Sheets 12-hour format) before D/M/Y matching
   const normalized = raw.replace(/\s*[AaPp][Mm]$/, '').trim()
 
-  // Fixed rule: DD/MM/YYYY always — day is the 1st group, month the 2nd, independent of
-  // leading zeros (e.g. "9/7/2026" = 9 de julio, day=9 month=7 — never mes=9/dia=7).
-  // No "closest to today" guessing and no M/D/Y fallback for a second-group value over
-  // 12: that used to misread dates like July 9 as September 7. If the month position is
-  // out of 1-12 the source data is wrong, not ambiguous — parseDateParts returns null
-  // instead of guessing an alternate interpretation.
+  // Three tiers, same rule as Shared/Wms/deliveryDate.js:
+  //  1. Unambiguous — one value > 12 can only be the day (forced by validity, not a
+  //     guess). "7/18/2026" → 18 can't be a month, so day=18, month=7 (18 de julio).
+  //  2. Ambiguous — both <= 12 (e.g. "9/7/2026"). Fixed rule: day is always first,
+  //     independent of leading zeros — never "closest to today" guessing (that used
+  //     to misread July 9 as September 7).
+  //  3. Invalid — both > 12, or the resolved month/day is still out of range: not
+  //     ambiguous, not resolvable. parseDateParts returns null — never guess.
   const dmy = normalized.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
   if (dmy) {
-    return parseDateParts(dmy[3], dmy[2], dmy[1], dmy[4] || 0, dmy[5] || 0, dmy[6] || 0)
+    const first = Number(dmy[1])
+    const second = Number(dmy[2])
+    if (first > 12 && second > 12) return null
+    const day = second > 12 ? second : first
+    const month = second > 12 ? first : second
+    return parseDateParts(dmy[3], month, day, dmy[4] || 0, dmy[5] || 0, dmy[6] || 0)
   }
 
   const date = new Date(raw)

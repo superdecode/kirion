@@ -15,10 +15,25 @@ describe('parseDateValue — D/M/Y ambiguity', () => {
     expect(date.getDate()).toBe(5)
   })
 
-  it('does not reinterpret a second value over 12 as day-first-month-second (M/D/Y)', () => {
-    // Old behavior treated this as month=7, day=25 (July 25). Fixed rule: day=7, month=25
-    // is invalid, so it must fail instead of silently guessing an M/D/Y interpretation.
-    expect(parseDateValue('7/25/2026')).toBeNull()
+  it('resolves an unambiguous M/D/Y when the second value cannot be a month', () => {
+    // 25 can't be a month, so this is forced (not guessed): month=7, day=25 (July 25).
+    const date = parseDateValue('7/25/2026')
+    expect(date).not.toBeNull()
+    expect(date.getMonth()).toBe(6) // July
+    expect(date.getDate()).toBe(25)
+  })
+
+  it('resolves an unambiguous M/D/Y from a real WMS value (7/18/2026 = 18 de julio)', () => {
+    // 18 can't be a month, so day=18, month=7 (July 18) — the exact case reported as a
+    // bug when a prior fix wrongly treated this as invalid.
+    const date = parseDateValue('7/18/2026 10:05:00')
+    expect(date).not.toBeNull()
+    expect(date.getMonth()).toBe(6) // July
+    expect(date.getDate()).toBe(18)
+  })
+
+  it('returns null only when neither value can be a month', () => {
+    expect(parseDateValue('20/25/2026')).toBeNull()
   })
 
   it('reads ISO dates as YYYY-MM-DD with no swapping', () => {

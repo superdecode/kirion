@@ -1,15 +1,22 @@
 // Strict WMS delivery-date parsing, shared by Despacho and Surtido's data-load paths.
 //
-// Fixed positional rules — never "closest to today" guessing:
-//   - ISO-like   "YYYY-MM-DD" / "YYYY/MM/DD": month is ALWAYS the 2nd group, day the 3rd.
-//   - Slash/dash "D/M/YYYY" / "D-M-YYYY" / "D.M.YYYY": day is ALWAYS the 1st group,
-//     month the 2nd — independent of whether either has a leading zero.
-//     e.g. "6/8/2026 19:45:00" = 6 de agosto (day=6, month=8), never mes=6/dia=8.
+// Slash/dash dates ("D/M/YYYY", "D-M-YYYY", "D.M.YYYY") resolve in three tiers:
+//   1. Unambiguous — one of the two values is > 12, so it can only be the day.
+//      e.g. "7/18/2026" → 18 can't be a month, so it's the day: 18 de julio (day=18,
+//      month=7). This is forced by validity, not a guess.
+//   2. Ambiguous — both values are <= 12 (e.g. "6/8/2026"). Fixed rule: day is
+//      ALWAYS the first group, month the second, independent of leading zeros.
+//      "6/8/2026 19:45:00" = 6 de agosto (day=6, month=8), never mes=6/dia=8. No
+//      "closest to today" guessing — always this same reading.
+//   3. Invalid — both values are > 12 (or the resolved month/day is out of range
+//      some other way). Not ambiguous, not resolvable: bad source data.
+// ISO-like "YYYY-MM-DD" / "YYYY/MM/DD" stays fixed: month is ALWAYS the 2nd group,
+// day the 3rd, no swapping.
 //
-// If the value sitting in the month position is out of 1-12, that is not an
-// ambiguous date to resolve — it is bad source data. Parsing fails loudly (returns
-// `error`) instead of silently falling back to a guess, so a bad row from the
-// WMS/Google Sheet export surfaces before it corrupts a folio/lote date grouping.
+// Whenever the source data can't be resolved to a valid date (case 3, or an
+// out-of-range ISO month/day), parsing fails loudly (returns `error`) instead of
+// falling back to any guess, so a bad row from the WMS/Google Sheet export surfaces
+// before it corrupts a folio/lote date grouping.
 export function parseDeliveryDate(raw) {
   const str = String(raw || '').trim()
   if (!str) return { dateKey: '', error: null }
@@ -33,13 +40,27 @@ export function parseDeliveryDate(raw) {
 
   const slashDate = str.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/)
   if (slashDate) {
-    const [, d, m, y] = slashDate
-    const day = Number(d)
-    const month = Number(m)
+    const [, p1, p2, y] = slashDate
+    const first = Number(p1)
+    const second = Number(p2)
+
+    if (first > 12 && second > 12) {
+      return {
+        dateKey: '',
+        error: `Fecha "${str}" invalida: ni ${first} ni ${second} pueden ser mes (ambos mayores a 12).`,
+      }
+    }
+
+    // second > 12 → second can't be a month, so it's the day (unambiguous, forced).
+    // first > 12  → same logic the other way (unambiguous, forced).
+    // Neither     → genuinely ambiguous: fixed rule, day is always first.
+    const day = second > 12 ? second : first
+    const month = second > 12 ? first : second
+
     if (month < 1 || month > 12) {
       return {
         dateKey: '',
-        error: `Fecha "${str}" fuera de formato: el mes (posicion 2, formato DD/MM/AAAA) es ${month}, debe estar entre 1 y 12. Ejemplo correcto: 6/8/2026 = 6 de agosto. Corrige el dato en la base/hoja de origen.`,
+        error: `Fecha "${str}" fuera de formato: el mes resuelto es ${month}, debe estar entre 1 y 12. Ejemplo correcto: 6/8/2026 = 6 de agosto. Corrige el dato en la base/hoja de origen.`,
       }
     }
     if (day < 1 || day > 31) {

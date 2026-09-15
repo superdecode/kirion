@@ -16,7 +16,16 @@ describe('parseDeliveryDate', () => {
     expect(parseDeliveryDate('5/1/2026')).toEqual({ dateKey: '2026-01-05', error: null })
   })
 
-  it('flags a month value over 12 as a format error instead of swapping day/month', () => {
+  it('resolves an unambiguous M/D/Y when the second value cannot be a month', () => {
+    // 18 can't be a month, so this is forced (not guessed): month=7, day=18 (18 de julio).
+    expect(parseDeliveryDate('7/18/2026 10:05:00')).toEqual({ dateKey: '2026-07-18', error: null })
+  })
+
+  it('resolves an unambiguous D/M/Y when the first value cannot be a month', () => {
+    expect(parseDeliveryDate('25/7/2026')).toEqual({ dateKey: '2026-07-25', error: null })
+  })
+
+  it('flags a date as invalid only when neither value can be a month', () => {
     const result = parseDeliveryDate('15/13/2026')
     expect(result.dateKey).toBe('')
     expect(result.error).toMatch(/mes/i)
