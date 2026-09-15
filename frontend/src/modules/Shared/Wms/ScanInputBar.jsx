@@ -78,6 +78,7 @@ const ScanInputBar = memo(function ScanInputBar({
               } ${badge.className || 'bg-accent-100 text-accent-700'}`}>
                 {badge.icon}
                 {badge.label}
+                {badge.code && <span className="font-mono font-semibold opacity-80">· {badge.code}</span>}
               </span>
             )}
             <input

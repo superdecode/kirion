@@ -945,7 +945,7 @@ export default function ValidarPorDestino({ folioId }) {
           (s.matched_order_no === matchedOrderNo) && matchesProductSku(meta, s.codigo_caja)
         ))
         if (!skuAlreadySatisfied) {
-          setPendingSku({ matchedOrderNo })
+          setPendingSku({ matchedOrderNo, rawCode: code })
           return
         }
       }
@@ -1328,7 +1328,7 @@ export default function ValidarPorDestino({ folioId }) {
             placeholder={pendingSku ? t('desp.validar.destino.ingresaSkuPlaceholder') : t('desp.validar.orden.scanPlaceholder')}
             buttonLabel={t('desp.validar.orden.validarBtn')}
             disabled={!editable}
-            badge={pendingSku ? { icon: <Barcode className="h-3 w-3" />, label: t('desp.validar.destino.escanearSku') } : null}
+            badge={pendingSku ? { icon: <Barcode className="h-3 w-3" />, label: t('desp.validar.destino.escanearSku'), code: pendingSku.rawCode } : null}
           />
         </div>
 
@@ -1472,7 +1472,7 @@ export default function ValidarPorDestino({ folioId }) {
           buttonLabel={t('desp.validar.orden.validarBtn')}
           disabled={!editable}
           variant="mobile"
-          badge={pendingSku ? { icon: <Barcode className="h-3.5 w-3.5" />, label: t('desp.validar.destino.escanearSku') } : null}
+          badge={pendingSku ? { icon: <Barcode className="h-3.5 w-3.5" />, label: t('desp.validar.destino.escanearSku'), code: pendingSku.rawCode } : null}
           hint={`${t('desp.validar.mobile.scanHint')} · ${t('desp.validar.destino.tarimaActiva')}: ${currentTarimaRef}`}
         />
       </div>
