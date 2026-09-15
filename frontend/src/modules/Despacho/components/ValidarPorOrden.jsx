@@ -225,6 +225,16 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       pendingOnlineRef.current.delete(code)
       onUpdate(data)
       const updatedOrder = data?.orders?.find(o => o.id === order.id)
+      // If this was the box scan a pending-SKU prompt is waiting on, attach its
+      // real scanId now. Using the mutation-level onSuccess (not a per-call
+      // callback passed to mutate()) because per-call callbacks silently never
+      // fire if the component briefly has no active listeners when the response
+      // lands — that dropped the scanId and left the SKU stuck in "processing".
+      setPendingSku((prev) => {
+        if (!prev || prev.scanId || prev.rawCode !== code) return prev
+        const inserted = (updatedOrder?.scans ?? []).find(s => s.codigo_caja === code)
+        return inserted ? { ...prev, scanId: inserted.id } : prev
+      })
       // SKU-cascade scans document a box already counted right before them.
       const newScansCount = (updatedOrder?.scans ?? []).filter(s => !s.es_sku).length
       const baseExpectedCount = Number(order.bultos_esperados ?? orderDetail?.outboundBoxCount ?? order.bultos ?? 0)
@@ -368,17 +378,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
       } else {
         pendingOnlineRef.current.add(code)
-        if (needsSkuNext) {
-          doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true }, {
-            onSuccess: (data) => {
-              const updatedOrder = data?.orders?.find(o => o.id === order.id)
-              const inserted = (updatedOrder?.scans ?? []).find(s => s.codigo_caja === code)
-              setPendingSku((prev) => (prev && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev))
-            },
-          })
-        } else {
-          doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true })
-        }
+        // scanId gets attached to pendingSku from the mutation's own onSuccess
+        // once this insert lands — see doAddScan above.
+        doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true })
       }
       setPendingRelabel(null)
       return
@@ -439,13 +441,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
         } else {
           pendingOnlineRef.current.add(code)
-          doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch }, {
-            onSuccess: (data) => {
-              const updatedOrder = data?.orders?.find(o => o.id === order.id)
-              const inserted = (updatedOrder?.scans ?? []).find(s => s.codigo_caja === code)
-              setPendingSku((prev) => (prev && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev))
-            },
-          })
+          // scanId gets attached to pendingSku from the mutation's own onSuccess
+          // once this insert lands — see doAddScan above.
+          doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch })
         }
         return
       }

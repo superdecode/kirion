@@ -595,6 +595,17 @@ export default function ValidarPorDestino({ folioId }) {
           scans: (old?.scans ?? scans).map(scan => scan.id === context?.optimisticId ? data.scan : scan),
         }))
       }
+      // If this was the box scan a pending-SKU prompt is waiting on, attach its
+      // real scanId now. Using the mutation-level onSuccess (not a per-call
+      // callback passed to mutate()) because per-call callbacks silently never
+      // fire if the component briefly has no active listeners when the response
+      // lands — that dropped the scanId and left the SKU stuck in "processing".
+      setPendingSku((prev) => {
+        if (!prev || prev.scanId || prev.rawCode !== body?.codigo_caja) return prev
+        const insertedList = Array.isArray(data?.scans) ? data.scans : (data?.scan ? [data.scan] : [])
+        const inserted = insertedList.find(s => s.codigo_caja === body?.codigo_caja)
+        return inserted ? { ...prev, scanId: inserted.id } : prev
+      })
       qc.invalidateQueries({ queryKey: ['despacho-folio', folioId] })
       qc.invalidateQueries({ queryKey: ['despacho-ordenes-dispatch'] })
       const matchedOrderNo = body?.matched_order_no
@@ -842,7 +853,7 @@ export default function ValidarPorDestino({ folioId }) {
     })
   }, [addForm, doAddOrder, lookupResult])
 
-  const requestAddScan = useCallback((payload, { skipOverLimit = false, onInserted } = {}) => {
+  const requestAddScan = useCallback((payload, { skipOverLimit = false } = {}) => {
     const matchedOrderNo = payload?.matched_order_no
     if (!skipOverLimit && matchedOrderNo) {
       const matchedOrder = orders.find(order => order.outbound_order_no === matchedOrderNo)
@@ -854,18 +865,7 @@ export default function ValidarPorDestino({ folioId }) {
       }
     }
     if (payload?.codigo_caja) pendingOnlineRef.current.add(payload.codigo_caja)
-    if (onInserted) {
-      doAddScan(payload, {
-        onSuccess: (data) => {
-          const inserted = Array.isArray(data?.scans)
-            ? data.scans.find(s => s.codigo_caja === payload.codigo_caja)
-            : null
-          onInserted(inserted)
-        },
-      })
-    } else {
-      doAddScan(payload)
-    }
+    doAddScan(payload)
   }, [doAddScan, getOrderExpectedCount, orders, scans])
 
   const submitOverLimitScan = useCallback(() => {
@@ -985,13 +985,9 @@ export default function ValidarPorDestino({ folioId }) {
         })
         setPendingOfflineScans(p => [...p, { code, matchedOrderNo: pendingRelabel.matchedOrderNo }])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
-      } else if (needsSkuNext) {
-        requestAddScan(relabelPayload, {
-          onInserted: (inserted) => setPendingSku((prev) => (
-            prev && prev.matchedOrderNo === relabelOrderNo && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev
-          )),
-        })
       } else {
+        // scanId gets attached to pendingSku from the mutation's own onSuccess
+        // once this insert lands — see doAddScan above.
         requestAddScan(relabelPayload)
       }
       setPendingRelabel(null)
@@ -1081,11 +1077,9 @@ export default function ValidarPorDestino({ folioId }) {
           setPendingOfflineScans(p => [...p, { code, matchedOrderNo }])
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
         } else {
-          requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag }, {
-            onInserted: (inserted) => setPendingSku((prev) => (
-              prev && prev.matchedOrderNo === matchedOrderNo && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev
-            )),
-          })
+          // scanId gets attached to pendingSku from the mutation's own onSuccess
+          // once this insert lands — see doAddScan above.
+          requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag })
         }
         return
       }
