@@ -2299,6 +2299,7 @@ export default {
     'surtido.validacion.error_no_boxes':            '该订单没有注册箱子数据。',
     'surtido.validacion.error_no_codes':            '订单中的箱子没有可扫描的编码。',
     'surtido.validacion.error_no_data':                  '无法加载订单数据，请重试。',
+    'surtido.validacion.error_partial_data':             '无法确认此订单的完整箱单（网络问题）。请稍等片刻后重试，再开始扫描。',
     'surtido.validacion.error_obc_not_found':            '未在系统数据中找到该出库单号。',
     'surtido.validacion.error_sheet_not_configured':     '数据集成未配置，请在 WMSHub 设置中配置链接。',
     'surtido.validacion.error_sheet_empty':              '数据表暂无可用记录。',
