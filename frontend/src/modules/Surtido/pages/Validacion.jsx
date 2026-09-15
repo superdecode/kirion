@@ -29,7 +29,7 @@ import {
 } from '../services/surtidoService'
 import { refreshSheet, getCacheTimestamp, getCacheStatus } from '../../WmsHub/services/googleSheetsService'
 import { captureErrorEvent } from '../../../core/services/errorTelemetry'
-import { fmtDate, fmtDateTime as formatDateTimeTz, fmtTimeShort } from '../../../core/utils/dateFormat'
+import { fmtDate, fmtDateTime as formatDateTimeTz, fmtTimeShort, parseDateValue } from '../../../core/utils/dateFormat'
 import { useSurtidoStore } from '../stores/surtidoStore'
 import { validateLocationValue } from '../utils/locationValue'
 import ValidacionTypeModal from '../components/ValidacionTypeModal'
@@ -377,8 +377,8 @@ function SearchStep({ onFound }) {
       const scanned = Number(tracking?.total_scanned ?? 0)
       const complete = tracking?.status === 'complete' || (expected > 0 && scanned >= expected)
       if (!complete) return true
-      const date = row.outboundTime ? new Date(row.outboundTime) : null
-      return date && !Number.isNaN(date.getTime()) && date >= today && date <= limit
+      const date = row.outboundTime ? parseDateValue(row.outboundTime) : null
+      return date && date >= today && date <= limit
     })
   }, [outboundData, trackingData, isOffline])
 

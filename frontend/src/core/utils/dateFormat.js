@@ -64,57 +64,25 @@ export function parseDateValue(value) {
       const date = new Date(raw)
       return Number.isNaN(date.getTime()) ? null : date
     }
-    const a = Number(isoLike[2]), b = Number(isoLike[3])
     const h = Number(isoLike[4] || 0), mn = Number(isoLike[5] || 0), sc = Number(isoLike[6] || 0)
-    // When both parts are ≤ 12 the WMS may export YYYY-DD-MM instead of YYYY-MM-DD.
-    // Use proximity to today to pick the more plausible interpretation; ties keep YYYY-MM-DD.
-    if (a <= 12 && b <= 12) {
-      const stdDate = parseDateParts(isoLike[1], a, b, h, mn, sc)
-      const altDate = parseDateParts(isoLike[1], b, a, h, mn, sc)
-      if (stdDate && altDate) {
-        const now = Date.now()
-        return Math.abs(altDate.getTime() - now) < Math.abs(stdDate.getTime() - now)
-          ? altDate : stdDate
-      }
-      return stdDate || altDate || null
-    }
+    // Fixed rule: YYYY-MM-DD always — month is the 2nd group, day the 3rd. No "closest to
+    // today" swap: an out-of-range month/day means the source data is wrong, not
+    // ambiguous, so parseDateParts returning null here is correct — never guess.
     return parseDateParts(isoLike[1], isoLike[2], isoLike[3], h, mn, sc)
   }
 
   // Normalize: strip AM/PM suffix (Google Sheets 12-hour format) before D/M/Y matching
   const normalized = raw.replace(/\s*[AaPp][Mm]$/, '').trim()
 
-  // Ambiguous two-part dates: D/M/Y vs M/D/Y.
-  // Unambiguous: if first > 12 it must be the day (D/M/Y); if second > 12 it must be the day (M/D/Y).
-  // Ambiguous (both ≤ 12): Google Sheets exports date cells without leading zeros (e.g. "7/8/2026"
-  // = July 8 in M/D/Y). Zero-padded strings (e.g. "08/07/2026") are text entries in Mexican D/M/Y.
+  // Fixed rule: DD/MM/YYYY always — day is the 1st group, month the 2nd, independent of
+  // leading zeros (e.g. "9/7/2026" = 9 de julio, day=9 month=7 — never mes=9/dia=7).
+  // No "closest to today" guessing and no M/D/Y fallback for a second-group value over
+  // 12: that used to misread dates like July 9 as September 7. If the month position is
+  // out of 1-12 the source data is wrong, not ambiguous — parseDateParts returns null
+  // instead of guessing an alternate interpretation.
   const dmy = normalized.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
   if (dmy) {
-    const first = Number(dmy[1])
-    const second = Number(dmy[2])
-    let day, month
-    if (first > 12) {
-      day = first; month = second
-    } else if (second > 12) {
-      month = first; day = second
-    } else {
-      // Both ≤ 12: ambiguous. The same sheet can mix Google Sheets date values (M/D/Y, no
-      // padding) and Mexican-locale text entries (D/M/Y, no padding).
-      // Strategy: try both interpretations and pick the one whose date is closer to today —
-      // WMS delivery dates are nearly always within the current period, so the nearer date
-      // is almost always correct. Ties default to D/M/Y (Mexican locale).
-      const yr = Number(dmy[3])
-      const h = Number(dmy[4] || 0), mn = Number(dmy[5] || 0), sc = Number(dmy[6] || 0)
-      const dmyDate = parseDateParts(yr, second, first, h, mn, sc)
-      const mdyDate = parseDateParts(yr, first, second, h, mn, sc)
-      if (dmyDate && mdyDate) {
-        const now = Date.now()
-        return Math.abs(mdyDate.getTime() - now) < Math.abs(dmyDate.getTime() - now)
-          ? mdyDate : dmyDate
-      }
-      return dmyDate || mdyDate || null
-    }
-    return parseDateParts(dmy[3], month, day, dmy[4] || 0, dmy[5] || 0, dmy[6] || 0)
+    return parseDateParts(dmy[3], dmy[2], dmy[1], dmy[4] || 0, dmy[5] || 0, dmy[6] || 0)
   }
 
   const date = new Date(raw)
