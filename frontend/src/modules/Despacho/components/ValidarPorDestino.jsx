@@ -503,6 +503,20 @@ export default function ValidarPorDestino({ folioId }) {
     return set
   }, [scans, pendingOfflineScans])
 
+  // Relabel and SKU are separate scan records for the same physical box when both
+  // apply — this cross-references them so either row can show both icons instead of
+  // only the one it recorded itself.
+  const relabelSkuLinks = useMemo(() => {
+    const relabelKeys = new Set() // `${order}::${code}` for reetiquetado rows
+    const skuByPrevio = new Map() // `${order}::${previo}` -> sku code
+    scans.forEach(s => {
+      if (!s.matched_order_no) return
+      if (s.reetiquetado) relabelKeys.add(`${s.matched_order_no}::${s.codigo_caja}`)
+      if (s.es_sku && s.codigo_caja_previo) skuByPrevio.set(`${s.matched_order_no}::${s.codigo_caja_previo}`, s.codigo_caja)
+    })
+    return { relabelKeys, skuByPrevio }
+  }, [scans])
+
   const currentTarimaHasScans = useMemo(
     () => scans.some((scan) => (scan.tarima_ref || 'Sin tarima') === currentTarimaRef),
     [scans, currentTarimaRef]
@@ -1421,8 +1435,11 @@ export default function ValidarPorDestino({ folioId }) {
                     {[...scansByTarima[tarima]]
                       .sort((a, b) => new Date(a.validated_at || a.created_at || 0) - new Date(b.validated_at || b.created_at || 0))
                       .map((s, i) => {
-                      const isSkuScan = !!(s.codigo_caja_previo && !s.reetiquetado && s.matched_order_no
-                        && matchesProductSku(orderMetaByNo.get(s.matched_order_no) || {}, s.codigo_caja))
+                      const isSkuScan = !!s.es_sku
+                      const linkedSkuValue = !isSkuScan && s.reetiquetado && s.matched_order_no
+                        ? relabelSkuLinks.skuByPrevio.get(`${s.matched_order_no}::${s.codigo_caja}`) : null
+                      const linkedToRelabel = isSkuScan && s.matched_order_no && s.codigo_caja_previo
+                        && relabelSkuLinks.relabelKeys.has(`${s.matched_order_no}::${s.codigo_caja_previo}`)
                       return (
                       <div key={`${tarima}-${s.id || s.codigo_caja || 'scan'}-${i}`} className={`flex items-center gap-2.5 px-4 py-2.5 group hover:bg-warm-50 transition-colors ${
                         i === 0 ? 'bg-primary-50/30' : ''
@@ -1458,7 +1475,7 @@ export default function ValidarPorDestino({ folioId }) {
                                 <span className="text-[11px] text-accent-600 font-mono font-semibold">{s.matched_order_no}</span>
                               </>
                             )}
-                            {s.reetiquetado && (
+                            {(s.reetiquetado || linkedToRelabel) && (
                               <span
                                 title={t('desp.validar.destino.reetiquetada')}
                                 className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-100 text-success-700"
@@ -1466,9 +1483,9 @@ export default function ValidarPorDestino({ folioId }) {
                                 <Tag className="h-2.5 w-2.5" />
                               </span>
                             )}
-                            {s.matched_order_no && matchesProductSku(orderMetaByNo.get(s.matched_order_no) || {}, s.codigo_caja) && (
+                            {(isSkuScan || linkedSkuValue) && (
                               <span
-                                title={`SKU: ${s.codigo_caja}`}
+                                title={`SKU: ${isSkuScan ? s.codigo_caja : linkedSkuValue}`}
                                 className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-100 text-success-700"
                               >
                                 <Barcode className="h-2.5 w-2.5" />

@@ -3780,6 +3780,8 @@ export default {
     'desp.folioDetalle.metaCodigos': 'Códigos de caja',
     'desp.folioDetalle.chipSkuPendiente': 'SKU pendiente',
     'desp.folioDetalle.chipSkuOk': 'SKU validado',
+    'desp.folioDetalle.chipEtiquetado': 'Etiquetado',
+    'desp.folioDetalle.chipCambioSku': 'Cambio SKU',
     'desp.folioDetalle.sinOrdenesEnFolio': 'Sin órdenes en este folio',
     'desp.folioDetalle.notaPrefix': 'Nota:',
     'desp.folioDetalle.sinEscaneosRegistrados': 'Sin escaneos registrados en este folio',

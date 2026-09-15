@@ -332,11 +332,19 @@ export default function FolioDetalle() {
     : scans
   , [scans, scanSearch])
 
-  const metaByOrderNo = useMemo(() => {
-    const map = new Map()
-    orders.forEach(o => { map.set(o.outbound_order_no, parseOrderNotasMeta(o.notas)) })
-    return map
-  }, [orders])
+  // Relabel and SKU are separate scan records for the same physical box when both
+  // apply — this cross-references them so either row can show both icons instead of
+  // only the one it recorded itself.
+  const relabelSkuLinks = useMemo(() => {
+    const relabelKeys = new Set() // `${order}::${code}` for reetiquetado rows
+    const skuByPrevio = new Map() // `${order}::${previo}` -> sku code
+    scans.forEach(s => {
+      if (!s.matched_order_no) return
+      if (s.reetiquetado) relabelKeys.add(`${s.matched_order_no}::${s.codigo_caja}`)
+      if (s.es_sku && s.codigo_caja_previo) skuByPrevio.set(`${s.matched_order_no}::${s.codigo_caja_previo}`, s.codigo_caja)
+    })
+    return { relabelKeys, skuByPrevio }
+  }, [scans])
 
   const scansByTarima = useMemo(() => filteredScans.reduce((acc, s) => {
     const key = s.tarima_ref || t('desp.folioDetalle.sinTarima')
@@ -756,7 +764,7 @@ export default function FolioDetalle() {
                                       }`}
                                     >
                                       <Tag className="w-2.5 h-2.5" />
-                                      {order._relabelDone ? t('desp.validar.destino.etiquetadoCompleto') : t('desp.validar.destino.requiereEtiquetado')}
+                                      {t('desp.folioDetalle.chipEtiquetado')}
                                     </span>
                                   )}
                                   {order._needsSku && (
@@ -769,7 +777,7 @@ export default function FolioDetalle() {
                                       }`}
                                     >
                                       <Barcode className="w-2.5 h-2.5" />
-                                      {order._skuSatisfied ? t('desp.folioDetalle.chipSkuOk') : t('desp.folioDetalle.chipSkuPendiente')}
+                                      {t('desp.folioDetalle.chipCambioSku')}
                                     </span>
                                   )}
                                   {!order._needsRelabel && !order._needsSku && (
@@ -869,8 +877,11 @@ export default function FolioDetalle() {
                         </thead>
                         <tbody className="divide-y divide-warm-50">
                           {scansByTarima[tarima].map((s, i) => {
-                            const meta = s.matched_order_no ? (metaByOrderNo.get(s.matched_order_no) || {}) : {}
-                            const isSku = s.matched_order_no && matchesProductSku(meta, s.codigo_caja)
+                            const isSku = !!s.es_sku
+                            const linkedToRelabel = isSku && s.matched_order_no && s.codigo_caja_previo
+                              && relabelSkuLinks.relabelKeys.has(`${s.matched_order_no}::${s.codigo_caja_previo}`)
+                            const linkedSkuValue = !isSku && s.reetiquetado && s.matched_order_no
+                              ? relabelSkuLinks.skuByPrevio.get(`${s.matched_order_no}::${s.codigo_caja}`) : null
                             return (
                             <tr key={`${tarima}-${s.id || s.codigo_caja}-${i}`} className="table-row">
                               <td className="px-3 py-2.5 text-warm-400 text-xs tabular-nums">{i + 1}</td>
@@ -898,7 +909,7 @@ export default function FolioDetalle() {
                               </td>
                               <td className="px-3 py-2.5">
                                 <div className="flex items-center gap-1">
-                                  {s.reetiquetado && (
+                                  {(s.reetiquetado || linkedToRelabel) && (
                                     <span
                                       title={t('desp.validar.destino.reetiquetada')}
                                       className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-success-100 text-success-700"
@@ -906,7 +917,7 @@ export default function FolioDetalle() {
                                       <Tag className="h-3 w-3" />
                                     </span>
                                   )}
-                                  {isSku && (
+                                  {(isSku || linkedSkuValue) && (
                                     <span
                                       title={t('desp.folioDetalle.chipSkuOk')}
                                       className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-success-100 text-success-700"
@@ -914,7 +925,7 @@ export default function FolioDetalle() {
                                       <Barcode className="h-3 w-3" />
                                     </span>
                                   )}
-                                  {!s.reetiquetado && !isSku && <span className="text-xs text-warm-300">—</span>}
+                                  {!s.reetiquetado && !linkedToRelabel && !isSku && !linkedSkuValue && <span className="text-xs text-warm-300">—</span>}
                                 </div>
                               </td>
                               <td className="px-3 py-2.5 text-xs text-warm-500">{s.validated_by_nombre || '—'}</td>
