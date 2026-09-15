@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, useIsMutating } from '@tanstack/react-query'
 import {
   ScanLine, Loader2, X, Check, CheckCircle2, XCircle, AlertCircle,
-  Layers, MapPin, Trash2, Radio, Clock3, Search, MoveRight, Tag,
+  Layers, MapPin, Trash2, Radio, Clock3, Search, MoveRight, Tag, Barcode,
   PanelRightClose, PanelRightOpen, PartyPopper, ExternalLink, Plus, Copy, WifiOff,
 } from 'lucide-react'
 import ScanInputBar from '../../Shared/Wms/ScanInputBar'
@@ -17,6 +17,7 @@ import { fmtDateTime, toDateKey } from '../../../core/utils/dateFormat'
 import { generateCodeVariations, normalizeCodeFast, normalizeScanCode } from '../../Shared/Wms/normalizeCode'
 import { extractBaseCode } from '../../Shared/Wms/extractBaseCode'
 import { orderNeedsRelabel, newLabelBase } from '../../Shared/Wms/relabelUtils'
+import { orderNeedsProductLabel, productSkuCandidates, matchesProductSku } from '../../Shared/Wms/productLabelUtils'
 import {
   getFolio, getFolioScans, addFolioScan, deleteFolioScan,
   moveFolioScanTarima, cerrarFolio, cancelarFolio, getOutboundList, removeDestinationOrder, addOrder, findOrderByBarcode,
@@ -379,9 +380,11 @@ export default function ValidarPorDestino({ folioId }) {
       const savedMeta = parseOrderMeta(order)
       const cached = orderDetailsByNo[order.outbound_order_no] || cachedByOrder.get(order.outbound_order_no) || {}
       map.set(order.outbound_order_no, {
+        outbound_order_no: order.outbound_order_no,
         logisticsTrackNo: savedMeta.logisticsTrackNo || cached.logisticsTrackNo || null,
         thirdOrderNo: savedMeta.thirdOrderNo || cached.thirdOrderNo || null,
         fbaShipmentId: savedMeta.fbaShipmentId || cached.fbaShipmentId || null,
+        remark: savedMeta.remark || cached.remark || null,
         logisticsChannel: savedMeta.logisticsChannel || cached.logisticsChannel || null,
         destino: savedMeta.destino || getDestinoName(cached) || order.destinatario || folio?.destino || '',
         outboundDate: savedMeta.outbound_date || getOrderDateKey(cached),
@@ -428,6 +431,9 @@ export default function ValidarPorDestino({ folioId }) {
         ['thirdOrderNo', meta.thirdOrderNo],
         ['fbaShipmentId', meta.fbaShipmentId],
         ...(Array.isArray(meta.allCustomizeCodes) ? meta.allCustomizeCodes.map(c => ['customizeCode', c]) : []),
+        // Internal product/SKU label code extracted from the order remark — a valid
+        // scan input for this order, distinct from any box code.
+        ...(orderNeedsProductLabel(meta) ? productSkuCandidates(meta).map(c => ['productSku', c]) : []),
       ]
       fieldSources.forEach(([field, rawCode]) => {
         if (!rawCode) return
@@ -746,6 +752,7 @@ export default function ValidarPorDestino({ folioId }) {
         logisticsTrackNo: lookupResult?.logisticsTrackNo || null,
         thirdOrderNo: lookupResult?.thirdOrderNo || null,
         fbaShipmentId: lookupResult?.fbaShipmentId || null,
+        remark: lookupResult?.remark || null,
         logisticsChannel: lookupResult?.logisticsChannel || null,
         allCustomizeCodes: Array.isArray(lookupResult?.allCustomizeCodes) ? lookupResult.allCustomizeCodes : [],
       }),
@@ -863,10 +870,11 @@ export default function ValidarPorDestino({ folioId }) {
     const matchedOrderNo = match.orderNo
 
     // Relabel gate: only when the folio requires it, the match did NOT come from the
-    // new-label field itself (logisticsTrackNo), and the order actually needs relabeling
+    // new-label field itself (logisticsTrackNo) or the product/SKU code (a distinct
+    // requirement, not a box relabel), and the order actually needs relabeling
     // (old/new label bases differ). A box already scanned on its new label passes
     // straight through — there's nothing left to compare it against.
-    if (folio?.validar_etiquetado && match.field !== 'logisticsTrackNo') {
+    if (folio?.validar_etiquetado && match.field !== 'logisticsTrackNo' && match.field !== 'productSku') {
       const meta = orderMetaByNo.get(matchedOrderNo) || {}
       if (orderNeedsRelabel(meta)) {
         const expectedNewBase = newLabelBase(meta)
@@ -1272,6 +1280,11 @@ export default function ValidarPorDestino({ folioId }) {
                                 {t('desp.validar.destino.reetiquetada')}
                               </span>
                             )}
+                            {s.matched_order_no && matchesProductSku(orderMetaByNo.get(s.matched_order_no) || {}, s.codigo_caja) && (
+                              <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
+                                SKU
+                              </span>
+                            )}
                           </div>
                           <span className="text-[10px] text-warm-400">{fmtDateTime(s.validated_at)}</span>
                         </div>
@@ -1508,6 +1521,11 @@ export default function ValidarPorDestino({ folioId }) {
                 const pct = esperadas > 0 ? Math.min(100, Math.round((validadas / esperadas) * 100)) : null
                 const enrich = meta
                 const complete = esperadas > 0 && validadas >= esperadas
+                const needsProductLabel = orderNeedsProductLabel(meta)
+                const skuSatisfied = needsProductLabel && scans.some(s => (
+                  (s.matched_order_no === order.outbound_order_no || s.folio_order_id === order.id)
+                  && matchesProductSku(meta, s.codigo_caja)
+                ))
 
                 return (
                   <div key={order.id} className={`p-3.5 rounded-2xl border transition-all shadow-[0_10px_24px_-18px_rgba(15,23,42,0.28)] ${
@@ -1550,6 +1568,16 @@ export default function ValidarPorDestino({ folioId }) {
                             className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-100 text-accent-700"
                           >
                             <Tag className="h-3 w-3" />
+                          </span>
+                        )}
+                        {needsProductLabel && (
+                          <span
+                            title={skuSatisfied ? t('desp.validar.destino.skuValidado') : t('desp.validar.destino.requiereSku')}
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
+                              skuSatisfied ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'
+                            }`}
+                          >
+                            <Barcode className="h-3 w-3" />
                           </span>
                         )}
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${

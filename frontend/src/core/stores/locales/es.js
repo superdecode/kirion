@@ -4023,6 +4023,8 @@ export default {
     'desp.validar.destino.etiquetaNoCoincide': 'El código escaneado no coincide con la etiqueta nueva esperada. Vuelve a intentar o cancela.',
     'desp.validar.destino.reetiquetada': 'Reetiquetada',
     'desp.validar.destino.requiereEtiquetado': 'Requiere etiquetado',
+    'desp.validar.destino.requiereSku': 'Requiere cambio de etiqueta de producto (SKU) — pendiente',
+    'desp.validar.destino.skuValidado': 'Cambio de etiqueta de producto (SKU) validado',
     'desp.validar.destino.ordenLabel': 'Orden',
     'desp.validar.destino.ordenesDestino': 'Órdenes del destino',
     'desp.validar.destino.sinOrdenes': 'Sin órdenes cargadas',

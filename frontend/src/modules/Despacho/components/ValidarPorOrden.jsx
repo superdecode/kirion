@@ -24,6 +24,7 @@ import {
 } from '../services/despachoService'
 import { getOutboundDetail } from '../../WmsHub/services/googleSheetsService'
 import { orderNeedsRelabel, newLabelBase } from '../../Shared/Wms/relabelUtils'
+import { orderNeedsProductLabel, productSkuCandidates, matchesProductSku } from '../../Shared/Wms/productLabelUtils'
 import ScanInputBar from '../../Shared/Wms/ScanInputBar'
 import { useOfflineStore } from '../../../core/stores/offlineStore'
 import OfflineBlockedModal from '../../../core/components/common/OfflineBlockedModal'
@@ -159,6 +160,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       ['fbaShipmentId', orderDetail.fbaShipmentId],
       ['outboundOrderNo', orderDetail.outboundOrderNo],
       ...((orderDetail.allCustomizeCodes ?? []).map(c => ['customizeCode', c])),
+      ...(orderNeedsProductLabel(orderDetail) ? productSkuCandidates(orderDetail).map(c => ['productSku', c]) : []),
     )
     return buildLookupFieldMap(fieldSources)
   }, [orderDetail])
@@ -175,6 +177,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       orderDetail.fbaShipmentId,
       orderDetail.outboundOrderNo,
       ...(orderDetail.allCustomizeCodes ?? []),
+      ...(orderNeedsProductLabel(orderDetail) ? productSkuCandidates(orderDetail) : []),
     )
     return buildLookupCodeSet(rawCodes)
   }, [orderDetail])
@@ -291,11 +294,12 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     }
 
     // Relabel gate: only when the folio requires it, the match did NOT come from the
-    // new-label field itself (logisticsTrackNo), and the order actually needs relabeling
+    // new-label field itself (logisticsTrackNo) or the product/SKU code (a distinct
+    // requirement, not a box relabel), and the order actually needs relabeling
     // (old/new label bases differ). A box already scanned on its new label passes
     // straight through — there's nothing left to compare it against.
     const matchedField = validCodeFields.get(code)
-    if (validarEtiquetado && matchedField !== 'logisticsTrackNo' && orderDetail && orderNeedsRelabel(orderDetail)) {
+    if (validarEtiquetado && matchedField !== 'logisticsTrackNo' && matchedField !== 'productSku' && orderDetail && orderNeedsRelabel(orderDetail)) {
       setPendingRelabel({ rawCode: code, expectedNewBase: newLabelBase(orderDetail) })
       return
     }
@@ -524,6 +528,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                           {t('desp.validar.destino.reetiquetada')}
                         </span>
                       )}
+                      {matchesProductSku(orderDetail, s.codigo_caja) && (
+                        <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">SKU</span>
+                      )}
                       <span className="hidden sm:inline text-warm-400">{s.validated_by_nombre || '—'}</span>
                       <span className="text-warm-400 tabular-nums">{fmtDateTime(s.validated_at)}</span>
                     </div>
@@ -547,6 +554,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                   <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
                     {t('desp.validar.destino.reetiquetada')}
                   </span>
+                )}
+                {matchesProductSku(orderDetail, s.codigo_caja) && (
+                  <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">SKU</span>
                 )}
                 <span className="hidden sm:inline text-warm-400">{s.validated_by_nombre || '—'}</span>
                 <span className="text-warm-400 tabular-nums">{fmtDateTime(s.validated_at)}</span>

@@ -275,6 +275,7 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
           logisticsTrackNo: o.logisticsTrackNo || null,
           thirdOrderNo: o.thirdOrderNo || null,
           fbaShipmentId: o.fbaShipmentId || null,
+          remark: o.remark || null,
           logisticsChannel: o.logisticsChannel || null,
           allCustomizeCodes: Array.isArray(o.allCustomizeCodes) ? o.allCustomizeCodes : [],
           partial_reenvio: !!o.__pending?.partial,

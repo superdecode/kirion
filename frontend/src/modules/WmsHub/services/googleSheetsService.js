@@ -227,6 +227,12 @@ const OUTBOUND_ALIASES = {
     'fba货件id_fbashipmentid',
     'fba_shipment_id', 'fba_shipment_no', 'fbashipmentid', 'shipment_id',
   ],
+  // "Remark_备注" — free-text order remark. Source of the internal product/SKU
+  // label-change flag and code (see productLabelUtils.js).
+  remark: [
+    'remark_备注',
+    'remark', 'remarks', 'notas', 'nota', 'notes', 'comment', 'comments',
+  ],
   // (no customerCode column in the exported sheet)
   customerCode: [
     'customer_code', 'cliente', 'customer', 'client_code',
@@ -358,6 +364,7 @@ function mapRowToOutbound(row, map) {
     logisticsTrackNo: getField(row, map, 'logisticsTrackNo'),
     thirdOrderNo:     getField(row, map, 'thirdOrderNo'),
     fbaShipmentId:    getField(row, map, 'fbaShipmentId'),
+    remark:           getField(row, map, 'remark'),
     customerCode:     getField(row, map, 'customerCode'),
     receiverName:     getField(row, map, 'receiverName'),
     orderCreateTime:  getField(row, map, 'orderCreateTime'),
@@ -617,7 +624,7 @@ export async function getOutboundList() {
   const orderMap = new Map()
   const boxCountMap = new Map()
 
-  const SPARSE_FIELDS = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
+  const SPARSE_FIELDS = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'remark', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
 
   const boxCodesMap = new Map()
 
@@ -713,7 +720,7 @@ export async function findAllOrdersByBarcode(barcode) {
       normalizeCodeFast(r.customizeCode || '') === normQ
     const orderMap = new Map()
     const boxCountMap = new Map()
-    const SPARSE = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
+    const SPARSE = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'remark', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
     for (const row of dataRows) {
       const r = mapRowToOutbound(row, map)
       if (!r.outboundOrderNo) continue
@@ -778,7 +785,7 @@ export async function getOutboundDetail(orderNo) {
   if (orderRows.length === 0) return { success: true, data: null }
 
   const base = { ...orderRows[0] }
-  const SPARSE_FIELDS = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
+  const SPARSE_FIELDS = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'remark', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
   SPARSE_FIELDS.forEach(f => {
     if (!base[f]) {
       const found = orderRows.find(r => r[f])
@@ -822,7 +829,7 @@ export async function getOutboundBatchByDate(dateKey) {
   const map = buildHeaderMap(headerRow, OUTBOUND_ALIASES)
 
   const orderMap = new Map()
-  const SPARSE_FIELDS = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
+  const SPARSE_FIELDS = ['thirdOrderNo', 'logisticsTrackNo', 'fbaShipmentId', 'remark', 'logisticsChannel', 'receiverName', 'outboundTime', 'whCode']
 
   for (const row of dataRows) {
     const r = mapRowToOutbound(row, map)

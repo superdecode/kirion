@@ -4119,6 +4119,8 @@ export default {
     'desp.validar.destino.etiquetaNoCoincide': '扫描的代码与预期的新标签不匹配。请重试或取消。',
     'desp.validar.destino.reetiquetada': '已重新贴标',
     'desp.validar.destino.requiereEtiquetado': '需要贴标',
+    'desp.validar.destino.requiereSku': '需要更换产品标签（SKU）— 待处理',
+    'desp.validar.destino.skuValidado': '产品标签（SKU）已验证',
     'desp.validar.destino.ordenLabel': '订单',
     'desp.validar.destino.ordenesDestino': '目的地订单',
     'desp.validar.destino.sinOrdenes': '暂无已加载订单',
