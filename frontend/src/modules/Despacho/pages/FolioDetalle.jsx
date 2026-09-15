@@ -200,6 +200,12 @@ export default function FolioDetalle() {
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [ordersSearch, setOrdersSearch] = useState('')
   const [scanSearch, setScanSearch] = useState('')
+  const [expandedMeta, setExpandedMeta] = useState(() => new Set())
+  const toggleMeta = (key) => setExpandedMeta(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
 
   const { data, isLoading } = useQuery({
     queryKey: ['despacho-folio', folioId],
@@ -688,11 +694,26 @@ export default function FolioDetalle() {
                         const pct = order.bultos_esperados > 0
                           ? Math.round((order._scanCount / order.bultos_esperados) * 100)
                           : null
+                        const metaKey = order.id || order.outbound_order_no
+                        const hasStructuredMeta = order.notas && isStructuredNotas(order.notas)
+                        const metaOpen = expandedMeta.has(metaKey)
                         return (
                           <Fragment key={`${order.id || order.outbound_order_no}-row`}>
                             <tr key={`${order.id || order.outbound_order_no}`} className="table-row">
                               <td className="px-3 py-2.5">
-                                <CopyInline value={order.outbound_order_no} mono />
+                                <div className="flex items-center gap-1.5">
+                                  {hasStructuredMeta && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleMeta(metaKey)}
+                                      title={t('desp.folioDetalle.metaPrefix')}
+                                      className="shrink-0 rounded p-0.5 text-warm-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                                    >
+                                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${metaOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                  )}
+                                  <CopyInline value={order.outbound_order_no} mono />
+                                </div>
                               </td>
                               <td className="px-3 py-2.5">
                                 {order.destinatario ? (
@@ -757,34 +778,27 @@ export default function FolioDetalle() {
                                 </div>
                               </td>
                             </tr>
-                            {order.notas && isStructuredNotas(order.notas) && (() => {
+                            {hasStructuredMeta && metaOpen && (() => {
                               const meta = parseOrderNotasMeta(order.notas)
                               return (
                                 <tr key={`${order.id || order.outbound_order_no}-meta`} className="bg-primary-50/25">
-                                  <td colSpan={7} className="p-0 border-t border-primary-100">
-                                    <details className="group">
-                                      <summary className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-primary-700 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden hover:bg-primary-50/60 transition-colors">
-                                        <StickyNote className="w-3.5 h-3.5 shrink-0" />
-                                        {t('desp.folioDetalle.metaPrefix')}
-                                        <ChevronDown className="w-3.5 h-3.5 text-primary-400 transition-transform group-open:rotate-180 ml-auto" />
-                                      </summary>
-                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 px-3 pb-3 pl-9">
-                                        <MetaField label={t('desp.folioDetalle.metaTracking')} value={meta.logisticsTrackNo} mono />
-                                        <MetaField label={t('desp.folioDetalle.metaReferencia')} value={meta.thirdOrderNo} mono />
-                                        <MetaField label={t('desp.folioDetalle.metaFba')} value={meta.fbaShipmentId} mono />
-                                        <MetaField label={t('desp.folioDetalle.metaRemark')} value={meta.remark} wide />
-                                        <MetaField
-                                          label={t('desp.folioDetalle.metaCodigos')}
-                                          value={Array.isArray(meta.allCustomizeCodes) && meta.allCustomizeCodes.length > 0 ? meta.allCustomizeCodes.join(', ') : null}
-                                          mono wide
-                                        />
-                                      </div>
-                                    </details>
+                                  <td colSpan={7} className="border-t border-primary-100">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 px-3 py-2.5">
+                                      <MetaField label={t('desp.folioDetalle.metaTracking')} value={meta.thirdOrderNo} mono />
+                                      <MetaField label={t('desp.folioDetalle.metaReferencia')} value={meta.logisticsTrackNo} mono />
+                                      <MetaField label={t('desp.folioDetalle.metaFba')} value={meta.fbaShipmentId} mono />
+                                      <MetaField label={t('desp.folioDetalle.metaRemark')} value={meta.remark} wide />
+                                      <MetaField
+                                        label={t('desp.folioDetalle.metaCodigos')}
+                                        value={Array.isArray(meta.allCustomizeCodes) && meta.allCustomizeCodes.length > 0 ? meta.allCustomizeCodes.join(', ') : null}
+                                        mono wide
+                                      />
+                                    </div>
                                   </td>
                                 </tr>
                               )
                             })()}
-                            {order.notas && !isStructuredNotas(order.notas) && (
+                            {order.notas && !hasStructuredMeta && (
                               <tr key={`${order.id || order.outbound_order_no}-notas`} className="bg-danger-50/45">
                                 <td colSpan={7} className="px-3 py-2 border-t border-danger-100">
                                   <div className="flex items-start gap-2 text-xs text-danger-700">
