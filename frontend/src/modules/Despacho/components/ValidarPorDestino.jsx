@@ -269,6 +269,10 @@ export default function ValidarPorDestino({ folioId }) {
   // relabeling and did NOT come in on the new-label field itself. The next scan into
   // the same input is then treated as the second scan instead of a fresh box.
   const [pendingRelabel, setPendingRelabel] = useState(null)
+  // Product/SKU gate: set on the first scan matched to an order that needs an
+  // internal product-label change and hasn't had its SKU validated yet by any prior
+  // scan. The next scan into the same input must then be the SKU code itself.
+  const [pendingSku, setPendingSku] = useState(null)
   const [overLimitModal, setOverLimitModal] = useState({ open: false, payload: null, scanned: 0, expected: 0 })
   const [moveModal, setMoveModal] = useState({ open: false, scan: null, target: '' })
   const [removeOrderModal, setRemoveOrderModal] = useState({ open: false, order: null })
@@ -788,6 +792,11 @@ export default function ValidarPorDestino({ folioId }) {
     setTimeout(() => focusScan(), 80)
   }, [focusScan])
 
+  const cancelPendingSku = useCallback(() => {
+    setPendingSku(null)
+    setTimeout(() => focusScan(), 80)
+  }, [focusScan])
+
   const handleScan = useCallback((rawInput) => {
     const raw = String(rawInput || '').trim()
     if (!raw) return
@@ -795,6 +804,33 @@ export default function ValidarPorDestino({ folioId }) {
     const code = variants[0] || ''
     focusScan()
     if (!code) return
+
+    // Second scan of a pending SKU request: this input must be the product's SKU
+    // code, not a fresh box.
+    if (pendingSku) {
+      const meta = orderMetaByNo.get(pendingSku.matchedOrderNo) || {}
+      if (!matchesProductSku(meta, code)) {
+        addToast(t('desp.validar.destino.skuNoCoincide'), 'error')
+        return
+      }
+      if (hasCodeVariant(scannedCodeVariants, variants) || pendingOnlineRef.current.has(code)) {
+        setErrorModal({ type: 'duplicate', code })
+        return
+      }
+      const skuPayload = { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: pendingSku.matchedOrderNo }
+      if (isOffline) {
+        useOfflineStore.getState().enqueueModule({
+          type: 'despacho_folio_scan',
+          payload: { folioId, body: skuPayload },
+        })
+        setPendingOfflineScans(p => [...p, { code, matchedOrderNo: pendingSku.matchedOrderNo }])
+        addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+      } else {
+        requestAddScan(skuPayload)
+      }
+      setPendingSku(null)
+      return
+    }
 
     // Second scan of a pending relabel: this input is now dedicated to matching the
     // new-label code, not to picking up a fresh box.
@@ -869,6 +905,23 @@ export default function ValidarPorDestino({ folioId }) {
 
     const matchedOrderNo = match.orderNo
 
+    // SKU gate: checked before the relabel gate. Only when this order needs an
+    // internal product-label change, no prior scan for it has already validated the
+    // SKU, and this particular scan isn't itself the SKU. Doesn't matter which box
+    // triggers it — once satisfied once, it never gates again for this order.
+    if (match.field !== 'productSku') {
+      const meta = orderMetaByNo.get(matchedOrderNo) || {}
+      if (orderNeedsProductLabel(meta)) {
+        const skuAlreadySatisfied = scans.some(s => (
+          (s.matched_order_no === matchedOrderNo) && matchesProductSku(meta, s.codigo_caja)
+        ))
+        if (!skuAlreadySatisfied) {
+          setPendingSku({ matchedOrderNo })
+          return
+        }
+      }
+    }
+
     // Relabel gate: only when the folio requires it, the match did NOT come from the
     // new-label field itself (logisticsTrackNo) or the product/SKU code (a distinct
     // requirement, not a box relabel), and the order actually needs relabeling
@@ -895,7 +948,7 @@ export default function ValidarPorDestino({ folioId }) {
     }
 
     requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo })
-  }, [pendingRelabel, scannedCodeVariants, orderCodeLookup, externalCodeLookup, orderMetaByNo, folio?.destino, folio?.validar_etiquetado, currentTarimaRef, isOffline, folioId, requestAddScan, addToast, t])
+  }, [pendingSku, pendingRelabel, scans, scannedCodeVariants, orderCodeLookup, externalCodeLookup, orderMetaByNo, folio?.destino, folio?.validar_etiquetado, currentTarimaRef, isOffline, folioId, requestAddScan, addToast, t])
 
   const openForceModal = useCallback((code) => {
     setErrorModal(null)
@@ -1182,6 +1235,26 @@ export default function ValidarPorDestino({ folioId }) {
               type="button"
               onClick={cancelPendingRelabel}
               className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg border border-warning-300 bg-white px-2.5 text-[11px] font-semibold text-warning-700 hover:bg-warning-100 transition-colors"
+            >
+              <X className="w-3 h-3" />{t('common.cancel')}
+            </button>
+          </div>
+        )}
+
+        {/* SKU gate — waiting on the product-label scan */}
+        {pendingSku && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-accent-300 bg-accent-50 px-3 py-2.5">
+            <Barcode className="w-4 h-4 text-accent-600 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-accent-800">{t('desp.validar.destino.solicitarSku')}</p>
+              <p className="text-[11px] text-accent-700 truncate">
+                {t('desp.validar.destino.ordenLabel')}: <span className="font-mono font-semibold">{pendingSku.matchedOrderNo}</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={cancelPendingSku}
+              className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg border border-accent-300 bg-white px-2.5 text-[11px] font-semibold text-accent-700 hover:bg-accent-100 transition-colors"
             >
               <X className="w-3 h-3" />{t('common.cancel')}
             </button>
@@ -1521,11 +1594,18 @@ export default function ValidarPorDestino({ folioId }) {
                 const pct = esperadas > 0 ? Math.min(100, Math.round((validadas / esperadas) * 100)) : null
                 const enrich = meta
                 const complete = esperadas > 0 && validadas >= esperadas
+                const needsRelabelFlag = orderNeedsRelabel(meta)
+                // The relabel gate enforces correctness box-by-box already — "done" for
+                // this indicator means the whole order finished (every box that needed
+                // relabeling went through it), not just "at least one".
+                const relabelDone = needsRelabelFlag && complete
                 const needsProductLabel = orderNeedsProductLabel(meta)
                 const skuSatisfied = needsProductLabel && scans.some(s => (
                   (s.matched_order_no === order.outbound_order_no || s.folio_order_id === order.id)
                   && matchesProductSku(meta, s.codigo_caja)
                 ))
+                const hasPendingValidation = (needsRelabelFlag && !relabelDone) || (needsProductLabel && !skuSatisfied)
+                const hasAnyValidation = needsRelabelFlag || needsProductLabel
 
                 return (
                   <div key={order.id} className={`p-3.5 rounded-2xl border transition-all shadow-[0_10px_24px_-18px_rgba(15,23,42,0.28)] ${
@@ -1549,6 +1629,16 @@ export default function ValidarPorDestino({ folioId }) {
                       <span className="min-w-0 flex-1 font-mono text-sm font-black leading-snug text-primary-700 break-all">
                         {order.outbound_order_no}
                       </span>
+                      {hasAnyValidation && (
+                        <span
+                          title={hasPendingValidation ? t('desp.validar.destino.validacionPendiente') : t('desp.validar.destino.validacionCompleta')}
+                          className={`shrink-0 mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full ${
+                            hasPendingValidation ? 'bg-warm-100 text-warm-400' : 'bg-success-100 text-success-700'
+                          }`}
+                        >
+                          {hasPendingValidation ? <AlertCircle className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                        </span>
+                      )}
                       <span className="shrink-0 mt-0.5 rounded p-0.5 text-warm-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-warm-100 hover:text-primary-600">
                         <Copy className="h-3 w-3" />
                       </span>
@@ -1562,10 +1652,12 @@ export default function ValidarPorDestino({ folioId }) {
                         </p>
                       ) : <span />}
                       <div className="shrink-0 flex items-center gap-1">
-                        {orderNeedsRelabel(meta) && (
+                        {needsRelabelFlag && (
                           <span
-                            title={t('desp.validar.destino.requiereEtiquetado')}
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-100 text-accent-700"
+                            title={relabelDone ? t('desp.validar.destino.etiquetadoCompleto') : t('desp.validar.destino.requiereEtiquetado')}
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
+                              relabelDone ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-400'
+                            }`}
                           >
                             <Tag className="h-3 w-3" />
                           </span>
@@ -1574,7 +1666,7 @@ export default function ValidarPorDestino({ folioId }) {
                           <span
                             title={skuSatisfied ? t('desp.validar.destino.skuValidado') : t('desp.validar.destino.requiereSku')}
                             className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
-                              skuSatisfied ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'
+                              skuSatisfied ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-400'
                             }`}
                           >
                             <Barcode className="h-3 w-3" />

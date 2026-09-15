@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Loader2, Plus, Trash2, CheckCircle2, XCircle, ScanLine, X,
   Check, PackageCheck, AlertCircle, ShieldCheck, ChevronDown, ChevronUp,
-  Layers, MapPin, PartyPopper, ExternalLink, WifiOff,
+  Layers, MapPin, PartyPopper, ExternalLink, WifiOff, Barcode,
 } from 'lucide-react'
 import Modal from '../../../core/components/common/Modal'
 import StatusPill from '../../../core/components/common/StatusPill'
@@ -76,6 +76,8 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   const [forceModal, setForceModal] = useState({ open: false, code: '' })
   // Two-scan relabel flow — same shape and flow as ValidarPorDestino's pendingRelabel.
   const [pendingRelabel, setPendingRelabel] = useState(null)
+  // SKU gate — same shape and flow as ValidarPorDestino's pendingSku.
+  const [pendingSku, setPendingSku] = useState(null)
   const pendingOnlineRef = useRef(new Set())
   const isOffline = useOfflineStore((s) => s.status === 'offline')
 
@@ -242,9 +244,44 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     setTimeout(() => scanRef.current?.focus(), 80)
   }, [])
 
+  const cancelPendingSku = useCallback(() => {
+    setPendingSku(null)
+    setTimeout(() => scanRef.current?.focus(), 80)
+  }, [])
+
   const handleScan = useCallback((rawInput) => {
     const code = normalizeScanCode(rawInput)
     if (!code) return
+
+    // Second scan of a pending SKU request: this input must be the product's SKU
+    // code, not a fresh box.
+    if (pendingSku) {
+      if (!orderDetail || !matchesProductSku(orderDetail, code)) {
+        playSound('error')
+        addToast(t('desp.validar.destino.skuNoCoincide'), 'error')
+        return
+      }
+      const allScannedCodes = new Set([...Array.from(alreadyScanned), ...pendingOfflineScans])
+      if (allScannedCodes.has(code) || pendingOnlineRef.current.has(code)) {
+        playSound('duplicate')
+        addToast('Código ya escaneado en esta orden', 'warning')
+        return
+      }
+      scanRef.current?.focus()
+      if (isOffline) {
+        useOfflineStore.getState().enqueueModule({
+          type: 'despacho_order_scan',
+          payload: { folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef },
+        })
+        setPendingOfflineScans(p => [...p, code])
+        addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+      } else {
+        pendingOnlineRef.current.add(code)
+        doAddScan({ code, tarimaRef: currentTarimaRef })
+      }
+      setPendingSku(null)
+      return
+    }
 
     // Second scan of a pending relabel: this input is now dedicated to matching the
     // new-label code, not to picking up a fresh box.
@@ -293,12 +330,24 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       return
     }
 
+    const matchedField = validCodeFields.get(code)
+
+    // SKU gate: checked before the relabel gate. Only when this order needs an
+    // internal product-label change, no prior scan has already validated the SKU,
+    // and this particular scan isn't itself the SKU.
+    if (matchedField !== 'productSku' && orderDetail && orderNeedsProductLabel(orderDetail)) {
+      const skuAlreadySatisfied = scans.some(s => matchesProductSku(orderDetail, s.codigo_caja))
+      if (!skuAlreadySatisfied) {
+        setPendingSku({ rawCode: code })
+        return
+      }
+    }
+
     // Relabel gate: only when the folio requires it, the match did NOT come from the
     // new-label field itself (logisticsTrackNo) or the product/SKU code (a distinct
     // requirement, not a box relabel), and the order actually needs relabeling
     // (old/new label bases differ). A box already scanned on its new label passes
     // straight through — there's nothing left to compare it against.
-    const matchedField = validCodeFields.get(code)
     if (validarEtiquetado && matchedField !== 'logisticsTrackNo' && matchedField !== 'productSku' && orderDetail && orderNeedsRelabel(orderDetail)) {
       setPendingRelabel({ rawCode: code, expectedNewBase: newLabelBase(orderDetail) })
       return
@@ -316,7 +365,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     }
     pendingOnlineRef.current.add(code)
     doAddScan({ code, tarimaRef: currentTarimaRef })
-  }, [pendingRelabel, validCodes, validCodeFields, validarEtiquetado, orderDetail, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, addToast, folioId, order.id, currentTarimaRef, t])
+  }, [pendingSku, pendingRelabel, scans, validCodes, validCodeFields, validarEtiquetado, orderDetail, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, addToast, folioId, order.id, currentTarimaRef, t])
 
   const pct = expected && expected > 0 ? Math.round((scans.length / expected) * 100) : null
 
@@ -445,6 +494,20 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
             type="button"
             onClick={cancelPendingRelabel}
             className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg border border-warning-300 bg-white px-2.5 text-[11px] font-semibold text-warning-700 hover:bg-warning-100 transition-colors"
+          >
+            <X className="w-3 h-3" />{t('common.cancel')}
+          </button>
+        </div>
+      )}
+
+      {pendingSku && (
+        <div className="mb-2 flex items-center gap-2.5 rounded-xl border border-accent-300 bg-accent-50 px-3 py-2.5">
+          <Barcode className="w-4 h-4 text-accent-600 shrink-0" />
+          <p className="min-w-0 flex-1 text-xs font-bold text-accent-800">{t('desp.validar.destino.solicitarSku')}</p>
+          <button
+            type="button"
+            onClick={cancelPendingSku}
+            className="shrink-0 inline-flex h-8 items-center gap-1 rounded-lg border border-accent-300 bg-white px-2.5 text-[11px] font-semibold text-accent-700 hover:bg-accent-100 transition-colors"
           >
             <X className="w-3 h-3" />{t('common.cancel')}
           </button>
