@@ -42,7 +42,7 @@ async function syncOrderProgressByOrderNo(req, folioId, orderNo) {
     `WITH counts AS (
        SELECT COUNT(*)::int AS scanned
        FROM dispatch_order_scans
-       WHERE tenant_id = $3 AND folio_id = $1 AND matched_order_no = $2
+       WHERE tenant_id = $3 AND folio_id = $1 AND matched_order_no = $2 AND NOT es_sku
      )
      UPDATE dispatch_folio_orders o
      SET bultos = counts.scanned,
@@ -70,6 +70,7 @@ async function syncOrderProgressById(req, folioOrderId) {
        FROM dispatch_order_scans s
        JOIN target t ON true
        WHERE s.tenant_id = $2
+         AND NOT s.es_sku
          AND (
            s.folio_order_id = t.id
            OR (
@@ -759,7 +760,7 @@ router.post('/:id/scans',
   requireDespachoValidar('actualizar'),
   async (req, res) => {
     try {
-      const { codigo_caja, tarima_ref = null, matched_order_no = null, codigo_caja_previo = null, reetiquetado = false } = req.body
+      const { codigo_caja, tarima_ref = null, matched_order_no = null, codigo_caja_previo = null, reetiquetado = false, es_sku = false } = req.body
       if (!codigo_caja?.trim()) return res.status(400).json({ error: 'codigo_caja requerido' })
 
       const folioRes = await req.tQuery(
@@ -901,10 +902,10 @@ router.post('/:id/scans',
 
         const insertRes = await client.query(
           `INSERT INTO dispatch_order_scans
-             (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, matched_order_no, validated_by, codigo_caja_previo, reetiquetado)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, matched_order_no, validated_by, codigo_caja_previo, reetiquetado, es_sku)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            RETURNING id`,
-          [req.tenantId, req.params.id, ensuredOrderId, codigoCaja, tarima_ref || null, normalizedOrderNo || null, req.user.id, codigo_caja_previo || null, reetiquetado === true]
+          [req.tenantId, req.params.id, ensuredOrderId, codigoCaja, tarima_ref || null, normalizedOrderNo || null, req.user.id, codigo_caja_previo || null, reetiquetado === true, es_sku === true]
         )
 
         if (normalizedOrderNo) {
@@ -912,7 +913,7 @@ router.post('/:id/scans',
             `WITH counts AS (
                SELECT COUNT(*)::int AS scanned
                FROM dispatch_order_scans
-               WHERE tenant_id = $3 AND folio_id = $1 AND matched_order_no = $2
+               WHERE tenant_id = $3 AND folio_id = $1 AND matched_order_no = $2 AND NOT es_sku
              )
              UPDATE dispatch_folio_orders o
              SET bultos = counts.scanned,
@@ -938,6 +939,7 @@ router.post('/:id/scans',
                FROM dispatch_order_scans s
                JOIN target t ON true
                WHERE s.tenant_id = $2
+                 AND NOT s.es_sku
                  AND (
                    s.folio_order_id = t.id
                    OR (
@@ -1174,7 +1176,7 @@ router.post('/:id/orders/:orderId/scans',
   requireDespachoValidar('actualizar'),
   async (req, res) => {
     try {
-      const { codigo_caja, tarima_ref = null, codigo_caja_previo = null, reetiquetado = false } = req.body
+      const { codigo_caja, tarima_ref = null, codigo_caja_previo = null, reetiquetado = false, es_sku = false } = req.body
       if (!codigo_caja?.trim()) return res.status(400).json({ error: 'codigo_caja requerido' })
       const codigoCaja = normalizeScanCode(codigo_caja)
       if (!codigoCaja) return res.status(400).json({ error: 'codigo_caja inválido' })
@@ -1188,9 +1190,9 @@ router.post('/:id/orders/:orderId/scans',
       }
 
       await req.tQuery(
-        `INSERT INTO dispatch_order_scans (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, validated_by, codigo_caja_previo, reetiquetado)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [req.tenantId, req.params.id, req.params.orderId, codigoCaja, tarima_ref || null, req.user.id, codigo_caja_previo || null, reetiquetado === true]
+        `INSERT INTO dispatch_order_scans (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, validated_by, codigo_caja_previo, reetiquetado, es_sku)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [req.tenantId, req.params.id, req.params.orderId, codigoCaja, tarima_ref || null, req.user.id, codigo_caja_previo || null, reetiquetado === true, es_sku === true]
       )
       await syncOrderProgressById(req, req.params.orderId)
       const detail = await getFolioDetail(req, req.params.id)

@@ -406,6 +406,7 @@ export default function ValidarPorDestino({ folioId }) {
 
   const validatedCountByOrderNo = useMemo(() => (
     scans.reduce((acc, scan) => {
+      if (scan.es_sku) return acc // reference record for a box already counted, not a box of its own
       const orderNo = scan.matched_order_no || orders.find(order => order.id === scan.folio_order_id)?.outbound_order_no
       if (!orderNo) return acc
       acc[orderNo] = (acc[orderNo] || 0) + 1
@@ -857,6 +858,9 @@ export default function ValidarPorDestino({ folioId }) {
         // new-label code if a relabel happened first) purely for the scan row's
         // "Caja: X · SKU: Y" display.
         codigo_caja_previo: pendingSku.rawCode,
+        // A reference record for the box already counted right before it — never a
+        // physical box on its own, so the backend excludes it from bultos/progress.
+        es_sku: true,
       }
       if (isOffline) {
         useOfflineStore.getState().enqueueModule({
@@ -1053,7 +1057,7 @@ export default function ValidarPorDestino({ folioId }) {
   const totalEsperadas = orders.reduce((s, o) => {
     return s + getOrderExpectedCount(o)
   }, 0)
-  const totalScaneadas = scans.length
+  const totalScaneadas = scans.filter(s => !s.es_sku).length
   const pendientes = Math.max(0, totalEsperadas - totalScaneadas)
 
   // Group scans by tarima
@@ -1067,7 +1071,7 @@ export default function ValidarPorDestino({ folioId }) {
   ), [scans])
   const tarimaKeys = Object.keys(scansByTarima).sort()
   const tarimaSummary = useMemo(() => (
-    tarimaKeys.map((tarima) => ({ tarima, count: scansByTarima[tarima].length }))
+    tarimaKeys.map((tarima) => ({ tarima, count: scansByTarima[tarima].filter(s => !s.es_sku).length }))
   ), [tarimaKeys, scansByTarima])
 
   const removeOrderScansCount = useMemo(() => {
@@ -1410,7 +1414,7 @@ export default function ValidarPorDestino({ folioId }) {
                       <Layers className="w-4 h-4 text-accent-600 shrink-0" />
                       <span className="text-sm font-black text-accent-800">{tarima}</span>
                       <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-accent-100 px-3 py-1 text-sm font-black text-accent-800 tabular-nums">
-                        {scansByTarima[tarima].length}
+                        {scansByTarima[tarima].filter(s => !s.es_sku).length}
                         <span className="text-[10px] font-bold uppercase tracking-wide">{t('desp.validar.destino.cajasTotal')}</span>
                       </span>
                     </div>

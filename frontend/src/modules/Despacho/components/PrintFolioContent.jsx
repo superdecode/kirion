@@ -28,8 +28,14 @@ function fmtDateTime(dt) {
   return new Date(dt).toLocaleString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+// SKU-cascade scans document a box already listed right before them — never a
+// physical box on its own, so the printed packing list excludes them.
+function boxScansOf(order) {
+  return (order.scans ?? []).filter(s => !s.es_sku)
+}
+
 export function getOrderCodes(order) {
-  const scans = order.scans ?? []
+  const scans = boxScansOf(order)
   if (scans.length === 0) return []
   const map = new Map()
   for (const s of scans) {
@@ -41,7 +47,7 @@ export function getOrderCodes(order) {
 }
 
 export function getOrderTarimas(order) {
-  const scans = order.scans ?? []
+  const scans = boxScansOf(order)
   const refs = new Set()
   for (const s of scans) {
     if (s.tarima_ref) refs.add(s.tarima_ref)
@@ -50,7 +56,7 @@ export function getOrderTarimas(order) {
 }
 
 function getTarimaScans(order) {
-  const scans = order.scans ?? []
+  const scans = boxScansOf(order)
   const map = new Map()
   for (const s of scans) {
     const ref = s.tarima_ref || 'Sin tarima'

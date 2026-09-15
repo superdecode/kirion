@@ -17,8 +17,10 @@ function fmtPrint(dt) {
 }
 
 // Group scanned codes by base code → [ [base, count], ... ] sorted by base
+// SKU-cascade scans document a box already listed right before them — never a
+// physical box on its own, so the printed packing list excludes them.
 function getOrderCodes(order) {
-  const scans = order.scans ?? []
+  const scans = (order.scans ?? []).filter(s => !s.es_sku)
   if (scans.length === 0) return []
   const map = new Map()
   for (const s of scans) {

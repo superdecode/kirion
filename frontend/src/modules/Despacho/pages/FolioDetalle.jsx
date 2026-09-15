@@ -259,7 +259,10 @@ export default function FolioDetalle() {
     const orderScans = folio?.tipo === 'por_destino'
       ? scans.filter(s => s.folio_order_id === o.id || s.matched_order_no === o.outbound_order_no)
       : (o.scans ?? [])
-    const scanCount = orderScans.length
+    // SKU-cascade scans document a box already counted right before them — never a
+    // box of their own, so they're excluded from every "cajas" count here.
+    const realScans = orderScans.filter(s => !s.es_sku)
+    const scanCount = realScans.length
     const dispatchedCount = folio?.tipo === 'por_destino' ? scanCount : (o.bultos || scanCount)
     const meta = parseOrderNotasMeta(o.notas)
     const needsRelabel = orderNeedsRelabel(meta)

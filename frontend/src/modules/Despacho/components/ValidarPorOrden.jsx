@@ -82,6 +82,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   const isOffline = useOfflineStore((s) => s.status === 'offline')
 
   const scans = order.scans ?? []
+  // SKU-cascade scans document a box already counted right before them — never a
+  // box of their own, so every "cajas" count below excludes them.
+  const boxScans = useMemo(() => scans.filter(s => !s.es_sku), [scans])
 
   useEffect(() => {
     if (!validarPorTarimas) { setCurrentTarimaNum(1); return }
@@ -195,20 +198,21 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   }, [scans])
   const expected = Math.max(
     Number(order.bultos_esperados ?? orderDetail?.outboundBoxCount ?? order.bultos ?? 0),
-    scans.length
+    boxScans.length
   ) || null
 
   const { mutate: doAddScan, isPending: scanning } = useMutation({
-    mutationFn: ({ code, tarimaRef, codigoCajaPrevio, reetiquetado }) => addOrderScan(folioId, order.id, {
+    mutationFn: ({ code, tarimaRef, codigoCajaPrevio, reetiquetado, esSku }) => addOrderScan(folioId, order.id, {
       codigo_caja: code,
       tarima_ref: tarimaRef,
-      ...(codigoCajaPrevio ? { codigo_caja_previo: codigoCajaPrevio, reetiquetado: !!reetiquetado } : {}),
+      ...(codigoCajaPrevio ? { codigo_caja_previo: codigoCajaPrevio, reetiquetado: !!reetiquetado, es_sku: !!esSku } : {}),
     }),
     onSuccess: (data, { code }) => {
       pendingOnlineRef.current.delete(code)
       onUpdate(data)
       const updatedOrder = data?.orders?.find(o => o.id === order.id)
-      const newScansCount = updatedOrder?.scans?.length ?? 0
+      // SKU-cascade scans document a box already counted right before them.
+      const newScansCount = (updatedOrder?.scans ?? []).filter(s => !s.es_sku).length
       const baseExpectedCount = Number(order.bultos_esperados ?? orderDetail?.outboundBoxCount ?? order.bultos ?? 0)
       const expectedCount = Math.max(
         baseExpectedCount,
@@ -273,7 +277,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
           type: 'despacho_order_scan',
           payload: {
             folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef,
-            codigo_caja_previo: pendingSku.rawCode,
+            codigo_caja_previo: pendingSku.rawCode, es_sku: true,
           },
         })
         setPendingOfflineScans(p => [...p, code])
@@ -283,7 +287,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         // Reuses the same field the relabel flow stores the old box code in — here
         // it holds the box code that triggered the SKU request, so the scan row can
         // show both the box and the SKU instead of just the SKU alone.
-        doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingSku.rawCode })
+        doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingSku.rawCode, esSku: true })
       }
       setPendingSku(null)
       return
@@ -394,7 +398,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     doAddScan({ code, tarimaRef: currentTarimaRef })
   }, [pendingSku, pendingRelabel, scans, validCodes, validCodeFields, validarEtiquetado, orderDetail, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, addToast, folioId, order.id, currentTarimaRef, t])
 
-  const pct = expected && expected > 0 ? Math.round((scans.length / expected) * 100) : null
+  const pct = expected && expected > 0 ? Math.round((boxScans.length / expected) * 100) : null
 
   const scansByTarima = useMemo(() => (
     validarPorTarimas
@@ -427,7 +431,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         <CheckCircle2 className="w-8 h-8 text-success-500" />
         <p className="text-sm font-bold text-success-700">{t('desp.validar.orden.valCompleta')}</p>
         <p className="text-xs text-success-600 tabular-nums">
-          {scans.length} caja{scans.length !== 1 ? 's' : ''} confirmada{scans.length !== 1 ? 's' : ''} — orden marcada como Cargada
+          {boxScans.length} caja{boxScans.length !== 1 ? 's' : ''} confirmada{boxScans.length !== 1 ? 's' : ''} — orden marcada como Cargada
         </p>
       </div>
     )
@@ -499,7 +503,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
           )}
           <div className="flex items-center gap-3 text-xs text-primary-600">
             <span className="font-bold tabular-nums">
-              {scans.length}/{expected ?? '?'}{pct !== null ? ` · ${pct}%` : ''}
+              {boxScans.length}/{expected ?? '?'}{pct !== null ? ` · ${pct}%` : ''}
             </span>
             {pct !== null && (
               <div className="w-24 h-1.5 bg-primary-200 rounded-full overflow-hidden">
