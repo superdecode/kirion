@@ -161,9 +161,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   // Built once per order detail instead of on every shot: a PDA burst on a large
   // order was regenerating the whole variant set per scan.
   // Accept any of the identifiers that reference this order: per-box customize code,
-  // the order-level logisticsTrackNo (OLD label — "货件追踪码/Reference ID") or
-  // thirdOrderNo (NEW label — "Reference order No._参考单号", confirmed against the
-  // remark text — see relabelUtils.js), or the OBC order number itself.
+  // the order-level logisticsTrackNo (NEW label — "货件追踪码/Reference ID", confirmed
+  // directly against the WMS column) or thirdOrderNo (OLD label — "Reference order
+  // No._参考单号"), or the OBC order number itself.
   // allCustomizeCodes is spread defensively for callers that pass an aggregated
   // order; getOutboundDetail already lists every box in packageList.
   // The map form (field per code) drives the relabel gate below; validCodes stays a

@@ -796,8 +796,8 @@ export default function FolioDetalle() {
                                 <tr key={`${order.id || order.outbound_order_no}-meta`} className="bg-primary-50/25">
                                   <td colSpan={7} className="border-t border-primary-100">
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 px-3 py-2.5">
-                                      <MetaField label={t('desp.folioDetalle.metaTracking')} value={meta.thirdOrderNo} mono />
-                                      <MetaField label={t('desp.folioDetalle.metaReferencia')} value={meta.logisticsTrackNo} mono />
+                                      <MetaField label={t('desp.folioDetalle.metaTracking')} value={meta.logisticsTrackNo} mono />
+                                      <MetaField label={t('desp.folioDetalle.metaReferencia')} value={meta.thirdOrderNo} mono />
                                       <MetaField label={t('desp.folioDetalle.metaFba')} value={meta.fbaShipmentId} mono />
                                       <MetaField label={t('desp.folioDetalle.metaRemark')} value={meta.remark} wide />
                                       <MetaField
