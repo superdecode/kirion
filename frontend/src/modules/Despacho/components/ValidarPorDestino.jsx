@@ -846,7 +846,15 @@ export default function ValidarPorDestino({ folioId }) {
         setErrorModal({ type: 'duplicate', code })
         return
       }
-      const skuPayload = { codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: pendingSku.matchedOrderNo }
+      const skuPayload = {
+        codigo_caja: code,
+        tarima_ref: currentTarimaRef,
+        matched_order_no: pendingSku.matchedOrderNo,
+        // Reuses the same field the relabel flow stores the old box code in — here it
+        // holds the box code that triggered the SKU request, so the scan row can show
+        // both the box and the SKU instead of just the SKU alone.
+        codigo_caja_previo: pendingSku.rawCode,
+      }
       if (isOffline) {
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_folio_scan',
@@ -1387,7 +1395,10 @@ export default function ValidarPorDestino({ folioId }) {
                     </div>
                     {[...scansByTarima[tarima]]
                       .sort((a, b) => new Date(a.validated_at || a.created_at || 0) - new Date(b.validated_at || b.created_at || 0))
-                      .map((s, i) => (
+                      .map((s, i) => {
+                      const isSkuScan = !!(s.codigo_caja_previo && !s.reetiquetado && s.matched_order_no
+                        && matchesProductSku(orderMetaByNo.get(s.matched_order_no) || {}, s.codigo_caja))
+                      return (
                       <div key={`${tarima}-${s.id || s.codigo_caja || 'scan'}-${i}`} className={`flex items-center gap-2.5 px-4 py-2.5 group hover:bg-warm-50 transition-colors ${
                         i === 0 ? 'bg-primary-50/30' : ''
                       }`}>
@@ -1400,7 +1411,19 @@ export default function ValidarPorDestino({ folioId }) {
                         }
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono text-xs font-semibold text-warm-800">{s.codigo_caja}</span>
+                            {isSkuScan ? (
+                              <>
+                                <span className="font-mono text-xs font-semibold text-warm-800">
+                                  {t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}
+                                </span>
+                                <span className="text-warm-300 text-[11px] select-none">·</span>
+                                <span className="font-mono text-xs font-semibold text-success-700">
+                                  SKU: {s.codigo_caja}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="font-mono text-xs font-semibold text-warm-800">{s.codigo_caja}</span>
+                            )}
                             {!s.matched_order_no ? (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-warning-100 border border-warning-200 text-[9px] font-bold text-warning-700">
                                 <AlertCircle className="w-2.5 h-2.5" />{t('desp.validar.destino.sinOrden')}
@@ -1452,7 +1475,7 @@ export default function ValidarPorDestino({ folioId }) {
                           </div>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 ))}
               </div>

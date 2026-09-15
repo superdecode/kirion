@@ -271,13 +271,19 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       if (isOffline) {
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_order_scan',
-          payload: { folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef },
+          payload: {
+            folioId, orderId: order.id, codigo_caja: code, tarima_ref: currentTarimaRef,
+            codigo_caja_previo: pendingSku.rawCode,
+          },
         })
         setPendingOfflineScans(p => [...p, code])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
       } else {
         pendingOnlineRef.current.add(code)
-        doAddScan({ code, tarimaRef: currentTarimaRef })
+        // Reuses the same field the relabel flow stores the old box code in — here
+        // it holds the box code that triggered the SKU request, so the scan row can
+        // show both the box and the SKU instead of just the SKU alone.
+        doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingSku.rawCode })
       }
       setPendingSku(null)
       return
@@ -586,7 +592,15 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                     <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs bg-accent-50/40 border border-accent-100/50">
                       <span className="w-5 text-right text-[10px] font-black tabular-nums text-accent-600 shrink-0">{scanIndex + 1}</span>
                       <Check className="w-3 h-3 text-success-500 shrink-0" />
-                      <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                      {s.codigo_caja_previo && !s.reetiquetado && matchesProductSku(orderDetail, s.codigo_caja) ? (
+                        <span className="flex-1 font-mono font-semibold">
+                          <span className="text-warm-800">{t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}</span>
+                          <span className="text-warm-300 mx-1">·</span>
+                          <span className="text-success-700">SKU: {s.codigo_caja}</span>
+                        </span>
+                      ) : (
+                        <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                      )}
                       {s.reetiquetado && (
                         <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
                           {t('desp.validar.destino.reetiquetada')}
@@ -613,7 +627,15 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
               }`}>
                 <span className="w-5 text-right text-[10px] font-black tabular-nums text-primary-500 shrink-0">{i + 1}</span>
                 <Check className="w-3 h-3 text-success-500 shrink-0" />
-                <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                {s.codigo_caja_previo && !s.reetiquetado && matchesProductSku(orderDetail, s.codigo_caja) ? (
+                  <span className="flex-1 font-mono font-semibold">
+                    <span className="text-warm-800">{t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}</span>
+                    <span className="text-warm-300 mx-1">·</span>
+                    <span className="text-success-700">SKU: {s.codigo_caja}</span>
+                  </span>
+                ) : (
+                  <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                )}
                 {s.reetiquetado && (
                   <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
                     {t('desp.validar.destino.reetiquetada')}
