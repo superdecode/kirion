@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, useIsMutating } from '@tanstack/react-query'
 import {
   ScanLine, Loader2, X, Check, CheckCircle2, XCircle, AlertCircle,
-  Layers, MapPin, Trash2, Radio, Clock3, Search, MoveRight,
+  Layers, MapPin, Trash2, Radio, Clock3, Search, MoveRight, Tag,
   PanelRightClose, PanelRightOpen, PartyPopper, ExternalLink, Plus, Copy, WifiOff,
 } from 'lucide-react'
 import ScanInputBar from '../../Shared/Wms/ScanInputBar'
@@ -1543,12 +1543,22 @@ export default function ValidarPorDestino({ folioId }) {
                           {order.destinatario}
                         </p>
                       ) : <span />}
-                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
-                        complete ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-600'
-                      }`}>
-                        {complete && <CheckCircle2 className="w-3.5 h-3.5" />}
-                        {validadas}/{esperadas || '?'}
-                      </span>
+                      <div className="shrink-0 flex items-center gap-1">
+                        {orderNeedsRelabel(meta) && (
+                          <span
+                            title={t('desp.validar.destino.requiereEtiquetado')}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-100 text-accent-700"
+                          >
+                            <Tag className="h-3 w-3" />
+                          </span>
+                        )}
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
+                          complete ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-600'
+                        }`}>
+                          {complete && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          {validadas}/{esperadas || '?'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Tracking + Reference — stacked rows, full width */}

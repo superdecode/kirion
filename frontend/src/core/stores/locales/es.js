@@ -4022,6 +4022,7 @@ export default {
     'desp.validar.destino.esperandoEtiquetaNueva': 'Esperando escaneo de la etiqueta nueva',
     'desp.validar.destino.etiquetaNoCoincide': 'El código escaneado no coincide con la etiqueta nueva esperada. Vuelve a intentar o cancela.',
     'desp.validar.destino.reetiquetada': 'Reetiquetada',
+    'desp.validar.destino.requiereEtiquetado': 'Requiere etiquetado',
     'desp.validar.destino.ordenLabel': 'Orden',
     'desp.validar.destino.ordenesDestino': 'Órdenes del destino',
     'desp.validar.destino.sinOrdenes': 'Sin órdenes cargadas',
