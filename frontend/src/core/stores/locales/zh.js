@@ -4127,6 +4127,7 @@ export default {
     'desp.validar.destino.validacionCompleta': '验证完成',
     'desp.validar.destino.solicitarSku': '请打开箱子并扫描产品SKU',
     'desp.validar.destino.escanearSku': '扫描SKU',
+    'desp.validar.destino.cajaLabel': '箱号',
     'desp.validar.destino.ingresaSkuPlaceholder': '输入或扫描SKU...',
     'desp.validar.destino.skuNoCoincide': '扫描的代码与预期的SKU不匹配。请重试或取消。',
     'desp.validar.destino.ordenLabel': '订单',
