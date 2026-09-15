@@ -3770,6 +3770,7 @@ export default {
     'desp.folioDetalle.colEsp': 'Esp.',
     'desp.folioDetalle.colEscaneadas': 'Escaneadas',
     'desp.folioDetalle.colDespachadas': 'Despachadas',
+    'desp.folioDetalle.colValidacion': 'Validación',
     'desp.folioDetalle.sinOrdenesEnFolio': 'Sin órdenes en este folio',
     'desp.folioDetalle.notaPrefix': 'Nota:',
     'desp.folioDetalle.sinEscaneosRegistrados': 'Sin escaneos registrados en este folio',

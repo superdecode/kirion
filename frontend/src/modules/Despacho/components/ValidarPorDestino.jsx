@@ -1604,8 +1604,6 @@ export default function ValidarPorDestino({ folioId }) {
                   (s.matched_order_no === order.outbound_order_no || s.folio_order_id === order.id)
                   && matchesProductSku(meta, s.codigo_caja)
                 ))
-                const hasPendingValidation = (needsRelabelFlag && !relabelDone) || (needsProductLabel && !skuSatisfied)
-                const hasAnyValidation = needsRelabelFlag || needsProductLabel
 
                 return (
                   <div key={order.id} className={`p-3.5 rounded-2xl border transition-all shadow-[0_10px_24px_-18px_rgba(15,23,42,0.28)] ${
@@ -1626,19 +1624,9 @@ export default function ValidarPorDestino({ folioId }) {
                       title="Copiar orden"
                       className="group flex w-full items-start gap-2 text-left mb-1.5"
                     >
-                      <span className="min-w-0 flex-1 font-mono text-sm font-black leading-snug text-primary-700 break-all">
+                      <span className="min-w-0 flex-1 font-mono text-[12.5px] font-black leading-snug text-primary-700 break-all">
                         {order.outbound_order_no}
                       </span>
-                      {hasAnyValidation && (
-                        <span
-                          title={hasPendingValidation ? t('desp.validar.destino.validacionPendiente') : t('desp.validar.destino.validacionCompleta')}
-                          className={`shrink-0 mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full ${
-                            hasPendingValidation ? 'bg-warm-100 text-warm-400' : 'bg-success-100 text-success-700'
-                          }`}
-                        >
-                          {hasPendingValidation ? <AlertCircle className="h-3 w-3" /> : <Check className="h-3 w-3" />}
-                        </span>
-                      )}
                       <span className="shrink-0 mt-0.5 rounded p-0.5 text-warm-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-warm-100 hover:text-primary-600">
                         <Copy className="h-3 w-3" />
                       </span>

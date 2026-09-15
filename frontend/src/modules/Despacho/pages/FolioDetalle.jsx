@@ -5,7 +5,7 @@ import {
   Truck, User, Loader2, Trash2, CheckCircle2, XCircle, Clock,
   FileText, Edit3, ArrowLeft, CalendarDays, StickyNote, AlertCircle,
   Printer, Layers, MapPin, ScanLine, Package, Copy, Check, Download,
-  Search, X, ScanBarcode, RefreshCw, History,
+  Search, X, ScanBarcode, RefreshCw, History, Tag, Barcode,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Header from '../../../core/components/layout/Header'
@@ -23,6 +23,18 @@ import {
   getConductores, getUnidades, getFolioLogs,
 } from '../services/despachoService'
 import FolioPreviewModal from '../components/FolioPreviewModal'
+import { orderNeedsRelabel } from '../../Shared/Wms/relabelUtils'
+import { orderNeedsProductLabel, matchesProductSku } from '../../Shared/Wms/productLabelUtils'
+
+function parseOrderNotasMeta(notas) {
+  if (!notas || typeof notas !== 'string') return {}
+  try {
+    const parsed = JSON.parse(notas)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
 
 const FOLIO_ESTADO_META = {
   borrador:   { labelKey: 'desp.folio.estado.borrador',   cls: 'bg-warm-100 text-warm-600',       icon: Clock },
@@ -249,7 +261,21 @@ export default function FolioDetalle() {
       : (o.scans ?? [])
     const scanCount = orderScans.length
     const dispatchedCount = folio?.tipo === 'por_destino' ? scanCount : (o.bultos || scanCount)
-    return { ...o, _scanCount: scanCount, _dispatchCount: dispatchedCount }
+    const meta = parseOrderNotasMeta(o.notas)
+    const needsRelabel = orderNeedsRelabel(meta)
+    const bultosEsperados = o.bultos_esperados || 0
+    const relabelDone = needsRelabel && bultosEsperados > 0 && scanCount >= bultosEsperados
+    const needsSku = orderNeedsProductLabel(meta)
+    const skuSatisfied = needsSku && orderScans.some(s => matchesProductSku(meta, s.codigo_caja))
+    return {
+      ...o,
+      _scanCount: scanCount,
+      _dispatchCount: dispatchedCount,
+      _needsRelabel: needsRelabel,
+      _relabelDone: relabelDone,
+      _needsSku: needsSku,
+      _skuSatisfied: skuSatisfied,
+    }
   }), [orders, scans, folio?.tipo])
 
   const totalBultos    = ordersWithProgress.reduce((s, o) => s + (o._dispatchCount || 0), 0)
@@ -621,6 +647,7 @@ export default function FolioDetalle() {
                         <th className={`${TH} text-center`}>{t('desp.folioDetalle.colEscaneadas')}</th>
                         <th className={`${TH} text-center`}>{t('desp.folioDetalle.colDespachadas')}</th>
                         <th className={TH}>{t('desp.folio.col.estado')}</th>
+                        <th className={TH}>{t('desp.folioDetalle.colValidacion')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-warm-50">
@@ -663,10 +690,33 @@ export default function FolioDetalle() {
                                   {t(ORDER_ESTADO_META[order.estado]?.labelKey ?? ORDER_ESTADO_META.pendiente.labelKey)}
                                 </StatusPill>
                               </td>
+                              <td className="px-3 py-2.5">
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {order._needsRelabel && (
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                                      order._relabelDone ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-500'
+                                    }`}>
+                                      <Tag className="w-2.5 h-2.5" />
+                                      {order._relabelDone ? t('desp.validar.destino.etiquetadoCompleto') : t('desp.validar.destino.requiereEtiquetado')}
+                                    </span>
+                                  )}
+                                  {order._needsSku && (
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                                      order._skuSatisfied ? 'bg-success-100 text-success-700' : 'bg-warm-100 text-warm-500'
+                                    }`}>
+                                      <Barcode className="w-2.5 h-2.5" />
+                                      {order._skuSatisfied ? t('desp.validar.destino.skuValidado') : t('desp.validar.destino.requiereSku')}
+                                    </span>
+                                  )}
+                                  {!order._needsRelabel && !order._needsSku && (
+                                    <span className="text-xs text-warm-300">—</span>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
                             {order.notas && (
                               <tr key={`${order.id || order.outbound_order_no}-notas`} className="bg-danger-50/45">
-                                <td colSpan={6} className="px-3 py-2 border-t border-danger-100">
+                                <td colSpan={7} className="px-3 py-2 border-t border-danger-100">
                                   <div className="flex items-start gap-2 text-xs text-danger-700">
                                     <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                                     <span className="font-semibold shrink-0">{t('desp.folioDetalle.notaPrefix')}</span>
@@ -680,7 +730,7 @@ export default function FolioDetalle() {
                       })}
                       {filteredOrders.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-3 py-10 text-center text-warm-400 text-sm">{t('common.noData')}</td>
+                          <td colSpan={7} className="px-3 py-10 text-center text-warm-400 text-sm">{t('common.noData')}</td>
                         </tr>
                       )}
                     </tbody>
