@@ -4030,6 +4030,8 @@ export default {
     'desp.validar.destino.validacionPendiente': 'Validación pendiente',
     'desp.validar.destino.validacionCompleta': 'Validación completa',
     'desp.validar.destino.solicitarSku': 'Por favor abre la caja y escanea el SKU del producto',
+    'desp.validar.destino.escanearSku': 'Escanear SKU',
+    'desp.validar.destino.ingresaSkuPlaceholder': 'Ingresa o escanea el SKU...',
     'desp.validar.destino.skuNoCoincide': 'El código escaneado no coincide con el SKU esperado. Vuelve a intentar o cancela.',
     'desp.validar.destino.ordenLabel': 'Orden',
     'desp.validar.destino.ordenesDestino': 'Órdenes del destino',

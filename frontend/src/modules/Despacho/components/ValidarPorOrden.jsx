@@ -519,8 +519,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
           <ScanInputBar
             inputRef={scanRef}
             onSubmit={handleScan}
-            placeholder={detailLoading ? 'Cargando datos WMS...' : t('desp.validar.orden.scanPlaceholderPanel')}
+            placeholder={pendingSku ? t('desp.validar.destino.ingresaSkuPlaceholder') : (detailLoading ? 'Cargando datos WMS...' : t('desp.validar.orden.scanPlaceholderPanel'))}
             loading={scanning}
+            badge={pendingSku ? { icon: <Barcode className="h-3 w-3" />, label: t('desp.validar.destino.escanearSku') } : null}
             buttonLabel={t('desp.validar.orden.validarBtn')}
           />
           {scans.length > 0 && (

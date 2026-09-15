@@ -24,6 +24,10 @@ const ScanInputBar = memo(function ScanInputBar({
   loading = false,
   variant = 'inline',
   hint = null,
+  // Optional pill shown inside the bar itself (not just a banner above it) to mark
+  // that this input is momentarily dedicated to something other than a normal scan
+  // — e.g. { icon: <Barcode .../>, label: 'Escanear SKU', className: 'bg-accent-100 text-accent-700' }.
+  badge = null,
 }) {
   const { t } = useI18nStore()
   const [value, setValue] = useState('')
@@ -68,6 +72,14 @@ const ScanInputBar = memo(function ScanInputBar({
             >
               <ScanLine className={isMobile ? 'h-6 w-6' : 'h-[18px] w-[18px]'} />
             </button>
+            {badge && (
+              <span className={`shrink-0 inline-flex items-center gap-1 rounded-full font-bold ${
+                isMobile ? 'px-2.5 py-1 text-xs' : 'px-2 py-0.5 text-[11px]'
+              } ${badge.className || 'bg-accent-100 text-accent-700'}`}>
+                {badge.icon}
+                {badge.label}
+              </span>
+            )}
             <input
               ref={inputRef}
               type="text"
