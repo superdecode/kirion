@@ -20,7 +20,7 @@ import { orderNeedsRelabel, newLabelBase } from '../../Shared/Wms/relabelUtils'
 import { orderNeedsProductLabel, productSkuCandidates, matchesProductSku } from '../../Shared/Wms/productLabelUtils'
 import {
   getFolio, getFolioScans, addFolioScan, deleteFolioScan,
-  moveFolioScanTarima, cerrarFolio, cancelarFolio, getOutboundList, removeDestinationOrder, addOrder, findOrderByBarcode,
+  moveFolioScanTarima, setFolioScanSku, cerrarFolio, cancelarFolio, getOutboundList, removeDestinationOrder, addOrder, findOrderByBarcode,
 } from '../services/despachoService'
 import { getOutboundDetail } from '../../WmsHub/services/googleSheetsService'
 import OfflineBlockedModal from '../../../core/components/common/OfflineBlockedModal'
@@ -640,6 +640,31 @@ export default function ValidarPorDestino({ folioId }) {
     },
   })
 
+  const { mutate: doSetSku } = useMutation({
+    mutationKey: ['despacho-set-sku', folioId],
+    mutationFn: ({ scanId, skuValor }) => setFolioScanSku(folioId, scanId, { sku_valor: skuValor }),
+    onMutate: async ({ scanId, skuValor }) => {
+      const queryKey = ['despacho-folio-scans', folioId]
+      await qc.cancelQueries({ queryKey })
+      const previous = qc.getQueryData(queryKey)
+      qc.setQueryData(queryKey, (old) => ({
+        ...(old || {}),
+        scans: (old?.scans ?? scans).map(s => s.id === scanId ? { ...s, sku_valor: skuValor } : s),
+      }))
+      return { queryKey, previous }
+    },
+    onSuccess: (data) => {
+      if (Array.isArray(data?.scans)) {
+        qc.setQueryData(['despacho-folio-scans', folioId], (old) => ({ ...(old || {}), scans: data.scans }))
+      }
+      qc.invalidateQueries({ queryKey: ['despacho-folio', folioId] })
+    },
+    onError: (err, vars, context) => {
+      if (context?.queryKey) qc.setQueryData(context.queryKey, context.previous)
+      addToast(err?.response?.data?.error || 'Error registrando SKU', 'error')
+    },
+  })
+
   const { mutate: doDeleteScan } = useMutation({
     mutationFn: (scanId) => deleteFolioScan(folioId, scanId),
     // Remove it from the tarima view immediately instead of waiting on a full
@@ -807,7 +832,7 @@ export default function ValidarPorDestino({ folioId }) {
     })
   }, [addForm, doAddOrder, lookupResult])
 
-  const requestAddScan = useCallback((payload, { skipOverLimit = false } = {}) => {
+  const requestAddScan = useCallback((payload, { skipOverLimit = false, onInserted } = {}) => {
     const matchedOrderNo = payload?.matched_order_no
     if (!skipOverLimit && matchedOrderNo) {
       const matchedOrder = orders.find(order => order.outbound_order_no === matchedOrderNo)
@@ -819,7 +844,18 @@ export default function ValidarPorDestino({ folioId }) {
       }
     }
     if (payload?.codigo_caja) pendingOnlineRef.current.add(payload.codigo_caja)
-    doAddScan(payload)
+    if (onInserted) {
+      doAddScan(payload, {
+        onSuccess: (data) => {
+          const inserted = Array.isArray(data?.scans)
+            ? data.scans.find(s => s.codigo_caja === payload.codigo_caja)
+            : null
+          onInserted(inserted)
+        },
+      })
+    } else {
+      doAddScan(payload)
+    }
   }, [doAddScan, getOrderExpectedCount, orders, scans])
 
   const submitOverLimitScan = useCallback(() => {
@@ -850,42 +886,39 @@ export default function ValidarPorDestino({ folioId }) {
     if (!code) return
 
     // Second scan of a pending SKU request: this input must be the product's SKU
-    // code, not a fresh box. Recorded as its own cascaded scan (codigo_caja = the
-    // SKU) — never folded into or replacing the box scan that came before it, so the
-    // SKU itself stays subject to normal duplicate detection (it must only ever be
-    // recorded once).
+    // code, not a fresh box. Stored directly on the box's own scan record (never a
+    // separate row) so it never touches duplicate detection or box counts.
     if (pendingSku) {
       const meta = orderMetaByNo.get(pendingSku.matchedOrderNo) || {}
       if (!matchesProductSku(meta, code)) {
         addToast(t('desp.validar.destino.skuNoCoincide'), 'error')
         return
       }
-      if (hasCodeVariant(scannedCodeVariants, variants) || pendingOnlineRef.current.has(code)) {
+      const alreadyUsed = scans.some(s => normalizeCodeFast(s.sku_valor || '') === code)
+      if (alreadyUsed) {
         setErrorModal({ type: 'duplicate', code })
         return
       }
-      const skuPayload = {
-        codigo_caja: code,
-        tarima_ref: currentTarimaRef,
-        matched_order_no: pendingSku.matchedOrderNo,
-        // Holds whatever code preceded this cascade (the plain box code, or the
-        // new-label code if a relabel happened first) purely for the scan row's
-        // "Caja: X · SKU: Y" display.
-        codigo_caja_previo: pendingSku.rawCode,
-        // A reference record for the box already counted right before it — never a
-        // physical box on its own, so the backend excludes it from bultos/progress.
-        es_sku: true,
-      }
-      if (isOffline) {
+      if (pendingSku.scanId) {
+        // The box's own scan record already exists server-side — patch the SKU
+        // straight onto it, no extra record involved.
+        doSetSku({ scanId: pendingSku.scanId, skuValor: code })
+      } else {
+        // The box scan itself is still queued offline (no server id yet), so there
+        // is nothing to patch — fall back to the legacy cascaded record so the SKU
+        // isn't lost; it still resolves back to a single row once both records
+        // reach the server and relabelSkuLinks cross-references them.
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_folio_scan',
-          payload: { folioId, body: skuPayload },
+          payload: {
+            folioId,
+            body: {
+              codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: pendingSku.matchedOrderNo,
+              codigo_caja_previo: pendingSku.rawCode, es_sku: true,
+            },
+          },
         })
-        setPendingOfflineScans(p => [...p, { code, matchedOrderNo: pendingSku.matchedOrderNo }])
-        addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
-      } else {
-        // Not a real extra box — skip the over-limit prompt for this companion record.
-        requestAddScan(skuPayload, { skipOverLimit: true })
+        addToast(`Offline: SKU ${code} — se enviará al recuperar conexión`, 'info')
       }
       setPendingSku(null)
       return
@@ -910,6 +943,15 @@ export default function ValidarPorDestino({ folioId }) {
         codigo_caja_previo: pendingRelabel.rawCode,
         reetiquetado: true,
       }
+      // The relabel scan just submitted is its own complete record. If this order
+      // also still needs the SKU, chain straight into that request next instead of
+      // making the operator scan a fresh box first.
+      const relabelOrderNo = pendingRelabel.matchedOrderNo
+      const meta = orderMetaByNo.get(relabelOrderNo) || {}
+      const skuAlreadySatisfied = scans.some(s => (
+        s.matched_order_no === relabelOrderNo && matchesProductSku(meta, s.sku_valor || s.codigo_caja)
+      ))
+      const needsSkuNext = orderNeedsProductLabel(meta) && !skuAlreadySatisfied
       if (isOffline) {
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_folio_scan',
@@ -917,19 +959,15 @@ export default function ValidarPorDestino({ folioId }) {
         })
         setPendingOfflineScans(p => [...p, { code, matchedOrderNo: pendingRelabel.matchedOrderNo }])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+      } else if (needsSkuNext) {
+        requestAddScan(relabelPayload, {
+          onInserted: (inserted) => setPendingSku({ matchedOrderNo: relabelOrderNo, rawCode: code, scanId: inserted?.id }),
+        })
       } else {
         requestAddScan(relabelPayload)
       }
-      // The relabel scan just submitted is its own complete record. If this order
-      // also still needs the SKU, chain straight into that request next instead of
-      // making the operator scan a fresh box first.
-      const relabelOrderNo = pendingRelabel.matchedOrderNo
-      const meta = orderMetaByNo.get(relabelOrderNo) || {}
-      const skuAlreadySatisfied = scans.some(s => (
-        s.matched_order_no === relabelOrderNo && matchesProductSku(meta, s.codigo_caja)
-      ))
       setPendingRelabel(null)
-      if (orderNeedsProductLabel(meta) && !skuAlreadySatisfied) {
+      if (needsSkuNext && isOffline) {
         setPendingSku({ matchedOrderNo: relabelOrderNo, rawCode: code })
       }
       return
@@ -1002,7 +1040,7 @@ export default function ValidarPorDestino({ folioId }) {
     // the ordinary duplicate check above.
     if (match.field !== 'productSku' && orderNeedsProductLabel(matchedMeta)) {
       const skuAlreadySatisfied = scans.some(s => (
-        s.matched_order_no === matchedOrderNo && matchesProductSku(matchedMeta, s.codigo_caja)
+        s.matched_order_no === matchedOrderNo && matchesProductSku(matchedMeta, s.sku_valor || s.codigo_caja)
       ))
       if (!skuAlreadySatisfied) {
         if (isOffline) {
@@ -1012,10 +1050,12 @@ export default function ValidarPorDestino({ folioId }) {
           })
           setPendingOfflineScans(p => [...p, { code, matchedOrderNo }])
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+          setPendingSku({ matchedOrderNo, rawCode: code })
         } else {
-          requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag })
+          requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag }, {
+            onInserted: (inserted) => setPendingSku({ matchedOrderNo, rawCode: code, scanId: inserted?.id }),
+          })
         }
-        setPendingSku({ matchedOrderNo, rawCode: code })
         return
       }
     }
@@ -1444,7 +1484,11 @@ export default function ValidarPorDestino({ folioId }) {
                       .sort((a, b) => new Date(a.validated_at || a.created_at || 0) - new Date(b.validated_at || b.created_at || 0))
                       .map((s, i) => {
                       const isSkuScan = !!s.es_sku
-                      const linkedSkuValue = !isSkuScan && s.reetiquetado && s.matched_order_no
+                      // The current format: SKU lives on the box's own record. The
+                      // legacy format (older test data): a separate es_sku=true row
+                      // cross-referenced back to its box via relabelSkuLinks.
+                      const ownSkuValue = !isSkuScan ? s.sku_valor : null
+                      const linkedSkuValue = !isSkuScan && !ownSkuValue && s.reetiquetado && s.matched_order_no
                         ? relabelSkuLinks.skuByPrevio.get(`${s.matched_order_no}::${s.codigo_caja}`) : null
                       const linkedToRelabel = isSkuScan && s.matched_order_no && s.codigo_caja_previo
                         && relabelSkuLinks.relabelKeys.has(`${s.matched_order_no}::${s.codigo_caja_previo}`)
@@ -1473,7 +1517,14 @@ export default function ValidarPorDestino({ folioId }) {
                                 </span>
                               </>
                             ) : (
-                              <span className="font-mono text-xs font-semibold text-warm-800">{s.codigo_caja}</span>
+                              <>
+                                <span className="font-mono text-xs font-semibold text-warm-800">{s.codigo_caja}</span>
+                                {ownSkuValue && (
+                                  <span className="font-mono text-xs font-semibold text-success-700">
+                                    SKU: {ownSkuValue}
+                                  </span>
+                                )}
+                              </>
                             )}
                             {!s.matched_order_no ? (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-warning-100 border border-warning-200 text-[9px] font-bold text-warning-700">
@@ -1493,9 +1544,9 @@ export default function ValidarPorDestino({ folioId }) {
                                 <Tag className="h-2.5 w-2.5" />
                               </span>
                             )}
-                            {(isSkuScan || linkedSkuValue) && (
+                            {(isSkuScan || ownSkuValue || linkedSkuValue) && (
                               <span
-                                title={`SKU: ${isSkuScan ? s.codigo_caja : linkedSkuValue}`}
+                                title={`SKU: ${isSkuScan ? s.codigo_caja : (ownSkuValue || linkedSkuValue)}`}
                                 className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-100 text-success-700"
                               >
                                 <Barcode className="h-2.5 w-2.5" />
@@ -1746,7 +1797,7 @@ export default function ValidarPorDestino({ folioId }) {
                 const needsProductLabel = orderNeedsProductLabel(meta)
                 const skuSatisfied = needsProductLabel && scans.some(s => (
                   (s.matched_order_no === order.outbound_order_no || s.folio_order_id === order.id)
-                  && matchesProductSku(meta, s.codigo_caja)
+                  && matchesProductSku(meta, s.sku_valor || s.codigo_caja)
                 ))
 
                 return (

@@ -35,10 +35,17 @@ function boxScansOf(order) {
   return (order.scans ?? []).filter(s => !s.es_sku)
 }
 
-// base(box code) -> SKU value, from every SKU-cascade scan chained onto that box.
+// base(box code) -> SKU value. Current format: sku_valor lives on the box's own
+// scan row. Legacy format (older test data): a separate es_sku=true cascade row
+// chained onto the box via codigo_caja_previo.
 function skuByBoxBase(order) {
   const map = new Map()
   for (const s of order.scans ?? []) {
+    if (s.sku_valor && !s.es_sku) {
+      const base = extractBaseCode(s.codigo_caja) || s.codigo_caja
+      if (base) map.set(base, s.sku_valor)
+      continue
+    }
     if (!s.es_sku || !s.codigo_caja_previo) continue
     const base = extractBaseCode(s.codigo_caja_previo) || s.codigo_caja_previo
     if (base) map.set(base, s.codigo_caja)

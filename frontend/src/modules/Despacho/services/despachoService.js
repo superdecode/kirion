@@ -97,5 +97,11 @@ export const deleteFolioScan = (id, scanId) =>
 export const moveFolioScanTarima = (id, scanId, body) =>
   api.patch(`/despacho/folios/${id}/scans/${scanId}/tarima`, body).then(r => r.data)
 
+export const setFolioScanSku = (id, scanId, body) =>
+  api.patch(`/despacho/folios/${id}/scans/${scanId}/sku`, body).then(r => r.data)
+
+export const setOrderScanSku = (id, orderId, scanId, body) =>
+  api.patch(`/despacho/folios/${id}/orders/${orderId}/scans/${scanId}/sku`, body).then(r => r.data)
+
 export const bulkAddOrders = (id, orders) =>
   api.post(`/despacho/folios/${id}/orders/bulk`, { orders }).then(r => r.data)

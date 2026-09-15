@@ -25,6 +25,14 @@ function getOrderCodes(order) {
   if (scans.length === 0) return []
   const skuByBase = new Map()
   for (const s of order.scans ?? []) {
+    // Current format: sku_valor lives on the box's own scan row. Legacy format
+    // (older test data): a separate es_sku=true cascade row chained via
+    // codigo_caja_previo.
+    if (s.sku_valor && !s.es_sku) {
+      const base = extractBaseCode(s.codigo_caja) || s.codigo_caja
+      if (base) skuByBase.set(base, s.sku_valor)
+      continue
+    }
     if (!s.es_sku || !s.codigo_caja_previo) continue
     const base = extractBaseCode(s.codigo_caja_previo) || s.codigo_caja_previo
     if (base) skuByBase.set(base, s.codigo_caja)

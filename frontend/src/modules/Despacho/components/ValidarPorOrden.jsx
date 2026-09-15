@@ -20,7 +20,7 @@ import { playSound, initAudio } from '../../Shared/Wms/playSound'
 import {
   getFolio, addOrder, updateOrder, removeOrder,
   cerrarFolio, cancelarFolio, findOrderByBarcode,
-  addOrderScan, deleteLastOrderScan,
+  addOrderScan, deleteLastOrderScan, setOrderScanSku,
 } from '../services/despachoService'
 import { getOutboundDetail } from '../../WmsHub/services/googleSheetsService'
 import { orderNeedsRelabel, newLabelBase } from '../../Shared/Wms/relabelUtils'
@@ -257,6 +257,12 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     onError: (err) => addToast(err?.response?.data?.error || 'Error eliminando escaneo', 'error'),
   })
 
+  const { mutate: doSetSku } = useMutation({
+    mutationFn: ({ scanId, skuValor }) => setOrderScanSku(folioId, order.id, scanId, { sku_valor: skuValor }),
+    onSuccess: (data) => { onUpdate(data) },
+    onError: (err) => addToast(err?.response?.data?.error || 'Error registrando SKU', 'error'),
+  })
+
   const cancelPendingRelabel = useCallback(() => {
     setPendingRelabel(null)
     setTimeout(() => scanRef.current?.focus(), 80)
@@ -272,21 +278,26 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     if (!code) return
 
     // Second scan of a pending SKU request: this input must be the product's SKU
-    // code, not a fresh box.
+    // code, not a fresh box. Stored directly on the box's own scan record (never a
+    // separate row) so it never touches duplicate detection or box counts.
     if (pendingSku) {
       if (!orderDetail || !matchesProductSku(orderDetail, code)) {
         playSound('error')
         addToast(t('desp.validar.destino.skuNoCoincide'), 'error')
         return
       }
-      const allScannedCodes = new Set([...Array.from(alreadyScanned), ...pendingOfflineScans])
-      if (allScannedCodes.has(code) || pendingOnlineRef.current.has(code)) {
+      const alreadyUsed = scans.some(s => normalizeCodeFast(s.sku_valor || '') === code)
+      if (alreadyUsed) {
         playSound('duplicate')
         addToast('Código ya escaneado en esta orden', 'warning')
         return
       }
       scanRef.current?.focus()
-      if (isOffline) {
+      if (pendingSku.scanId) {
+        doSetSku({ scanId: pendingSku.scanId, skuValor: code })
+      } else if (isOffline) {
+        // The box scan itself is still queued offline (no server id yet) — fall
+        // back to the legacy cascaded record so the SKU isn't lost.
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_order_scan',
           payload: {
@@ -296,12 +307,6 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         })
         setPendingOfflineScans(p => [...p, code])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
-      } else {
-        pendingOnlineRef.current.add(code)
-        // Reuses the same field the relabel flow stores the old box code in — here
-        // it holds the box code that triggered the SKU request, so the scan row can
-        // show both the box and the SKU instead of just the SKU alone.
-        doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingSku.rawCode, esSku: true })
       }
       setPendingSku(null)
       return
@@ -323,6 +328,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         return
       }
       scanRef.current?.focus()
+      // The relabel scan just submitted is its own complete record. If this order
+      // also still needs the SKU, chain straight into that request next instead of
+      // making the operator scan a fresh box first.
+      const skuAlreadySatisfied = orderDetail && scans.some(s => matchesProductSku(orderDetail, s.sku_valor || s.codigo_caja))
+      const needsSkuNext = !!(orderDetail && orderNeedsProductLabel(orderDetail) && !skuAlreadySatisfied)
       if (isOffline) {
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_order_scan',
@@ -333,18 +343,22 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         })
         setPendingOfflineScans(p => [...p, code])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+        if (needsSkuNext) setPendingSku({ rawCode: code })
       } else {
         pendingOnlineRef.current.add(code)
-        doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true })
+        if (needsSkuNext) {
+          doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true }, {
+            onSuccess: (data) => {
+              const updatedOrder = data?.orders?.find(o => o.id === order.id)
+              const inserted = (updatedOrder?.scans ?? []).find(s => s.codigo_caja === code)
+              setPendingSku({ rawCode: code, scanId: inserted?.id })
+            },
+          })
+        } else {
+          doAddScan({ code, tarimaRef: currentTarimaRef, codigoCajaPrevio: pendingRelabel.rawCode, reetiquetado: true })
+        }
       }
-      // The relabel scan just submitted is its own complete record. If this order
-      // also still needs the SKU, chain straight into that request next instead of
-      // making the operator scan a fresh box first.
-      const skuAlreadySatisfied = orderDetail && scans.some(s => matchesProductSku(orderDetail, s.codigo_caja))
       setPendingRelabel(null)
-      if (orderDetail && orderNeedsProductLabel(orderDetail) && !skuAlreadySatisfied) {
-        setPendingSku({ rawCode: code })
-      }
       return
     }
 
@@ -386,7 +400,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     // record. Keeping the box's own code as a real scan (instead of replacing it
     // with the SKU) is what keeps a later duplicate scan of that same box caught.
     if (matchedField !== 'productSku' && orderDetail && orderNeedsProductLabel(orderDetail)) {
-      const skuAlreadySatisfied = scans.some(s => matchesProductSku(orderDetail, s.codigo_caja))
+      const skuAlreadySatisfied = scans.some(s => matchesProductSku(orderDetail, s.sku_valor || s.codigo_caja))
       if (!skuAlreadySatisfied) {
         scanRef.current?.focus()
         if (isOffline) {
@@ -396,11 +410,17 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
           })
           setPendingOfflineScans(p => [...p, code])
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+          setPendingSku({ rawCode: code })
         } else {
           pendingOnlineRef.current.add(code)
-          doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch })
+          doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch }, {
+            onSuccess: (data) => {
+              const updatedOrder = data?.orders?.find(o => o.id === order.id)
+              const inserted = (updatedOrder?.scans ?? []).find(s => s.codigo_caja === code)
+              setPendingSku({ rawCode: code, scanId: inserted?.id })
+            },
+          })
         }
-        setPendingSku({ rawCode: code })
         return
       }
     }
@@ -645,14 +665,22 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                           <span className="text-success-700">SKU: {s.codigo_caja}</span>
                         </span>
                       ) : (
-                        <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                        <span className="flex-1 font-mono font-semibold">
+                          <span className="text-warm-800">{s.codigo_caja}</span>
+                          {s.sku_valor && (
+                            <>
+                              <span className="text-warm-300 mx-1">·</span>
+                              <span className="text-success-700">SKU: {s.sku_valor}</span>
+                            </>
+                          )}
+                        </span>
                       )}
                       {(s.reetiquetado || (s.es_sku && relabelSkuLinks.relabelKeys.has(s.codigo_caja_previo))) && (
                         <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
                           {t('desp.validar.destino.reetiquetada')}
                         </span>
                       )}
-                      {(s.es_sku || (s.reetiquetado && relabelSkuLinks.skuByPrevio.has(s.codigo_caja))) && (
+                      {(s.es_sku || s.sku_valor || (s.reetiquetado && relabelSkuLinks.skuByPrevio.has(s.codigo_caja))) && (
                         <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">SKU</span>
                       )}
                       <span className="hidden sm:inline text-warm-400">{s.validated_by_nombre || '—'}</span>
@@ -680,14 +708,22 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                     <span className="text-success-700">SKU: {s.codigo_caja}</span>
                   </span>
                 ) : (
-                  <span className="font-mono font-semibold text-warm-800 flex-1">{s.codigo_caja}</span>
+                  <span className="flex-1 font-mono font-semibold">
+                    <span className="text-warm-800">{s.codigo_caja}</span>
+                    {s.sku_valor && (
+                      <>
+                        <span className="text-warm-300 mx-1">·</span>
+                        <span className="text-success-700">SKU: {s.sku_valor}</span>
+                      </>
+                    )}
+                  </span>
                 )}
                 {(s.reetiquetado || (s.es_sku && relabelSkuLinks.relabelKeys.has(s.codigo_caja_previo))) && (
                   <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
                     {t('desp.validar.destino.reetiquetada')}
                   </span>
                 )}
-                {(s.es_sku || (s.reetiquetado && relabelSkuLinks.skuByPrevio.has(s.codigo_caja))) && (
+                {(s.es_sku || s.sku_valor || (s.reetiquetado && relabelSkuLinks.skuByPrevio.has(s.codigo_caja))) && (
                   <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">SKU</span>
                 )}
                 <span className="hidden sm:inline text-warm-400">{s.validated_by_nombre || '—'}</span>

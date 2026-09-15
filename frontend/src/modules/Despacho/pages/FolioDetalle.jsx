@@ -299,7 +299,7 @@ export default function FolioDetalle() {
     const bultosEsperados = o.bultos_esperados || 0
     const relabelDone = needsRelabel && bultosEsperados > 0 && scanCount >= bultosEsperados
     const needsSku = orderNeedsProductLabel(meta)
-    const skuSatisfied = needsSku && orderScans.some(s => matchesProductSku(meta, s.codigo_caja))
+    const skuSatisfied = needsSku && orderScans.some(s => matchesProductSku(meta, s.sku_valor || s.codigo_caja))
     return {
       ...o,
       _scanCount: scanCount,
@@ -878,9 +878,10 @@ export default function FolioDetalle() {
                         <tbody className="divide-y divide-warm-50">
                           {scansByTarima[tarima].map((s, i) => {
                             const isSku = !!s.es_sku
+                            const ownSkuValue = !isSku ? s.sku_valor : null
                             const linkedToRelabel = isSku && s.matched_order_no && s.codigo_caja_previo
                               && relabelSkuLinks.relabelKeys.has(`${s.matched_order_no}::${s.codigo_caja_previo}`)
-                            const linkedSkuValue = !isSku && s.reetiquetado && s.matched_order_no
+                            const linkedSkuValue = !isSku && !ownSkuValue && s.reetiquetado && s.matched_order_no
                               ? relabelSkuLinks.skuByPrevio.get(`${s.matched_order_no}::${s.codigo_caja}`) : null
                             return (
                             <tr key={`${tarima}-${s.id || s.codigo_caja}-${i}`} className="table-row">
@@ -892,6 +893,11 @@ export default function FolioDetalle() {
                                         label when it's genuinely missing) always leads, never just the SKU alone. */}
                                     <CopyInline value={s.codigo_caja_previo || 'SKU'} mono />
                                     <span className="text-success-700 font-semibold text-xs whitespace-nowrap">SKU: {s.codigo_caja}</span>
+                                  </div>
+                                ) : ownSkuValue ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <CopyInline value={s.codigo_caja} mono />
+                                    <span className="text-success-700 font-semibold text-xs whitespace-nowrap">SKU: {ownSkuValue}</span>
                                   </div>
                                 ) : (
                                   <CopyInline value={s.codigo_caja} mono />
@@ -918,7 +924,7 @@ export default function FolioDetalle() {
                                       <Tag className="h-3 w-3" />
                                     </span>
                                   )}
-                                  {(isSku || linkedSkuValue) && (
+                                  {(isSku || ownSkuValue || linkedSkuValue) && (
                                     <span
                                       title={t('desp.folioDetalle.chipSkuOk')}
                                       className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-success-100 text-success-700"
@@ -926,7 +932,7 @@ export default function FolioDetalle() {
                                       <Barcode className="h-3 w-3" />
                                     </span>
                                   )}
-                                  {!s.reetiquetado && !linkedToRelabel && !isSku && !linkedSkuValue && <span className="text-xs text-warm-300">—</span>}
+                                  {!s.reetiquetado && !linkedToRelabel && !isSku && !ownSkuValue && !linkedSkuValue && <span className="text-xs text-warm-300">—</span>}
                                 </div>
                               </td>
                               <td className="px-3 py-2.5 text-xs text-warm-500">{s.validated_by_nombre || '—'}</td>

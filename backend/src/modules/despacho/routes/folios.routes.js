@@ -1086,6 +1086,50 @@ router.patch('/:id/scans/:scanId/tarima',
   }
 )
 
+// Set the internal product SKU on a box's own scan record (por_destino). The SKU
+// lives on the same row as the box scan — never a separate record — so it never
+// affects duplicate detection or box counts.
+router.patch('/:id/scans/:scanId/sku',
+  authenticateToken, loadFullUser,
+  requireDespachoValidar('actualizar'),
+  async (req, res) => {
+    try {
+      const skuValor = String(req.body?.sku_valor || '').trim()
+      if (!skuValor) return res.status(400).json({ error: 'sku_valor requerido' })
+
+      const folioRes = await req.tQuery(
+        `SELECT estado FROM dispatch_folios WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [req.params.id, req.tenantId]
+      )
+      if (!folioRes.rows.length || !['borrador','en_proceso'].includes(folioRes.rows[0].estado)) {
+        return res.status(409).json({ error: 'Folio no editable' })
+      }
+
+      const updateRes = await req.tQuery(
+        `UPDATE dispatch_order_scans
+         SET sku_valor = $1
+         WHERE id = $2 AND folio_id = $3 AND tenant_id = $4
+         RETURNING id`,
+        [skuValor, req.params.scanId, req.params.id, req.tenantId]
+      )
+      if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Escaneo no encontrado' })
+
+      const scansRes = await req.tQuery(
+        `SELECT s.*, u.nombre_completo AS validated_by_nombre
+         FROM dispatch_order_scans s
+         LEFT JOIN usuarios u ON u.id = s.validated_by
+         WHERE s.tenant_id = $1 AND s.folio_id = $2
+         ORDER BY s.validated_at ASC`,
+        [req.tenantId, req.params.id]
+      )
+      res.json({ scans: scansRes.rows })
+    } catch (error) {
+      console.error('Set scan sku error:', error)
+      res.status(500).json({ error: 'Error registrando SKU' })
+    }
+  }
+)
+
 // Add order to folio
 router.post('/:id/orders',
   authenticateToken, loadFullUser,
@@ -1237,6 +1281,43 @@ router.delete('/:id/orders/:orderId/scans/last',
     } catch (error) {
       console.error('Delete last scan error:', error)
       res.status(500).json({ error: 'Error eliminando escaneo' })
+    }
+  }
+)
+
+// Set the internal product SKU on a box's own scan record (por_orden). The SKU
+// lives on the same row as the box scan — never a separate record — so it never
+// affects duplicate detection or box counts.
+router.patch('/:id/orders/:orderId/scans/:scanId/sku',
+  authenticateToken, loadFullUser,
+  requireDespachoValidar('actualizar'),
+  async (req, res) => {
+    try {
+      const skuValor = String(req.body?.sku_valor || '').trim()
+      if (!skuValor) return res.status(400).json({ error: 'sku_valor requerido' })
+
+      const folioRes = await req.tQuery(
+        `SELECT estado FROM dispatch_folios WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+        [req.params.id, req.tenantId]
+      )
+      if (!folioRes.rows.length || !['borrador','en_proceso'].includes(folioRes.rows[0].estado)) {
+        return res.status(409).json({ error: 'Folio no editable' })
+      }
+
+      const updateRes = await req.tQuery(
+        `UPDATE dispatch_order_scans
+         SET sku_valor = $1
+         WHERE id = $2 AND folio_order_id = $3 AND tenant_id = $4
+         RETURNING id`,
+        [skuValor, req.params.scanId, req.params.orderId, req.tenantId]
+      )
+      if (updateRes.rows.length === 0) return res.status(404).json({ error: 'Escaneo no encontrado' })
+
+      const detail = await getFolioDetail(req, req.params.id)
+      res.json(detail)
+    } catch (error) {
+      console.error('Set order scan sku error:', error)
+      res.status(500).json({ error: 'Error registrando SKU' })
     }
   }
 )
