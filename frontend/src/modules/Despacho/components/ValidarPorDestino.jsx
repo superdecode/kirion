@@ -860,10 +860,10 @@ export default function ValidarPorDestino({ folioId }) {
     const matchedOrderNo = match.orderNo
 
     // Relabel gate: only when the folio requires it, the match did NOT come from the
-    // new-label field itself (thirdOrderNo), and the order actually needs relabeling
+    // new-label field itself (logisticsTrackNo), and the order actually needs relabeling
     // (old/new label bases differ). A box already scanned on its new label passes
     // straight through — there's nothing left to compare it against.
-    if (folio?.validar_etiquetado && match.field !== 'thirdOrderNo') {
+    if (folio?.validar_etiquetado && match.field !== 'logisticsTrackNo') {
       const meta = orderMetaByNo.get(matchedOrderNo) || {}
       if (orderNeedsRelabel(meta)) {
         const expectedNewBase = newLabelBase(meta)

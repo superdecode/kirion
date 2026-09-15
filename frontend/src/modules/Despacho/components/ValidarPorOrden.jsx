@@ -47,8 +47,8 @@ function buildLookupCodeSet(rawCodes = []) {
 }
 
 // Same coverage as buildLookupCodeSet, but keeps which field each code variant came
-// from — needed to tell "matched by the new label already" (thirdOrderNo) apart from
-// every other match for the relabel gate.
+// from — needed to tell "matched by the new label already" (logisticsTrackNo) apart
+// from every other match for the relabel gate.
 function buildLookupFieldMap(fieldSources = []) {
   const map = new Map()
   fieldSources.forEach(([field, rawCode]) => {
@@ -141,8 +141,8 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   // Built once per order detail instead of on every shot: a PDA burst on a large
   // order was regenerating the whole variant set per scan.
   // Accept any of the identifiers that reference this order: per-box customize code,
-  // the order-level thirdOrderNo (NEW label — "Reference order No._参考单号") or
-  // logisticsTrackNo (OLD label — "货件追踪码/Reference ID"), or the OBC order number
+  // the order-level logisticsTrackNo (NEW label — "货件追踪码/Reference ID") or
+  // thirdOrderNo (OLD label — "Reference order No._参考单号"), or the OBC order number
   // itself. allCustomizeCodes is spread defensively for callers that pass an
   // aggregated order; getOutboundDetail already lists every box in packageList.
   // The map form (field per code) drives the relabel gate below; validCodes stays a
@@ -289,11 +289,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     }
 
     // Relabel gate: only when the folio requires it, the match did NOT come from the
-    // new-label field itself (thirdOrderNo), and the order actually needs relabeling
+    // new-label field itself (logisticsTrackNo), and the order actually needs relabeling
     // (old/new label bases differ). A box already scanned on its new label passes
     // straight through — there's nothing left to compare it against.
     const matchedField = validCodeFields.get(code)
-    if (validarEtiquetado && matchedField !== 'thirdOrderNo' && orderDetail && orderNeedsRelabel(orderDetail)) {
+    if (validarEtiquetado && matchedField !== 'logisticsTrackNo' && orderDetail && orderNeedsRelabel(orderDetail)) {
       setPendingRelabel({ rawCode: code, expectedNewBase: newLabelBase(orderDetail) })
       return
     }
