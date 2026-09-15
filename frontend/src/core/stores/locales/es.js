@@ -3965,7 +3965,7 @@ export default {
     'desp.validar.modal.fechaFormatoError': '{n} orden(es) con fecha en formato inválido — no se puede crear el folio hasta corregirlas.',
     'desp.validar.modal.fechaFormatoErrorHint': 'Corrige la fecha en la base de datos u hoja de origen (formato DD/MM/AAAA) y vuelve a intentar.',
     'desp.validar.modal.validarEtiquetado': 'Habilitar validación de etiquetado',
-    'desp.validar.modal.validarEtiquetadoDesc': 'Exige escanear la etiqueta nueva (Trucking) antes de aceptar cajas que llegan con la etiqueta vieja.',
+    'desp.validar.modal.validarEtiquetadoDesc': 'Exige escanear etiqueta envio nueva (validacion etiquetado)',
     'desp.validar.modal.debeCompletarCUF': 'Debe completar conductor, unidad y fecha de salida para crear el folio.',
     'desp.validar.modal.debeSelCUF': 'Debe seleccionar conductor, unidad y fecha de salida antes de crear el folio.',
     'desp.validar.modal.selFechaSalida': 'Selecciona una fecha de salida.',
