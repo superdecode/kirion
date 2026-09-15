@@ -4155,6 +4155,7 @@ export default {
     'desp.validar.cerrarConfirmPost': '？此操作不可撤销。',
     // Folio cerrado success page / 发货单已关闭成功页
     'desp.validar.folioCerrado.title': '发货单已成功关闭',
+    'desp.validar.folioCancelado.title': '发货单已取消',
     'desp.validar.folioCerrado.nuevaValidacion': '新建复核',
     'desp.validar.folioCerrado.verFolio': '查看已关闭发货单',
     // Destino extras / 按目的地额外键

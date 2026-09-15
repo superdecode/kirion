@@ -4059,6 +4059,7 @@ export default {
     'desp.validar.cerrarConfirmPost': '? Esta acción no se puede deshacer.',
     // Folio cerrado success page
     'desp.validar.folioCerrado.title': 'Folio cerrado exitosamente',
+    'desp.validar.folioCancelado.title': 'Folio cancelado',
     'desp.validar.folioCerrado.nuevaValidacion': 'Nueva validación',
     'desp.validar.folioCerrado.verFolio': 'Ver folio cerrado',
     // Destino extras

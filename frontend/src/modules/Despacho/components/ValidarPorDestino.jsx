@@ -261,6 +261,7 @@ export default function ValidarPorDestino({ folioId }) {
   const [showConfirmCancel, setShowConfirmCancel] = useState(false)
   const [showConfirmCerrar, setShowConfirmCerrar] = useState(false)
   const [folioCerradoNum, setFolioCerradoNum] = useState(null)
+  const [folioCanceladoNum, setFolioCanceladoNum] = useState(null)
   const [showPanel, setShowPanel] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -531,7 +532,16 @@ export default function ValidarPorDestino({ folioId }) {
 
   const { mutate: doCancelar, isPending: cancelando } = useMutation({
     mutationFn: () => cancelarFolio(folioId),
-    onSuccess: () => { invalidate(); setShowConfirmCancel(false); addToast('Folio cancelado', 'success') },
+    onSuccess: () => {
+      invalidate()
+      setShowConfirmCancel(false)
+      // A cancelled folio isn't editable anymore, but nothing before this navigated
+      // away — the screen was left rendering the now-locked scan UI against data
+      // that no longer matters, reading as "empty" once queries settle. Leave it the
+      // same way cerrar does: an explicit terminal screen instead of a stale one.
+      setFolioCanceladoNum(folio?.folio_numero ?? folio?.folio ?? folioId)
+      addToast('Folio cancelado', 'success')
+    },
     onError: (err) => addToast(err?.response?.data?.error || 'Error cancelando folio', 'error'),
   })
 
@@ -617,13 +627,32 @@ export default function ValidarPorDestino({ folioId }) {
 
   const { mutate: doDeleteScan } = useMutation({
     mutationFn: (scanId) => deleteFolioScan(folioId, scanId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['despacho-folio-scans', folioId] })
+    // Remove it from the tarima view immediately instead of waiting on a full
+    // invalidate+refetch round trip — that lag is what made deletes feel stuck.
+    onMutate: async (scanId) => {
+      const queryKey = ['despacho-folio-scans', folioId]
+      await qc.cancelQueries({ queryKey })
+      const previous = qc.getQueryData(queryKey)
+      qc.setQueryData(queryKey, (old) => ({
+        ...(old || {}),
+        scans: (old?.scans ?? []).filter(scan => scan.id !== scanId),
+      }))
+      return { previous, queryKey }
+    },
+    onSuccess: (data) => {
+      // The delete response already returns the authoritative scan list — write it
+      // straight into the cache instead of triggering a second network round trip.
+      if (Array.isArray(data?.scans)) {
+        qc.setQueryData(['despacho-folio-scans', folioId], (old) => ({ ...(old || {}), scans: data.scans }))
+      }
       qc.invalidateQueries({ queryKey: ['despacho-folio', folioId] })
       qc.invalidateQueries({ queryKey: ['despacho-ordenes-dispatch'] })
       addToast('Escaneo eliminado', 'success')
     },
-    onError: (err) => addToast(err?.response?.data?.error || 'Error eliminando escaneo', 'error'),
+    onError: (err, scanId, context) => {
+      if (context?.queryKey) qc.setQueryData(context.queryKey, context.previous)
+      addToast(err?.response?.data?.error || 'Error eliminando escaneo', 'error')
+    },
   })
 
   const { mutate: doMoveScan, isPending: movingScan } = useMutation({
@@ -1101,6 +1130,36 @@ export default function ValidarPorDestino({ folioId }) {
     )
   }
 
+  if (folioCanceladoNum) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-6 bg-warm-50/40 px-6">
+        <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-danger-100 text-danger-600">
+          <XCircle className="w-10 h-10" />
+        </div>
+        <div className="text-center">
+          <p className="text-lg font-bold text-warm-800 mb-1">{t('desp.validar.folioCancelado.title')}</p>
+          <p className="text-sm text-warm-500">
+            El folio <span className="font-mono font-semibold text-warm-700">{folioCanceladoNum}</span> fue cancelado.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigate('/despacho/validar')}
+            className="btn-primary flex items-center gap-2 px-6 py-2.5">
+            <Plus className="w-4 h-4" />
+            {t('desp.validar.folioCerrado.nuevaValidacion')}
+          </button>
+          <button
+            onClick={() => navigate(`/despacho/folios/${folioId}`)}
+            className="btn-secondary flex items-center gap-2 px-6 py-2.5">
+            <ExternalLink className="w-4 h-4" />
+            {t('desp.validar.folioCerrado.verFolio')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const closeErrorModal = () => {
     setErrorModal(null)
     setTimeout(() => focusScan(), 100)
@@ -1346,16 +1405,25 @@ export default function ValidarPorDestino({ folioId }) {
                                 <AlertCircle className="w-2.5 h-2.5" />{t('desp.validar.destino.sinOrden')}
                               </span>
                             ) : (
-                              <span className="text-[10px] text-accent-600 font-mono">{s.matched_order_no}</span>
+                              <>
+                                <span className="text-warm-300 text-[11px] select-none">·</span>
+                                <span className="text-[11px] text-accent-600 font-mono font-semibold">{s.matched_order_no}</span>
+                              </>
                             )}
                             {s.reetiquetado && (
-                              <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
-                                {t('desp.validar.destino.reetiquetada')}
+                              <span
+                                title={t('desp.validar.destino.reetiquetada')}
+                                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-100 text-success-700"
+                              >
+                                <Tag className="h-2.5 w-2.5" />
                               </span>
                             )}
                             {s.matched_order_no && matchesProductSku(orderMetaByNo.get(s.matched_order_no) || {}, s.codigo_caja) && (
-                              <span className="badge bg-success-100 text-success-700 text-[9px] font-semibold">
-                                SKU
+                              <span
+                                title={`SKU: ${s.codigo_caja}`}
+                                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-100 text-success-700"
+                              >
+                                <Barcode className="h-2.5 w-2.5" />
                               </span>
                             )}
                           </div>
