@@ -156,6 +156,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     fieldSources.push(
       ['thirdOrderNo', orderDetail.thirdOrderNo],
       ['logisticsTrackNo', orderDetail.logisticsTrackNo],
+      ['fbaShipmentId', orderDetail.fbaShipmentId],
       ['outboundOrderNo', orderDetail.outboundOrderNo],
       ...((orderDetail.allCustomizeCodes ?? []).map(c => ['customizeCode', c])),
     )
@@ -171,6 +172,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     rawCodes.push(
       orderDetail.thirdOrderNo,
       orderDetail.logisticsTrackNo,
+      orderDetail.fbaShipmentId,
       orderDetail.outboundOrderNo,
       ...(orderDetail.allCustomizeCodes ?? []),
     )

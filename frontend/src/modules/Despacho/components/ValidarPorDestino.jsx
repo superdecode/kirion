@@ -381,6 +381,7 @@ export default function ValidarPorDestino({ folioId }) {
       map.set(order.outbound_order_no, {
         logisticsTrackNo: savedMeta.logisticsTrackNo || cached.logisticsTrackNo || null,
         thirdOrderNo: savedMeta.thirdOrderNo || cached.thirdOrderNo || null,
+        fbaShipmentId: savedMeta.fbaShipmentId || cached.fbaShipmentId || null,
         logisticsChannel: savedMeta.logisticsChannel || cached.logisticsChannel || null,
         destino: savedMeta.destino || getDestinoName(cached) || order.destinatario || folio?.destino || '',
         outboundDate: savedMeta.outbound_date || getOrderDateKey(cached),
@@ -425,6 +426,7 @@ export default function ValidarPorDestino({ folioId }) {
         ['outbound_order_no', order.outbound_order_no],
         ['logisticsTrackNo', meta.logisticsTrackNo],
         ['thirdOrderNo', meta.thirdOrderNo],
+        ['fbaShipmentId', meta.fbaShipmentId],
         ...(Array.isArray(meta.allCustomizeCodes) ? meta.allCustomizeCodes.map(c => ['customizeCode', c]) : []),
       ]
       fieldSources.forEach(([field, rawCode]) => {
@@ -743,6 +745,7 @@ export default function ValidarPorDestino({ folioId }) {
         outboundBoxCount: expected,
         logisticsTrackNo: lookupResult?.logisticsTrackNo || null,
         thirdOrderNo: lookupResult?.thirdOrderNo || null,
+        fbaShipmentId: lookupResult?.fbaShipmentId || null,
         logisticsChannel: lookupResult?.logisticsChannel || null,
         allCustomizeCodes: Array.isArray(lookupResult?.allCustomizeCodes) ? lookupResult.allCustomizeCodes : [],
       }),
