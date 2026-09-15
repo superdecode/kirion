@@ -48,8 +48,9 @@ function buildLookupCodeSet(rawCodes = []) {
 }
 
 // Same coverage as buildLookupCodeSet, but keeps which field each code variant came
-// from — needed to tell "matched by the new label already" (logisticsTrackNo) apart
-// from every other match for the relabel gate.
+// from — needed to tell a product-SKU match apart from every other match, since
+// that one skips the relabel gate (the new-label check itself compares base codes,
+// not field names — see scannedIsNewLabel in handleScan).
 function buildLookupFieldMap(fieldSources = []) {
   const map = new Map()
   fieldSources.forEach(([field, rawCode]) => {
@@ -160,10 +161,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
   // Built once per order detail instead of on every shot: a PDA burst on a large
   // order was regenerating the whole variant set per scan.
   // Accept any of the identifiers that reference this order: per-box customize code,
-  // the order-level logisticsTrackNo (NEW label — "货件追踪码/Reference ID") or
-  // thirdOrderNo (OLD label — "Reference order No._参考单号"), or the OBC order number
-  // itself. allCustomizeCodes is spread defensively for callers that pass an
-  // aggregated order; getOutboundDetail already lists every box in packageList.
+  // the order-level logisticsTrackNo (OLD label — "货件追踪码/Reference ID") or
+  // thirdOrderNo (NEW label — "Reference order No._参考单号", confirmed against the
+  // remark text — see relabelUtils.js), or the OBC order number itself.
+  // allCustomizeCodes is spread defensively for callers that pass an aggregated
+  // order; getOutboundDetail already lists every box in packageList.
   // The map form (field per code) drives the relabel gate below; validCodes stays a
   // flat Set for the existing "known code at all?" check.
   const validCodeFields = useMemo(() => {
@@ -402,6 +404,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     }
 
     const matchedField = validCodeFields.get(code)
+    const scannedBaseForMatch = extractBaseCode(code) || code
 
     // The WMS remark describes the relabel as a single old->new pair for the whole
     // order (same as the SKU change), not one per physical box — there's no
@@ -410,13 +413,18 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     // order-level requirement is done and later boxes skip the gate entirely.
     const relabelAlreadySatisfied = scans.some(s => s.reetiquetado)
 
+    // Whether this scan already lands on the order's new-label base — compared by
+    // value, not by which WMS field it matched through, since a box's own
+    // customizeCode can coincidentally share the new label's base too.
+    const scannedIsNewLabel = orderDetail && scannedBaseForMatch === newLabelBase(orderDetail)
+
     // Relabel gate: checked first — a box that still needs its new label must get
     // that confirmed before anything else, including the SKU. Only when the folio
-    // requires it, the match did NOT come from the new-label field itself
-    // (logisticsTrackNo) or the product/SKU code, and the order actually needs
-    // relabeling (old/new label bases differ). A box already scanned on its new
-    // label passes straight through — there's nothing left to compare it against.
-    if (validarEtiquetado && !relabelAlreadySatisfied && matchedField !== 'logisticsTrackNo' && matchedField !== 'productSku' && orderDetail && orderNeedsRelabel(orderDetail)) {
+    // requires it, this scan isn't already the new label itself, the match isn't
+    // the product/SKU code, and the order actually needs relabeling (old/new label
+    // bases differ). A box already scanned on its new label passes straight
+    // through — there's nothing left to compare it against.
+    if (validarEtiquetado && !relabelAlreadySatisfied && !scannedIsNewLabel && matchedField !== 'productSku' && orderDetail && orderNeedsRelabel(orderDetail)) {
       setPendingRelabel({ rawCode: code, expectedNewBase: newLabelBase(orderDetail) })
       return
     }
@@ -425,7 +433,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     // requirement in one step (no old-label prompt needed) — flag it the same as a
     // two-step relabel so the Validación icon shows it as done.
     const directNewLabelMatch = !!(
-      validarEtiquetado && matchedField === 'logisticsTrackNo' && orderDetail && orderNeedsRelabel(orderDetail)
+      validarEtiquetado && scannedIsNewLabel && orderDetail && orderNeedsRelabel(orderDetail)
     )
 
     // SKU gate: the box scan itself is recorded as its own normal scan first — never

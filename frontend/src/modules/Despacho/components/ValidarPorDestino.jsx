@@ -425,7 +425,8 @@ export default function ValidarPorDestino({ folioId }) {
 
   // Each entry carries { orderNo, field } — field is which WMS column the match came
   // from (outbound_order_no / logisticsTrackNo / thirdOrderNo / customizeCode), needed
-  // to tell "matched by the new label already" apart from every other match.
+  // to tell a product-SKU match apart from every other match for the relabel gate
+  // (the new-label check itself compares base codes, not field names).
   const orderCodeLookup = useMemo(() => {
     const variants = new Map()
     const bases = new Map()
@@ -1043,13 +1044,18 @@ export default function ValidarPorDestino({ folioId }) {
     // order-level requirement is done and later boxes skip the gate entirely.
     const relabelAlreadySatisfied = scans.some(s => s.matched_order_no === matchedOrderNo && s.reetiquetado)
 
+    // Whether this scan already lands on the order's new-label base — compared by
+    // value, not by which WMS field it matched through, since a box's own
+    // customizeCode can coincidentally share the new label's base too.
+    const scannedIsNewLabel = baseCode && baseCode === newLabelBase(matchedMeta)
+
     // Relabel gate: checked first — a box that still needs its new label must get
     // that confirmed before anything else, including the SKU. Only when the folio
-    // requires it, the match did NOT come from the new-label field itself
-    // (logisticsTrackNo) or the product/SKU code, and the order actually needs
-    // relabeling (old/new label bases differ). A box already scanned on its new
-    // label passes straight through — there's nothing left to compare it against.
-    if (folio?.validar_etiquetado && !relabelAlreadySatisfied && match.field !== 'logisticsTrackNo' && match.field !== 'productSku' && orderNeedsRelabel(matchedMeta)) {
+    // requires it, this scan isn't already the new label itself, the match isn't
+    // the product/SKU code, and the order actually needs relabeling (old/new label
+    // bases differ). A box already scanned on its new label passes straight
+    // through — there's nothing left to compare it against.
+    if (folio?.validar_etiquetado && !relabelAlreadySatisfied && !scannedIsNewLabel && match.field !== 'productSku' && orderNeedsRelabel(matchedMeta)) {
       setPendingRelabel({ rawCode: code, matchedOrderNo, expectedNewBase: newLabelBase(matchedMeta) })
       return
     }
@@ -1058,7 +1064,7 @@ export default function ValidarPorDestino({ folioId }) {
     // requirement in one step (no old-label prompt needed) — flag it the same as a
     // two-step relabel so the Validación icon shows it as done.
     const directNewLabelMatch = !!(
-      folio?.validar_etiquetado && match.field === 'logisticsTrackNo' && orderNeedsRelabel(matchedMeta)
+      folio?.validar_etiquetado && scannedIsNewLabel && orderNeedsRelabel(matchedMeta)
     )
     const relabelFlag = directNewLabelMatch ? { reetiquetado: true } : {}
 
