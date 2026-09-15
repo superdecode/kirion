@@ -886,12 +886,13 @@ export default function FolioDetalle() {
                             <tr key={`${tarima}-${s.id || s.codigo_caja}-${i}`} className="table-row">
                               <td className="px-3 py-2.5 text-warm-400 text-xs tabular-nums">{i + 1}</td>
                               <td className="px-3 py-2.5">
-                                {isSku && s.codigo_caja_previo ? (
-                                  <span className="text-xs font-mono">
-                                    <span className="text-warm-700">{s.codigo_caja_previo}</span>
-                                    <span className="text-warm-300 mx-1">·</span>
-                                    <span className="text-success-700 font-semibold">SKU: {s.codigo_caja}</span>
-                                  </span>
+                                {isSku ? (
+                                  <div className="flex items-center gap-1.5">
+                                    {/* This is always the box-code cell — the box code (or a "SKU" fallback
+                                        label when it's genuinely missing) always leads, never just the SKU alone. */}
+                                    <CopyInline value={s.codigo_caja_previo || 'SKU'} mono />
+                                    <span className="text-success-700 font-semibold text-xs whitespace-nowrap">SKU: {s.codigo_caja}</span>
+                                  </div>
                                 ) : (
                                   <CopyInline value={s.codigo_caja} mono />
                                 )}

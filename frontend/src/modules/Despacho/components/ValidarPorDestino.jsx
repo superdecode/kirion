@@ -1455,8 +1455,10 @@ export default function ValidarPorDestino({ folioId }) {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {isSkuScan ? (
                               <>
+                                {/* Always the box-code cell — the box code leads, the SKU never
+                                    appears alone even if codigo_caja_previo is unexpectedly missing. */}
                                 <span className="font-mono text-xs font-semibold text-warm-800">
-                                  {s.codigo_caja_previo}
+                                  {s.codigo_caja_previo || 'SKU'}
                                 </span>
                                 <span className="font-mono text-xs font-semibold text-success-700">
                                   SKU: {s.codigo_caja}

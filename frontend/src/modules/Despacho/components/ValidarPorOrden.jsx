@@ -630,9 +630,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                     <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs bg-accent-50/40 border border-accent-100/50">
                       <span className="w-5 text-right text-[10px] font-black tabular-nums text-accent-600 shrink-0">{scanIndex + 1}</span>
                       <Check className="w-3 h-3 text-success-500 shrink-0" />
-                      {s.codigo_caja_previo && s.es_sku ? (
+                      {s.es_sku ? (
                         <span className="flex-1 font-mono font-semibold">
-                          <span className="text-warm-800">{s.codigo_caja_previo}</span>
+                          <span className="text-warm-800">{s.codigo_caja_previo || 'SKU'}</span>
                           <span className="text-warm-300 mx-1">·</span>
                           <span className="text-success-700">SKU: {s.codigo_caja}</span>
                         </span>
@@ -665,9 +665,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
               }`}>
                 <span className="w-5 text-right text-[10px] font-black tabular-nums text-primary-500 shrink-0">{i + 1}</span>
                 <Check className="w-3 h-3 text-success-500 shrink-0" />
-                {s.codigo_caja_previo && s.es_sku ? (
+                {s.es_sku ? (
                   <span className="flex-1 font-mono font-semibold">
-                    <span className="text-warm-800">{s.codigo_caja_previo}</span>
+                    <span className="text-warm-800">{s.codigo_caja_previo || 'SKU'}</span>
                     <span className="text-warm-300 mx-1">·</span>
                     <span className="text-success-700">SKU: {s.codigo_caja}</span>
                   </span>

@@ -775,6 +775,10 @@ router.post('/:id/scans',
       const codigoCaja = normalizeScanCode(codigo_caja)
       if (!codigoCaja) return res.status(400).json({ error: 'codigo_caja inválido' })
       const normalizedOrderNo = matched_order_no ? String(matched_order_no).trim() : null
+      // Normalized the same way as codigo_caja itself — otherwise a relabel/SKU
+      // cascade pair can fail to cross-reference by exact string match even though
+      // both originated from the same scanned code.
+      const codigoCajaPrevio = codigo_caja_previo ? normalizeScanCode(codigo_caja_previo) : null
 
       const scan = await req.tTransaction(async (client) => {
         const folioDedupeRes = await client.query(
@@ -905,7 +909,7 @@ router.post('/:id/scans',
              (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, matched_order_no, validated_by, codigo_caja_previo, reetiquetado, es_sku)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            RETURNING id`,
-          [req.tenantId, req.params.id, ensuredOrderId, codigoCaja, tarima_ref || null, normalizedOrderNo || null, req.user.id, codigo_caja_previo || null, reetiquetado === true, es_sku === true]
+          [req.tenantId, req.params.id, ensuredOrderId, codigoCaja, tarima_ref || null, normalizedOrderNo || null, req.user.id, codigoCajaPrevio, reetiquetado === true, es_sku === true]
         )
 
         if (normalizedOrderNo) {
@@ -1180,6 +1184,10 @@ router.post('/:id/orders/:orderId/scans',
       if (!codigo_caja?.trim()) return res.status(400).json({ error: 'codigo_caja requerido' })
       const codigoCaja = normalizeScanCode(codigo_caja)
       if (!codigoCaja) return res.status(400).json({ error: 'codigo_caja inválido' })
+      // Normalized the same way as codigo_caja itself — otherwise a relabel/SKU
+      // cascade pair can fail to cross-reference by exact string match even though
+      // both originated from the same scanned code.
+      const codigoCajaPrevio = codigo_caja_previo ? normalizeScanCode(codigo_caja_previo) : null
 
       const folioRes = await req.tQuery(
         `SELECT estado FROM dispatch_folios WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
@@ -1192,7 +1200,7 @@ router.post('/:id/orders/:orderId/scans',
       await req.tQuery(
         `INSERT INTO dispatch_order_scans (tenant_id, folio_id, folio_order_id, codigo_caja, tarima_ref, validated_by, codigo_caja_previo, reetiquetado, es_sku)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [req.tenantId, req.params.id, req.params.orderId, codigoCaja, tarima_ref || null, req.user.id, codigo_caja_previo || null, reetiquetado === true, es_sku === true]
+        [req.tenantId, req.params.id, req.params.orderId, codigoCaja, tarima_ref || null, req.user.id, codigoCajaPrevio, reetiquetado === true, es_sku === true]
       )
       await syncOrderProgressById(req, req.params.orderId)
       const detail = await getFolioDetail(req, req.params.id)
