@@ -4019,7 +4019,7 @@ export default {
     'desp.validar.destino.sinEscaneos': 'Sin escaneos aún',
     'desp.validar.destino.cajasTotal': 'cajas',
     'desp.validar.destino.sinOrden': 'Sin orden',
-    'desp.validar.destino.esperandoEtiquetaNueva': 'Esperando escaneo de la nueva etiqueta (Trucking)',
+    'desp.validar.destino.esperandoEtiquetaNueva': 'Esperando escaneo de la etiqueta nueva',
     'desp.validar.destino.etiquetaNoCoincide': 'El código escaneado no coincide con la etiqueta nueva esperada. Vuelve a intentar o cancela.',
     'desp.validar.destino.reetiquetada': 'Reetiquetada',
     'desp.validar.destino.ordenLabel': 'Orden',

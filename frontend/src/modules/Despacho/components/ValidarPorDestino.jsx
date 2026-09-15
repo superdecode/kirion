@@ -1563,7 +1563,7 @@ export default function ValidarPorDestino({ folioId }) {
                       </p>
                     )}
 
-                    {/* Trucking + Reference */}
+                    {/* Tracking + Reference */}
                     <div className="flex min-h-[1.75rem] flex-nowrap items-start gap-1.5 mb-2.5 overflow-hidden">
                       {enrich?.logisticsTrackNo ? (
                         <CopyMetaPill value={enrich.logisticsTrackNo} tone="primary" />
