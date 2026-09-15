@@ -4045,6 +4045,7 @@ export default {
     'desp.validar.destino.cajaLabel': 'Caja',
     'desp.validar.destino.ingresaSkuPlaceholder': 'Ingresa o escanea el SKU...',
     'desp.validar.destino.skuNoCoincide': 'El código escaneado no coincide con el SKU esperado. Vuelve a intentar o cancela.',
+    'desp.validar.destino.procesandoCaja': 'Procesando la caja... el SKU se guardará en un momento.',
     'desp.validar.destino.ordenLabel': 'Orden',
     'desp.validar.destino.ordenesDestino': 'Órdenes del destino',
     'desp.validar.destino.sinOrdenes': 'Sin órdenes cargadas',

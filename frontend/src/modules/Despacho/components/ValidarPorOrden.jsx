@@ -263,6 +263,16 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     onError: (err) => addToast(err?.response?.data?.error || 'Error registrando SKU', 'error'),
   })
 
+  // The operator can scan the SKU before the box insert's response comes back (see
+  // the pendingSku resolution in handleScan) — once the scanId lands here, apply
+  // whatever SKU value was queued in the meantime.
+  useEffect(() => {
+    if (pendingSku?.scanId && pendingSku?.queuedSkuValue) {
+      doSetSku({ scanId: pendingSku.scanId, skuValor: pendingSku.queuedSkuValue })
+      setPendingSku(null)
+    }
+  }, [pendingSku, doSetSku])
+
   const cancelPendingRelabel = useCallback(() => {
     setPendingRelabel(null)
     setTimeout(() => scanRef.current?.focus(), 80)
@@ -295,6 +305,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       scanRef.current?.focus()
       if (pendingSku.scanId) {
         doSetSku({ scanId: pendingSku.scanId, skuValor: code })
+        setPendingSku(null)
       } else if (isOffline) {
         // The box scan itself is still queued offline (no server id yet) — fall
         // back to the legacy cascaded record so the SKU isn't lost.
@@ -307,8 +318,15 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         })
         setPendingOfflineScans(p => [...p, code])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
+        setPendingSku(null)
+      } else {
+        // Online, but the box insert this SKU belongs to hasn't come back from the
+        // server yet (operator scanned fast) — queue the value and apply it via
+        // doSetSku the moment the scanId lands (see the effect below), instead of
+        // silently dropping it or wrongly treating a fast-but-online scan as offline.
+        setPendingSku((prev) => (prev ? { ...prev, queuedSkuValue: code } : prev))
+        addToast(t('desp.validar.destino.procesandoCaja'), 'info')
       }
-      setPendingSku(null)
       return
     }
 
@@ -333,6 +351,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       // making the operator scan a fresh box first.
       const skuAlreadySatisfied = orderDetail && scans.some(s => matchesProductSku(orderDetail, s.sku_valor || s.codigo_caja))
       const needsSkuNext = !!(orderDetail && orderNeedsProductLabel(orderDetail) && !skuAlreadySatisfied)
+      // Set the pending-SKU gate synchronously, before the box insert even goes out
+      // — otherwise a fast operator scanning the SKU before the server responds
+      // would fall through to the normal scan path, and the scanId-less resolver
+      // would silently drop the SKU. The scanId is attached once the insert lands.
+      if (needsSkuNext) setPendingSku({ rawCode: code })
       if (isOffline) {
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_order_scan',
@@ -343,7 +366,6 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
         })
         setPendingOfflineScans(p => [...p, code])
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
-        if (needsSkuNext) setPendingSku({ rawCode: code })
       } else {
         pendingOnlineRef.current.add(code)
         if (needsSkuNext) {
@@ -351,7 +373,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
             onSuccess: (data) => {
               const updatedOrder = data?.orders?.find(o => o.id === order.id)
               const inserted = (updatedOrder?.scans ?? []).find(s => s.codigo_caja === code)
-              setPendingSku({ rawCode: code, scanId: inserted?.id })
+              setPendingSku((prev) => (prev && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev))
             },
           })
         } else {
@@ -403,6 +425,11 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       const skuAlreadySatisfied = scans.some(s => matchesProductSku(orderDetail, s.sku_valor || s.codigo_caja))
       if (!skuAlreadySatisfied) {
         scanRef.current?.focus()
+        // Set the pending-SKU gate synchronously, before the box insert even goes
+        // out — otherwise a fast operator scanning the SKU before the server
+        // responds would fall through to the normal scan path, and the
+        // scanId-less resolver would silently drop the SKU.
+        setPendingSku({ rawCode: code })
         if (isOffline) {
           useOfflineStore.getState().enqueueModule({
             type: 'despacho_order_scan',
@@ -410,14 +437,13 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
           })
           setPendingOfflineScans(p => [...p, code])
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
-          setPendingSku({ rawCode: code })
         } else {
           pendingOnlineRef.current.add(code)
           doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch }, {
             onSuccess: (data) => {
               const updatedOrder = data?.orders?.find(o => o.id === order.id)
               const inserted = (updatedOrder?.scans ?? []).find(s => s.codigo_caja === code)
-              setPendingSku({ rawCode: code, scanId: inserted?.id })
+              setPendingSku((prev) => (prev && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev))
             },
           })
         }
@@ -437,7 +463,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     }
     pendingOnlineRef.current.add(code)
     doAddScan({ code, tarimaRef: currentTarimaRef, reetiquetado: directNewLabelMatch })
-  }, [pendingSku, pendingRelabel, scans, validCodes, validCodeFields, validarEtiquetado, orderDetail, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, addToast, folioId, order.id, currentTarimaRef, t])
+  }, [pendingSku, pendingRelabel, scans, validCodes, validCodeFields, validarEtiquetado, orderDetail, alreadyScanned, pendingOfflineScans, isOffline, doAddScan, doSetSku, addToast, folioId, order.id, currentTarimaRef, t])
 
   const pct = expected && expected > 0 ? Math.round((boxScans.length / expected) * 100) : null
 
@@ -596,7 +622,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
             badge={pendingSku ? { icon: <Barcode className="h-3 w-3" />, label: t('desp.validar.destino.escanearSku'), code: `${t('desp.validar.destino.cajaLabel')}: ${pendingSku.rawCode}` } : null}
             buttonLabel={t('desp.validar.orden.validarBtn')}
           />
-          {scans.length > 0 && (
+          {scans.length > 0 && !isOffline && (
             <button onClick={() => doDeleteLast()} disabled={deletingLast}
               className="btn-ghost text-xs flex w-full items-center justify-center gap-1.5 h-10 px-3 text-danger-600 hover:bg-danger-50 border border-danger-200 sm:w-auto">
               {deletingLast ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}

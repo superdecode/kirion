@@ -665,6 +665,16 @@ export default function ValidarPorDestino({ folioId }) {
     },
   })
 
+  // The operator can scan the SKU before the box insert's response comes back
+  // (see the pendingSku resolution in handleScan) — once the scanId lands here,
+  // apply whatever SKU value was queued in the meantime.
+  useEffect(() => {
+    if (pendingSku?.scanId && pendingSku?.queuedSkuValue) {
+      doSetSku({ scanId: pendingSku.scanId, skuValor: pendingSku.queuedSkuValue })
+      setPendingSku(null)
+    }
+  }, [pendingSku, doSetSku])
+
   const { mutate: doDeleteScan } = useMutation({
     mutationFn: (scanId) => deleteFolioScan(folioId, scanId),
     // Remove it from the tarima view immediately instead of waiting on a full
@@ -903,7 +913,8 @@ export default function ValidarPorDestino({ folioId }) {
         // The box's own scan record already exists server-side — patch the SKU
         // straight onto it, no extra record involved.
         doSetSku({ scanId: pendingSku.scanId, skuValor: code })
-      } else {
+        setPendingSku(null)
+      } else if (isOffline) {
         // The box scan itself is still queued offline (no server id yet), so there
         // is nothing to patch — fall back to the legacy cascaded record so the SKU
         // isn't lost; it still resolves back to a single row once both records
@@ -919,8 +930,15 @@ export default function ValidarPorDestino({ folioId }) {
           },
         })
         addToast(`Offline: SKU ${code} — se enviará al recuperar conexión`, 'info')
+        setPendingSku(null)
+      } else {
+        // Online, but the box insert this SKU belongs to hasn't come back from the
+        // server yet (operator scanned fast) — queue the value and apply it via
+        // doSetSku the moment the scanId lands (see the effect below), instead of
+        // wrongly treating a fast-but-online scan as offline.
+        setPendingSku((prev) => (prev ? { ...prev, queuedSkuValue: code } : prev))
+        addToast(t('desp.validar.destino.procesandoCaja'), 'info')
       }
-      setPendingSku(null)
       return
     }
 
@@ -952,6 +970,14 @@ export default function ValidarPorDestino({ folioId }) {
         s.matched_order_no === relabelOrderNo && matchesProductSku(meta, s.sku_valor || s.codigo_caja)
       ))
       const needsSkuNext = orderNeedsProductLabel(meta) && !skuAlreadySatisfied
+      // Set the pending-SKU gate synchronously, before the box insert even goes out
+      // — otherwise a fast operator scanning the SKU before the server responds
+      // would fall through to the normal scan path instead of being recognized as
+      // the SKU step, and the scanId-less resolver would wrongly treat it as
+      // offline. The scanId is attached to this same state once the insert lands.
+      if (needsSkuNext) {
+        setPendingSku({ matchedOrderNo: relabelOrderNo, rawCode: code })
+      }
       if (isOffline) {
         useOfflineStore.getState().enqueueModule({
           type: 'despacho_folio_scan',
@@ -961,15 +987,14 @@ export default function ValidarPorDestino({ folioId }) {
         addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
       } else if (needsSkuNext) {
         requestAddScan(relabelPayload, {
-          onInserted: (inserted) => setPendingSku({ matchedOrderNo: relabelOrderNo, rawCode: code, scanId: inserted?.id }),
+          onInserted: (inserted) => setPendingSku((prev) => (
+            prev && prev.matchedOrderNo === relabelOrderNo && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev
+          )),
         })
       } else {
         requestAddScan(relabelPayload)
       }
       setPendingRelabel(null)
-      if (needsSkuNext && isOffline) {
-        setPendingSku({ matchedOrderNo: relabelOrderNo, rawCode: code })
-      }
       return
     }
 
@@ -1043,6 +1068,11 @@ export default function ValidarPorDestino({ folioId }) {
         s.matched_order_no === matchedOrderNo && matchesProductSku(matchedMeta, s.sku_valor || s.codigo_caja)
       ))
       if (!skuAlreadySatisfied) {
+        // Set the pending-SKU gate synchronously, before the box insert even goes
+        // out — otherwise a fast operator scanning the SKU before the server
+        // responds would fall through to the normal scan path instead of being
+        // recognized as the SKU step. The scanId is attached once the insert lands.
+        setPendingSku({ matchedOrderNo, rawCode: code })
         if (isOffline) {
           useOfflineStore.getState().enqueueModule({
             type: 'despacho_folio_scan',
@@ -1050,10 +1080,11 @@ export default function ValidarPorDestino({ folioId }) {
           })
           setPendingOfflineScans(p => [...p, { code, matchedOrderNo }])
           addToast(`Offline: ${code} — se enviará al recuperar conexión`, 'info')
-          setPendingSku({ matchedOrderNo, rawCode: code })
         } else {
           requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag }, {
-            onInserted: (inserted) => setPendingSku({ matchedOrderNo, rawCode: code, scanId: inserted?.id }),
+            onInserted: (inserted) => setPendingSku((prev) => (
+              prev && prev.matchedOrderNo === matchedOrderNo && prev.rawCode === code ? { ...prev, scanId: inserted?.id } : prev
+            )),
           })
         }
         return
@@ -1072,7 +1103,7 @@ export default function ValidarPorDestino({ folioId }) {
     }
 
     requestAddScan({ codigo_caja: code, tarima_ref: currentTarimaRef, matched_order_no: matchedOrderNo, ...relabelFlag })
-  }, [pendingSku, pendingRelabel, scans, scannedCodeVariants, orderCodeLookup, externalCodeLookup, orderMetaByNo, folio?.destino, folio?.validar_etiquetado, currentTarimaRef, isOffline, folioId, requestAddScan, addToast, t])
+  }, [pendingSku, pendingRelabel, scans, scannedCodeVariants, orderCodeLookup, externalCodeLookup, orderMetaByNo, folio?.destino, folio?.validar_etiquetado, currentTarimaRef, isOffline, folioId, requestAddScan, doSetSku, addToast, t])
 
   const openForceModal = useCallback((code) => {
     setErrorModal(null)
@@ -1555,8 +1586,11 @@ export default function ValidarPorDestino({ folioId }) {
                           </div>
                           <span className="text-[10px] text-warm-400">{fmtDateTime(s.validated_at)}</span>
                         </div>
-                        {editable && !s.__optimistic && (
-                          // Touch devices have no hover — the actions stay visible below sm
+                        {editable && !s.__optimistic && !isOffline && (
+                          // Touch devices have no hover — the actions stay visible below sm.
+                          // Both actions need an immediate server round trip (no offline
+                          // queue support), so they're hidden while offline instead of
+                          // failing and rolling back silently.
                           <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             <button
                               type="button"
