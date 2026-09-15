@@ -1439,9 +1439,8 @@ export default function ValidarPorDestino({ folioId }) {
                             {isSkuScan ? (
                               <>
                                 <span className="font-mono text-xs font-semibold text-warm-800">
-                                  {t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}
+                                  {s.codigo_caja_previo}
                                 </span>
-                                <span className="text-warm-300 text-[11px] select-none">·</span>
                                 <span className="font-mono text-xs font-semibold text-success-700">
                                   SKU: {s.codigo_caja}
                                 </span>

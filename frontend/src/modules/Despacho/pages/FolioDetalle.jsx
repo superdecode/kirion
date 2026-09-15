@@ -761,15 +761,14 @@ export default function FolioDetalle() {
                               const meta = parseOrderNotasMeta(order.notas)
                               return (
                                 <tr key={`${order.id || order.outbound_order_no}-meta`} className="bg-primary-50/25">
-                                  <td colSpan={7} className="px-3 py-2 border-t border-primary-100">
+                                  <td colSpan={7} className="p-0 border-t border-primary-100">
                                     <details className="group">
-                                      <summary className="flex items-center gap-2 text-xs font-semibold text-primary-700 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                                      <summary className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-primary-700 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden hover:bg-primary-50/60 transition-colors">
                                         <StickyNote className="w-3.5 h-3.5 shrink-0" />
                                         {t('desp.folioDetalle.metaPrefix')}
-                                        <ChevronDown className="w-3 h-3 text-primary-400 transition-transform group-open:rotate-180" />
+                                        <ChevronDown className="w-3.5 h-3.5 text-primary-400 transition-transform group-open:rotate-180 ml-auto" />
                                       </summary>
-                                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 pl-5">
-                                        <MetaField label={t('desp.folioDetalle.metaDestino')} value={meta.destino} />
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 px-3 pb-3 pl-9">
                                         <MetaField label={t('desp.folioDetalle.metaTracking')} value={meta.logisticsTrackNo} mono />
                                         <MetaField label={t('desp.folioDetalle.metaReferencia')} value={meta.thirdOrderNo} mono />
                                         <MetaField label={t('desp.folioDetalle.metaFba')} value={meta.fbaShipmentId} mono />
@@ -864,7 +863,7 @@ export default function FolioDetalle() {
                               <td className="px-3 py-2.5">
                                 {isSku && s.codigo_caja_previo ? (
                                   <span className="text-xs font-mono">
-                                    <span className="text-warm-700">{t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}</span>
+                                    <span className="text-warm-700">{s.codigo_caja_previo}</span>
                                     <span className="text-warm-300 mx-1">·</span>
                                     <span className="text-success-700 font-semibold">SKU: {s.codigo_caja}</span>
                                   </span>

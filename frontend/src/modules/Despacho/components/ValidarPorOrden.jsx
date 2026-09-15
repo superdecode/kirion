@@ -619,7 +619,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                       <Check className="w-3 h-3 text-success-500 shrink-0" />
                       {s.codigo_caja_previo && !s.reetiquetado && matchesProductSku(orderDetail, s.codigo_caja) ? (
                         <span className="flex-1 font-mono font-semibold">
-                          <span className="text-warm-800">{t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}</span>
+                          <span className="text-warm-800">{s.codigo_caja_previo}</span>
                           <span className="text-warm-300 mx-1">·</span>
                           <span className="text-success-700">SKU: {s.codigo_caja}</span>
                         </span>
@@ -654,7 +654,7 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
                 <Check className="w-3 h-3 text-success-500 shrink-0" />
                 {s.codigo_caja_previo && !s.reetiquetado && matchesProductSku(orderDetail, s.codigo_caja) ? (
                   <span className="flex-1 font-mono font-semibold">
-                    <span className="text-warm-800">{t('desp.validar.destino.cajaLabel')}: {s.codigo_caja_previo}</span>
+                    <span className="text-warm-800">{s.codigo_caja_previo}</span>
                     <span className="text-warm-300 mx-1">·</span>
                     <span className="text-success-700">SKU: {s.codigo_caja}</span>
                   </span>
