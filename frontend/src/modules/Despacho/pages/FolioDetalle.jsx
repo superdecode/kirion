@@ -24,7 +24,7 @@ import {
 } from '../services/despachoService'
 import FolioPreviewModal from '../components/FolioPreviewModal'
 import { orderNeedsRelabel } from '../../Shared/Wms/relabelUtils'
-import { orderNeedsProductLabel, matchesProductSku } from '../../Shared/Wms/productLabelUtils'
+import { orderNeedsProductLabel } from '../../Shared/Wms/productLabelUtils'
 
 function parseOrderNotasMeta(notas) {
   if (!notas || typeof notas !== 'string') return {}
@@ -299,7 +299,9 @@ export default function FolioDetalle() {
     const bultosEsperados = o.bultos_esperados || 0
     const relabelDone = needsRelabel && bultosEsperados > 0 && scanCount >= bultosEsperados
     const needsSku = orderNeedsProductLabel(meta)
-    const skuSatisfied = needsSku && orderScans.some(s => matchesProductSku(meta, s.sku_valor || s.codigo_caja))
+    // Once ANY box on this order has a recorded SKU value, the order-level
+    // requirement is done — one validation per order is enough.
+    const skuSatisfied = needsSku && orderScans.some(s => s.sku_valor || s.es_sku)
     return {
       ...o,
       _scanCount: scanCount,

@@ -359,7 +359,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
       // The relabel scan just submitted is its own complete record. If this order
       // also still needs the SKU, chain straight into that request next instead of
       // making the operator scan a fresh box first.
-      const skuAlreadySatisfied = orderDetail && scans.some(s => matchesProductSku(orderDetail, s.sku_valor || s.codigo_caja))
+      // Once ANY box on this order has a recorded SKU value, the order-level
+      // requirement is done — one validation per order is enough.
+      const skuAlreadySatisfied = scans.some(s => s.sku_valor || s.es_sku)
       const needsSkuNext = !!(orderDetail && orderNeedsProductLabel(orderDetail) && !skuAlreadySatisfied)
       // Set the pending-SKU gate synchronously, before the box insert even goes out
       // — otherwise a fast operator scanning the SKU before the server responds
@@ -424,7 +426,9 @@ function ValidationPanel({ order, folioId, onUpdate, canEdit, onAutoConfirm, onC
     // record. Keeping the box's own code as a real scan (instead of replacing it
     // with the SKU) is what keeps a later duplicate scan of that same box caught.
     if (matchedField !== 'productSku' && orderDetail && orderNeedsProductLabel(orderDetail)) {
-      const skuAlreadySatisfied = scans.some(s => matchesProductSku(orderDetail, s.sku_valor || s.codigo_caja))
+      // Once ANY box on this order has a recorded SKU value, the order-level
+      // requirement is done — one validation per order is enough.
+      const skuAlreadySatisfied = scans.some(s => s.sku_valor || s.es_sku)
       if (!skuAlreadySatisfied) {
         scanRef.current?.focus()
         // Set the pending-SKU gate synchronously, before the box insert even goes

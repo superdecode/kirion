@@ -966,9 +966,10 @@ export default function ValidarPorDestino({ folioId }) {
       // making the operator scan a fresh box first.
       const relabelOrderNo = pendingRelabel.matchedOrderNo
       const meta = orderMetaByNo.get(relabelOrderNo) || {}
-      const skuAlreadySatisfied = scans.some(s => (
-        s.matched_order_no === relabelOrderNo && matchesProductSku(meta, s.sku_valor || s.codigo_caja)
-      ))
+      // Once ANY box on this order has a recorded SKU value, the order-level
+      // requirement is done — one validation per order is enough, no need to
+      // re-derive the match against the remark on every later box.
+      const skuAlreadySatisfied = scans.some(s => s.matched_order_no === relabelOrderNo && (s.sku_valor || s.es_sku))
       const needsSkuNext = orderNeedsProductLabel(meta) && !skuAlreadySatisfied
       // Set the pending-SKU gate synchronously, before the box insert even goes out
       // — otherwise a fast operator scanning the SKU before the server responds
@@ -1060,9 +1061,9 @@ export default function ValidarPorDestino({ folioId }) {
     // with the SKU) is what keeps a later duplicate scan of that same box caught by
     // the ordinary duplicate check above.
     if (match.field !== 'productSku' && orderNeedsProductLabel(matchedMeta)) {
-      const skuAlreadySatisfied = scans.some(s => (
-        s.matched_order_no === matchedOrderNo && matchesProductSku(matchedMeta, s.sku_valor || s.codigo_caja)
-      ))
+      // Once ANY box on this order has a recorded SKU value, the order-level
+      // requirement is done — one validation per order is enough.
+      const skuAlreadySatisfied = scans.some(s => s.matched_order_no === matchedOrderNo && (s.sku_valor || s.es_sku))
       if (!skuAlreadySatisfied) {
         // Set the pending-SKU gate synchronously, before the box insert even goes
         // out — otherwise a fast operator scanning the SKU before the server
@@ -1825,7 +1826,7 @@ export default function ValidarPorDestino({ folioId }) {
                 const needsProductLabel = orderNeedsProductLabel(meta)
                 const skuSatisfied = needsProductLabel && scans.some(s => (
                   (s.matched_order_no === order.outbound_order_no || s.folio_order_id === order.id)
-                  && matchesProductSku(meta, s.sku_valor || s.codigo_caja)
+                  && (s.sku_valor || s.es_sku)
                 ))
 
                 return (
