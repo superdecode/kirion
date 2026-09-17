@@ -73,11 +73,15 @@ function getPendingForOrder(record, dispatch) {
 }
 
 
+// Temporalmente deshabilitado a peticion del usuario (2026-09-17): apagar por defecto
+// y ocultar el checkbox en bodega. Revertir a `true` para restaurar la funcion.
+const RELABEL_VALIDATION_ENABLED = false
+
 export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores = [], unidades = [], isCreating = false }) {
   const { t } = useI18nStore()
   const [tipoSelected, setTipoSelected] = useState(null)
   const [form, setForm] = useState({ conductor_id: '', unidad_id: '', fecha_salida: new Date().toISOString().slice(0, 10) })
-  const [validarEtiquetado, setValidarEtiquetado] = useState(true)
+  const [validarEtiquetado, setValidarEtiquetado] = useState(RELABEL_VALIDATION_ENABLED)
   const [showMissingFieldsError, setShowMissingFieldsError] = useState(false)
   const [showDestinoError, setShowDestinoError] = useState(false)
 
@@ -93,7 +97,7 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
     if (!isOpen) {
       setTipoSelected(null)
       setForm({ conductor_id: '', unidad_id: '', fecha_salida: new Date().toISOString().slice(0, 10) })
-      setValidarEtiquetado(true)
+      setValidarEtiquetado(RELABEL_VALIDATION_ENABLED)
       setShowMissingFieldsError(false)
       setShowDestinoError(false)
       setDestinoSearch('')
@@ -449,19 +453,21 @@ export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores 
                       {t('desp.validar.modal.debeSelCUF')}
                     </p>
                   )}
-                  <label className="flex items-start gap-2 pt-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={validarEtiquetado}
-                      onChange={e => setValidarEtiquetado(e.target.checked)}
-                      className="cb mt-0.5"
-                    />
-                    <span className="text-[11px] text-warm-600 leading-snug">
-                      <span className="font-semibold text-warm-700">{t('desp.validar.modal.validarEtiquetado')}</span>
-                      <br />
-                      {t('desp.validar.modal.validarEtiquetadoDesc')}
-                    </span>
-                  </label>
+                  {RELABEL_VALIDATION_ENABLED && (
+                    <label className="flex items-start gap-2 pt-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={validarEtiquetado}
+                        onChange={e => setValidarEtiquetado(e.target.checked)}
+                        className="cb mt-0.5"
+                      />
+                      <span className="text-[11px] text-warm-600 leading-snug">
+                        <span className="font-semibold text-warm-700">{t('desp.validar.modal.validarEtiquetado')}</span>
+                        <br />
+                        {t('desp.validar.modal.validarEtiquetadoDesc')}
+                      </span>
+                    </label>
+                  )}
                 </motion.div>
 
                 {/* Por destino: destino selector */}
