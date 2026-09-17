@@ -905,7 +905,10 @@ export default function ValidarPorDestino({ folioId }) {
         addToast(t('desp.validar.destino.skuNoCoincide'), 'error')
         return
       }
-      const alreadyUsed = scans.some(s => normalizeCodeFast(s.sku_valor || '') === code)
+      // Scoped to this order only — the same SKU commonly repeats across different
+      // orders in the same folio/destino, so a folio-wide check was rejecting valid
+      // scans as false duplicates.
+      const alreadyUsed = scans.some(s => s.matched_order_no === pendingSku.matchedOrderNo && normalizeCodeFast(s.sku_valor || '') === code)
       if (alreadyUsed) {
         setErrorModal({ type: 'duplicate', code })
         return

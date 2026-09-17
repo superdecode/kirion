@@ -781,16 +781,36 @@ router.post('/:id/scans',
       const codigoCajaPrevio = codigo_caja_previo ? normalizeScanCode(codigo_caja_previo) : null
 
       const scan = await req.tTransaction(async (client) => {
-        const folioDedupeRes = await client.query(
-          `SELECT id FROM dispatch_order_scans
-           WHERE tenant_id = $1 AND folio_id = $2 AND codigo_caja = $3`,
-          [req.tenantId, req.params.id, codigoCaja]
-        )
-        if (folioDedupeRes.rows.length > 0) {
-          const error = new Error('Código ya escaneado en este folio')
-          error.status = 409
-          error.code = 'DUPLICATE_IN_FOLIO'
-          throw error
+        // es_sku rows hold the scanned SKU value in codigo_caja (legacy cascade /
+        // offline fallback — see PATCH .../scans/:scanId/sku for the normal path),
+        // not a physical box code. The same SKU legitimately repeats across
+        // different orders in one folio, so its dedup is scoped to the order it
+        // belongs to instead of the whole-folio box-code check below.
+        if (es_sku) {
+          const skuDedupeRes = await client.query(
+            `SELECT id FROM dispatch_order_scans
+             WHERE tenant_id = $1 AND folio_id = $2 AND codigo_caja = $3
+               AND es_sku AND matched_order_no IS NOT DISTINCT FROM $4`,
+            [req.tenantId, req.params.id, codigoCaja, normalizedOrderNo]
+          )
+          if (skuDedupeRes.rows.length > 0) {
+            const error = new Error('Código ya escaneado en esta orden')
+            error.status = 409
+            error.code = 'DUPLICATE_IN_ORDER'
+            throw error
+          }
+        } else {
+          const folioDedupeRes = await client.query(
+            `SELECT id FROM dispatch_order_scans
+             WHERE tenant_id = $1 AND folio_id = $2 AND codigo_caja = $3 AND NOT es_sku`,
+            [req.tenantId, req.params.id, codigoCaja]
+          )
+          if (folioDedupeRes.rows.length > 0) {
+            const error = new Error('Código ya escaneado en este folio')
+            error.status = 409
+            error.code = 'DUPLICATE_IN_FOLIO'
+            throw error
+          }
         }
 
         // A cancelled order is never valid for dispatch, even when the box isn't
@@ -811,11 +831,12 @@ router.post('/:id/scans',
           }
         }
 
-        const crossFolioRes = await client.query(
+        const crossFolioRes = es_sku ? { rows: [] } : await client.query(
           `SELECT f.folio_numero FROM dispatch_order_scans s
            JOIN dispatch_folios f ON f.id = s.folio_id
            WHERE s.tenant_id = $1 AND s.codigo_caja = $2
              AND s.folio_id != $3
+             AND NOT s.es_sku
              AND f.estado != 'cancelado'
              AND f.deleted_at IS NULL
              AND date_trunc('day', s.validated_at AT TIME ZONE $4) =
@@ -843,6 +864,7 @@ router.post('/:id/scans',
              WHERE s.tenant_id = $1
                AND s.codigo_caja = $2
                AND f.id != $3
+               AND NOT s.es_sku
                AND f.estado != 'cancelado'
                AND f.deleted_at IS NULL
                AND COALESCE(s.matched_order_no, fo.outbound_order_no) = $4
