@@ -73,9 +73,7 @@ function getPendingForOrder(record, dispatch) {
 }
 
 
-// Temporalmente deshabilitado a peticion del usuario (2026-09-17): apagar por defecto
-// y ocultar el checkbox en bodega. Revertir a `true` para restaurar la funcion.
-const RELABEL_VALIDATION_ENABLED = false
+const RELABEL_VALIDATION_ENABLED = true
 
 export default function FolioTypeModal({ isOpen, onClose, onCreate, conductores = [], unidades = [], isCreating = false }) {
   const { t } = useI18nStore()
