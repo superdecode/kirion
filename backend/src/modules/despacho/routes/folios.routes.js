@@ -895,7 +895,7 @@ router.post('/:id/scans',
               `INSERT INTO dispatch_folio_orders
                  (tenant_id, folio_id, outbound_order_no, destinatario, bultos, bultos_esperados, notas, outbound_date, estado)
                VALUES ($1,$2,$3,NULL,0,NULL,$4,NULL,'pendiente')
-               ON CONFLICT (tenant_id, folio_id, outbound_order_no) DO UPDATE SET updated_at = now()
+               ON CONFLICT (tenant_id, folio_id, outbound_order_no) DO UPDATE SET outbound_order_no = EXCLUDED.outbound_order_no
                RETURNING id`,
               [req.tenantId, req.params.id, normalizedOrderNo, JSON.stringify({ fallback_manual: true })]
             )
@@ -918,7 +918,7 @@ router.post('/:id/scans',
               `INSERT INTO dispatch_folio_orders
                  (tenant_id, folio_id, outbound_order_no, destinatario, bultos, bultos_esperados, notas, outbound_date, estado)
                VALUES ($1,$2,$3,NULL,0,NULL,$4,NULL,'pendiente')
-               ON CONFLICT (tenant_id, folio_id, outbound_order_no) DO UPDATE SET updated_at = now()
+               ON CONFLICT (tenant_id, folio_id, outbound_order_no) DO UPDATE SET outbound_order_no = EXCLUDED.outbound_order_no
                RETURNING id`,
               [req.tenantId, req.params.id, UNASSIGNED_ORDER_NO, JSON.stringify({ forced_no_order: true })]
             )
