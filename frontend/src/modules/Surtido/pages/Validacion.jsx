@@ -278,7 +278,12 @@ function replayPendingValidation(item) {
 
 function isPermanentSyncError(error) {
   const status = error?.response?.status
-  return status >= 400 && status < 500 && status !== 408 && status !== 429
+  // 401/403 mean the request was rejected by auth/permission middleware, not that
+  // the payload itself is invalid — treating them as permanent silently discarded
+  // real scans from the offline replay queue whenever a token/tenant/permission
+  // hiccup coincided with a sync attempt. Keep retrying those like network errors
+  // instead of marking the box as "processed" when it was never actually saved.
+  return status >= 400 && status < 500 && status !== 401 && status !== 403 && status !== 408 && status !== 429
 }
 
 let validationReplayInProgress = false
@@ -1427,13 +1432,16 @@ function TabSession({ tabId, isActive, initialObc, initialAutoStart, onSessionCh
               }
             })
             .catch((err) => {
-              // No server response (offline/connection dropped mid-check) — we can't
-              // confirm the session is gone, so don't discard in-progress work.
-              if (!err.response) {
+              // Only a definitive 404 (session genuinely doesn't exist server-side) is
+              // safe to treat as "confirmed gone". Any other response — 403/401 from an
+              // auth/tenant/permission hiccup, 5xx, etc. — is not proof the session is
+              // closed; discarding on those wiped a completed-looking session's local
+              // progress just because an unrelated request got rejected.
+              if (err.response?.status !== 404) {
                 restoreLocally()
                 return
               }
-              // Definitive response from the server (e.g. 404) — safe to discard.
+              // Definitive response from the server (404): safe to discard.
               discardAndRestart()
             })
           return
@@ -1464,6 +1472,12 @@ function TabSession({ tabId, isActive, initialObc, initialAutoStart, onSessionCh
     // fallback never even runs — 'always' lets it execute and resolve either from
     // cache or with data: null, instead of hanging the "Verificando sesión..." overlay.
     networkMode: 'always',
+    // Once a session is active, totalExpected/packageMap must not silently change
+    // under the operator (a tab remount here previously could re-fetch a bigger or
+    // smaller box list mid-session, showing "needs more boxes" even at 100% scanned
+    // against nothing that actually changed in the real order). Only remount-refetch
+    // before scanning starts, when fresher data is actually wanted.
+    refetchOnMount: sessionId ? false : true,
   })
 const { data: reasonsData } = useQuery({
     queryKey: ['wms-manual-entry-reasons'],
@@ -2372,8 +2386,14 @@ const { data: reasonsData } = useQuery({
       // Only flip to "online" once this genuinely succeeds.
       await qc.fetchQuery({ queryKey: ['wms-manual-entry-reasons'], queryFn: getManualEntryReasons })
       useOfflineStore.getState().setOnline()
-      qc.invalidateQueries({ queryKey: ['wms-outbound-detail', obc] })
-      refreshSheet('outbound').catch(() => {})
+      // Only refresh the order's box list/count before a session exists. Once scanning
+      // is underway, re-fetching here would silently change totalExpected under an
+      // operator who may already be at 100% — reported as "now it asks for more boxes
+      // than it should" even though nothing about the real order changed.
+      if (!sessionId) {
+        qc.invalidateQueries({ queryKey: ['wms-outbound-detail', obc] })
+        refreshSheet('outbound').catch(() => {})
+      }
       toast.success(t('connection.restored'))
     } catch {
       toast.warning(t('connection.still_offline'))
