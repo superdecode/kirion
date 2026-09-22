@@ -128,6 +128,8 @@ export function requirePermission(modulePath, action) {
     const hasPermission = resolvePermission(level, action)
 
     if (!hasPermission) {
+      console.warn('[permissions] denied user=%s tenant=%s module=%s action=%s level=%s route=%s',
+        user.id, req.tenantId, modulePath, action, level, req.originalUrl)
       return res.status(403).json({ error: 'No tienes permisos para esta acción' })
     }
 
@@ -157,6 +159,8 @@ export function requireAnyPermission(candidates) {
     })
 
     if (!hasAnyPermission) {
+      console.warn('[permissions] denied(any) user=%s tenant=%s candidates=%s route=%s',
+        user.id, req.tenantId, JSON.stringify(candidates), req.originalUrl)
       return res.status(403).json({ error: 'No tienes permisos para esta acción' })
     }
 
