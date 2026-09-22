@@ -2234,6 +2234,7 @@ export default {
     'surtido.validacion.error_no_boxes':            'Esta orden no tiene cajas registradas.',
     'surtido.validacion.error_no_codes':            'Las cajas de esta orden no tienen códigos escaneables.',
     'surtido.validacion.error_no_data':                  'No se pudo cargar la información de la orden. intenta de nuevo.',
+    'surtido.validacion.error_partial_data':             'No se pudo confirmar la lista completa de cajas de esta orden (problema de conexión). Espera un momento e intenta de nuevo antes de escanear.',
     'surtido.validacion.error_obc_not_found':            'Orden no encontrada en la base de datos del sistema.',
     'surtido.validacion.error_sheet_not_configured':     'La integración de datos no está configurada. ve a WMSHUB > configuración.',
     'surtido.validacion.error_sheet_empty':              'La hoja de datos no tiene registros disponibles todavía.',
