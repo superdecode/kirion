@@ -429,6 +429,11 @@ export default function Escaneo() {
   // placeholder for the real ids. Scans already shown locally are untouched —
   // they were queued against the temp id and offlineStore has already rewritten
   // them to point at the real one (relocateQueuedDropscanScans).
+  // A reconciliation can also carry an `error` instead of session/tarima data —
+  // the session could never be created (plan/session limit, etc). Mark the tab
+  // as ended instead of leaving it stuck showing "sin confirmar" forever; any
+  // scans shown locally for it were already discarded from the offline queue
+  // (discardQueuedDropscanScans) and need to be redone in a new session.
   const dropscanReconciliations = useOfflineStore((s) => s.dropscanReconciliations)
   useEffect(() => {
     const pendingIds = Object.keys(dropscanReconciliations)
@@ -436,9 +441,17 @@ export default function Escaneo() {
     setTabs(prev => prev.map(t => {
       if (!t.offlineSession || !pendingIds.includes(t.session?.id)) return t
       const data = dropscanReconciliations[t.session.id]
+      if (data.error) {
+        return { ...t, offlineSession: false, sessionEnded: true, lastScan: { type: 'error', message: data.error } }
+      }
       return { ...t, session: data.sesion, tarima: data.tarima_actual, offlineSession: false }
     }))
-    pendingIds.forEach(id => useOfflineStore.getState().clearDropscanReconciliation(id))
+    pendingIds.forEach(id => {
+      if (dropscanReconciliations[id].error) {
+        toast.error(`${dropscanReconciliations[id].error} — reinicia esta sesión para seguir escaneando`)
+      }
+      useOfflineStore.getState().clearDropscanReconciliation(id)
+    })
   }, [dropscanReconciliations])
 
   /* ── operator auth flow ────────────────────────────── */

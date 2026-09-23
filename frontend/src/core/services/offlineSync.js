@@ -131,16 +131,32 @@ export async function syncModuleQueue() {
           const { orderId, from, to } = item.payload
           await relocateScanEvents(orderId, from, to)
         } else if (item.type === 'dropscan_session_start') {
-          const data = await startSession(item.payload.empresa_id, item.payload.canal_id, {
-            ...item.payload.operadorPayload,
-            client_start_id: item.payload.client_start_id,
-          })
-          // Rewrite any scans still queued against the temporary offline session/tarima
-          // id before they get drained by syncOfflineQueue (see ConnectionBanner's
-          // sequencing), and let Escaneo.jsx know it can swap the tab's placeholder
-          // session/tarima for the real ones.
-          store.relocateQueuedDropscanScans(item.payload.tempSessionId, data.sesion.id, data.tarima_actual.id)
-          store.setDropscanReconciliation(item.payload.tempSessionId, data)
+          try {
+            const data = await startSession(item.payload.empresa_id, item.payload.canal_id, {
+              ...item.payload.operadorPayload,
+              client_start_id: item.payload.client_start_id,
+            })
+            // Rewrite any scans still queued against the temporary offline session/tarima
+            // id before they get drained by syncOfflineQueue (see ConnectionBanner's
+            // sequencing), and let Escaneo.jsx know it can swap the tab's placeholder
+            // session/tarima for the real ones.
+            store.relocateQueuedDropscanScans(item.payload.tempSessionId, data.sesion.id, data.tarima_actual.id)
+            store.setDropscanReconciliation(item.payload.tempSessionId, data)
+          } catch (startErr) {
+            const s = startErr.response?.status
+            const transient = !s || s === 401 || s === 403 || s === 429 || s >= 500
+            if (!transient) {
+              // The session can never be created (plan/session limit, etc, not a
+              // network blip) — any scans still queued against its temp id would
+              // otherwise retry forever against an id the server will never issue,
+              // jamming every future DropScan sync behind them, not just this one.
+              store.discardQueuedDropscanScans(item.payload.tempSessionId)
+              store.setDropscanReconciliation(item.payload.tempSessionId, {
+                error: startErr.response?.data?.error || 'No se pudo iniciar la sesión',
+              })
+            }
+            throw startErr
+          }
         }
         store.dequeueModule(item.id)
         synced++

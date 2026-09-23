@@ -119,6 +119,18 @@ export const useOfflineStore = create(
         }))
       },
 
+      /**
+       * Drops any queued scans still pointing at a temporary offline session id
+       * whose real session could never be created (a definitive rejection like a
+       * plan/session limit, not a transient network error). Without this, those
+       * scans would sit in the queue forever retrying an id the server will never
+       * issue, jamming syncOfflineQueue for every future DropScan sync — not just
+       * this one session's.
+       */
+      discardQueuedDropscanScans: (tempSessionId) => {
+        set((s) => ({ queue: s.queue.filter((item) => item.sessionId !== tempSessionId) }))
+      },
+
       /** Reconciliation results for DropScan sessions started offline, keyed by
        * the temporary session id — Escaneo.jsx watches this to swap an open tab's
        * placeholder session/tarima for the real ones once synced. */
