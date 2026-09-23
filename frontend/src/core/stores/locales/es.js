@@ -524,6 +524,7 @@ export default {
     'operador.locked': 'Bloqueado',
     'operador.lockedMessage': 'Demasiados intentos fallidos. intente en {minutes} minutos.',
     'operador.noOperators': 'No hay escaneadores activos. contacte al administrador para agregar escaneadores internos en configuración.',
+    'operador.pinRequiresConnection': 'Sin conexión no se puede validar el PIN. reconéctate para continuar.',
     // Recount Mode
     'recount.title': 'Modo Reconteo',
     'recount.subtitle': 'Validación rápida de guías en la tarima actual',

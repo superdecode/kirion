@@ -653,6 +653,7 @@ export default {
     'operador.locked': '已锁定',
     'operador.lockedMessage': '尝试次数过多，请在{minutes}分钟后重试。',
     'operador.noOperators': '暂无活跃扫描员。请联系管理员在配置中添加内部扫描员。',
+    'operador.pinRequiresConnection': '离线状态下无法验证PIN码，请重新连接后再试。',
 
     // Recount Mode / 复盘模式
     'recount.title': '复盘模式',

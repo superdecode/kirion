@@ -24,6 +24,7 @@ import {
 import { scoreTrackingCode } from '../utils/trackingValidator'
 import { useOfflineStore } from '../../../core/stores/offlineStore'
 import { playSound, initAudio } from '../../Shared/Wms/playSound'
+import { readConfigCache, writeConfigCache } from '../utils/offlineConfigCache'
 
 /* ─── session timer hook ─────────────────────────────── */
 function useSessionTimer(sessionStartTime) {
@@ -235,9 +236,25 @@ export default function Escaneo() {
     } catch { toast.error(t('toast.error')) }
   }
 
-  const { data: empresasData, isSuccess: empresasLoaded } = useQuery({ queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas, enabled: backendOnline })
-  const { data: canalesData, isSuccess: canalesLoaded } = useQuery({ queryKey: ['dropscan-canales'], queryFn: ds.getCanales, enabled: backendOnline })
-  const { data: parametrosData } = useQuery({ queryKey: ['dropscan-parametros'], queryFn: ds.getParametros, enabled: backendOnline })
+  // initialData seeds these from localStorage so a cold load while offline (or a
+  // reconnect gone stale) still has the last-known-good catalogs to start a
+  // session against, instead of an empty/blocking picker. The effects below keep
+  // that cache fresh whenever a live fetch actually succeeds.
+  const { data: empresasData, isSuccess: empresasLoaded } = useQuery({
+    queryKey: ['dropscan-empresas'], queryFn: ds.getEmpresas, enabled: backendOnline,
+    initialData: () => readConfigCache('empresas'),
+  })
+  const { data: canalesData, isSuccess: canalesLoaded } = useQuery({
+    queryKey: ['dropscan-canales'], queryFn: ds.getCanales, enabled: backendOnline,
+    initialData: () => readConfigCache('canales'),
+  })
+  const { data: parametrosData } = useQuery({
+    queryKey: ['dropscan-parametros'], queryFn: ds.getParametros, enabled: backendOnline,
+    initialData: () => readConfigCache('parametros'),
+  })
+  useEffect(() => { if (backendOnline && empresasData) writeConfigCache('empresas', empresasData) }, [backendOnline, empresasData])
+  useEffect(() => { if (backendOnline && canalesData) writeConfigCache('canales', canalesData) }, [backendOnline, canalesData])
+  useEffect(() => { if (backendOnline && parametrosData) writeConfigCache('parametros', parametrosData) }, [backendOnline, parametrosData])
   const gpt = parametrosData?.guias_por_tarima || 100
   const pesoHabilitado = parametrosData?.peso_habilitado === true
   const unidadPeso = parametrosData?.unidad_peso || 'kg'
