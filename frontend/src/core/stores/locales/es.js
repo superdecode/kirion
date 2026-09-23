@@ -544,6 +544,8 @@ export default {
     'scan.newScanSession': 'Nueva Sesión de Escaneo',
     'scan.starting': 'Iniciando...',
     'scan.sessionStarted': 'Sesión Iniciada',
+    'scan.sessionQueuedOffline': 'Sesión guardada offline — se sincronizará al reconectar',
+    'scan.offlineNeedsCachedOptions': 'Conéctate al menos una vez para cargar las opciones de esta sección',
     'scan.sessionEnded': 'Sesión Finalizada',
     'scan.sound': 'Sonido',
     'scan.mute': 'Silencio',

@@ -393,6 +393,8 @@ export default {
     'scan.deleteLastGuide': '删除最后一个面单',
     'scan.guideDeleted': '面单已删除',
     'scan.sessionStarted': '会话已开始',
+    'scan.sessionQueuedOffline': '会话已离线保存 — 重新连接后将自动同步',
+    'scan.offlineNeedsCachedOptions': '请先联网一次以加载此页面所需的选项',
     'scan.sessionEnded': '会话已结束',
     'scan.newScanSession': '新建扫描会话',
     'scan.starting': '启动中...',

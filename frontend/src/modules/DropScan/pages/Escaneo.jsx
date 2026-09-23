@@ -19,7 +19,7 @@ import {
   ScanBarcode, Play, Square, Package, Trash2, Search,
   CheckCircle, XCircle, Volume2, VolumeX,
   PanelRightClose, PanelRightOpen, Clock, Ban, AlertTriangle, Plus, X, Building2, Radio, RotateCcw,
-  Download, Edit3, Lock, ShieldAlert, Timer, Zap
+  Download, Edit3, Lock, ShieldAlert, Timer, Zap, WifiOff
 } from 'lucide-react'
 import { scoreTrackingCode } from '../utils/trackingValidator'
 import { useOfflineStore } from '../../../core/stores/offlineStore'
@@ -424,6 +424,23 @@ export default function Escaneo() {
     })
   }, [activeTabId])
 
+  // Once a session started offline is confirmed (real session/tarima created on
+  // reconnect, see offlineSync's syncModuleQueue), swap the tab's temporary
+  // placeholder for the real ids. Scans already shown locally are untouched —
+  // they were queued against the temp id and offlineStore has already rewritten
+  // them to point at the real one (relocateQueuedDropscanScans).
+  const dropscanReconciliations = useOfflineStore((s) => s.dropscanReconciliations)
+  useEffect(() => {
+    const pendingIds = Object.keys(dropscanReconciliations)
+    if (pendingIds.length === 0) return
+    setTabs(prev => prev.map(t => {
+      if (!t.offlineSession || !pendingIds.includes(t.session?.id)) return t
+      const data = dropscanReconciliations[t.session.id]
+      return { ...t, session: data.sesion, tarima: data.tarima_actual, offlineSession: false }
+    }))
+    pendingIds.forEach(id => useOfflineStore.getState().clearDropscanReconciliation(id))
+  }, [dropscanReconciliations])
+
   /* ── operator auth flow ────────────────────────────── */
   const [authTarget, setAuthTarget] = useState('start') // 'start' or 'addTab'
 
@@ -483,12 +500,52 @@ export default function Escaneo() {
       return
     }
     if (!pickerEmpresa || !pickerCanal) return
+
+    const emp = empresas.find(e => e.id === parseInt(pickerEmpresa))
+    const can = allCanales.find(c => c.id === parseInt(pickerCanal))
+
+    if (useOfflineStore.getState().status === 'offline') {
+      // Starting a session normally creates the tarima/session server-side (a
+      // sequential tarima code, real ids every scan afterward must reference).
+      // Offline, we can't get those — queue the start instead, and open the tab
+      // against a clearly-temporary placeholder so scanning (already
+      // offline-capable, see performActualScan) can proceed immediately.
+      if (!emp || !can) {
+        toast.error(t('scan.offlineNeedsCachedOptions'))
+        return
+      }
+      const operadorPayload = getSessionPayload()
+      // Used both as the local placeholder id (session.id/tarima.id for this tab
+      // until reconciled) and as the client_start_id sent to the backend, so a
+      // replayed start is idempotent on the same value.
+      const tempId = `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const tabId = ++tabCounter
+      const tab = {
+        ...newTabState(tabId),
+        session: { id: tempId, empresa_id: emp.id, canal_id: can.id, activa: true },
+        tarima: { id: tempId, codigo: 'PENDIENTE', cantidad_guias: 0, estado: 'EN_PROCESO' },
+        empresa: emp,
+        canal: can,
+        offlineSession: true,
+      }
+      useOfflineStore.getState().enqueueModule({
+        type: 'dropscan_session_start',
+        payload: { empresa_id: emp.id, canal_id: can.id, operadorPayload, client_start_id: tempId, tempSessionId: tempId },
+      })
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tabId)
+      setShowStartModal(false)
+      setShowAddTabModal(false)
+      setPickerEmpresa('')
+      setPickerCanal('')
+      toast.info(t('scan.sessionQueuedOffline'))
+      return
+    }
+
     setIsStarting(true)
     try {
       const operadorPayload = getSessionPayload()
       const data = await ds.startSession(parseInt(pickerEmpresa), parseInt(pickerCanal), operadorPayload)
-      const emp = empresas.find(e => e.id === parseInt(pickerEmpresa))
-      const can = allCanales.find(c => c.id === parseInt(pickerCanal))
       const tabId = ++tabCounter
       const tab = {
         ...newTabState(tabId),
@@ -1238,6 +1295,13 @@ export default function Escaneo() {
                     <p className="text-3xl font-black text-warm-800 tracking-tighter leading-none">{currentGuias}<span className="text-xs font-medium text-warm-400">/{gpt}</span></p>
                   </div>
                 </div>
+
+                {tab.offlineSession && (
+                  <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg bg-warning-50 text-warning-700 text-[10px] font-semibold">
+                    <WifiOff className="w-3 h-3 shrink-0" />
+                    {t('scan.sessionQueuedOffline')}
+                  </div>
+                )}
 
                 {/* Progress bar */}
                 <div className="w-full h-2.5 bg-warm-100 rounded-full overflow-hidden border border-warm-200/50">
