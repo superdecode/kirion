@@ -102,6 +102,47 @@ export const useOfflineStore = create(
         }))
         return touched
       },
+
+      /**
+       * Rewrites any queued DropScan scan items still pointing at a temporary
+       * offline session/tarima id, once the real session/tarima has been created
+       * on reconnect. Must run before syncOfflineQueue() drains the legacy queue,
+       * or those scans would be replayed against an id the server never issued.
+       */
+      relocateQueuedDropscanScans: (tempSessionId, realSessionId, realTarimaId) => {
+        set((s) => ({
+          queue: s.queue.map((item) =>
+            item.sessionId === tempSessionId
+              ? { ...item, sessionId: realSessionId, tarimaId: realTarimaId }
+              : item
+          ),
+        }))
+      },
+
+      /**
+       * Drops any queued scans still pointing at a temporary offline session id
+       * whose real session could never be created (a definitive rejection like a
+       * plan/session limit, not a transient network error). Without this, those
+       * scans would sit in the queue forever retrying an id the server will never
+       * issue, jamming syncOfflineQueue for every future DropScan sync — not just
+       * this one session's.
+       */
+      discardQueuedDropscanScans: (tempSessionId) => {
+        set((s) => ({ queue: s.queue.filter((item) => item.sessionId !== tempSessionId) }))
+      },
+
+      /** Reconciliation results for DropScan sessions started offline, keyed by
+       * the temporary session id — Escaneo.jsx watches this to swap an open tab's
+       * placeholder session/tarima for the real ones once synced. */
+      dropscanReconciliations: {},
+      setDropscanReconciliation: (tempSessionId, data) =>
+        set((s) => ({ dropscanReconciliations: { ...s.dropscanReconciliations, [tempSessionId]: data } })),
+      clearDropscanReconciliation: (tempSessionId) =>
+        set((s) => {
+          const next = { ...s.dropscanReconciliations }
+          delete next[tempSessionId]
+          return { dropscanReconciliations: next }
+        }),
     }),
     {
       name: 'wms-offline-queue',

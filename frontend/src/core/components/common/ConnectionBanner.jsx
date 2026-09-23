@@ -19,7 +19,12 @@ export default function ConnectionBanner() {
   const degraded = status === 'online' && quality === 'degraded'
 
   const handleSync = useCallback(async () => {
-    const [r1, r2] = await Promise.all([syncOfflineQueue(), syncModuleQueue()])
+    // Sequential, not Promise.all: syncModuleQueue() reconciles any DropScan
+    // session started offline (rewriting queued scans from the temporary
+    // session/tarima id to the real one) — syncOfflineQueue() must run after,
+    // not concurrently, or a scan could be replayed against the temp id first.
+    const r2 = await syncModuleQueue()
+    const r1 = await syncOfflineQueue()
     const totalSynced = r1.synced + r2.synced
     const totalFailed = r1.failed + r2.failed
     if (totalSynced > 0) {
