@@ -10,10 +10,34 @@
 const DEFAULT_TZ = 'America/Mexico_City'
 
 /**
+ * Only accept values Intl recognizes as a valid IANA timezone, falling back to
+ * the default otherwise. `tz` here is almost always `req.fullUser?.zona_horaria`,
+ * which is validated with this exact same Intl check at write time (both the
+ * tenant self-service preferences endpoint and the admin tenant-settings
+ * endpoint) — but that's no guarantee for every row: legacy data written
+ * before validation existed, a direct DB edit, or some future write path that
+ * doesn't go through either endpoint. dateInTZ/instantDateInTZ/hourInTZ below
+ * interpolate `tz` directly into a SQL string literal (`AT TIME ZONE '${tz}'`)
+ * with no further escaping, so an unrecognized value doesn't just silently
+ * misbehave — Postgres throws on it, turning every date-filtered query for
+ * that user/tenant into a hard 500 across every module that filters by date.
+ * Sanitizing at the point of use, not just at write time, closes that.
+ */
+function safeTz(tz) {
+  if (!tz || typeof tz !== 'string') return DEFAULT_TZ
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
+    return tz
+  } catch {
+    return DEFAULT_TZ
+  }
+}
+
+/**
  * Returns today's date as 'YYYY-MM-DD' in the given timezone.
  */
 export function getToday(tz = DEFAULT_TZ) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
+  return new Intl.DateTimeFormat('en-CA', { timeZone: safeTz(tz) }).format(new Date())
 }
 
 /** @deprecated Use getToday() instead */
@@ -30,7 +54,7 @@ export const getTodayMX = () => getToday(DEFAULT_TZ)
  *   ... AT TIME ZONE 'user_tz'      → converts to local  → returns TIMESTAMP
  */
 export function dateInTZ(col, tz = DEFAULT_TZ) {
-  return `(${col} AT TIME ZONE 'UTC' AT TIME ZONE '${tz}')::DATE`
+  return `(${col} AT TIME ZONE 'UTC' AT TIME ZONE '${safeTz(tz)}')::DATE`
 }
 
 /**
@@ -38,7 +62,7 @@ export function dateInTZ(col, tz = DEFAULT_TZ) {
  * Unlike TIMESTAMP columns, TIMESTAMPTZ already identifies an absolute instant.
  */
 export function instantDateInTZ(col, tz = DEFAULT_TZ) {
-  return `(${col} AT TIME ZONE '${tz}')::DATE`
+  return `(${col} AT TIME ZONE '${safeTz(tz)}')::DATE`
 }
 
 /** @deprecated Use dateInTZ() instead */
@@ -48,7 +72,7 @@ export const dateMX = (col) => dateInTZ(col, DEFAULT_TZ)
  * SQL expression to extract hour (0-23) in the given timezone.
  */
 export function hourInTZ(col, tz = DEFAULT_TZ) {
-  return `EXTRACT(HOUR FROM (${col} AT TIME ZONE 'UTC' AT TIME ZONE '${tz}'))`
+  return `EXTRACT(HOUR FROM (${col} AT TIME ZONE 'UTC' AT TIME ZONE '${safeTz(tz)}'))`
 }
 
 /** @deprecated Use hourInTZ() instead */
