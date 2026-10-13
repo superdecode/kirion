@@ -564,6 +564,19 @@ export default function ValidarPorDestino({ folioId }) {
   const { mutate: doAddScan } = useMutation({
     mutationKey: ['despacho-add-scan', folioId],
     mutationFn: (body) => addFolioScan(folioId, body),
+    // Mutations get no automatic retry by default — a brief backend/DB-pool blip
+    // (the kind that briefly 503s many unrelated endpoints at once) otherwise
+    // fails this scan immediately with no "works a moment later" grace, reading
+    // as the system simply refusing to register the box. Retry only network
+    // errors/5xx, never a real rejection (duplicate, wrong order, etc.) — the
+    // backend's own duplicate detection also makes a retried-after-timeout scan
+    // safe to resend.
+    retry: (failureCount, error) => {
+      const status = error?.response?.status
+      if (failureCount >= 2) return false
+      return !status || status >= 500
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     onMutate: async (body) => {
       const queryKey = ['despacho-folio-scans', folioId]
       await qc.cancelQueries({ queryKey })
