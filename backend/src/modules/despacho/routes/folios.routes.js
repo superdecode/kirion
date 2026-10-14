@@ -137,8 +137,8 @@ function conflictErrorMessage(conflicts) {
 }
 
 async function getFolioDetail(req, folioId) {
-  const [folioRes, ordersRes] = await Promise.all([
-    req.tQuery(
+  const [folioRes, ordersRes] = await req.tTransaction((client) => Promise.all([
+    client.query(
       `SELECT f.*,
               c.nombre AS conductor_nombre, c.licencia AS conductor_licencia, c.telefono AS conductor_telefono,
               u.placa AS unidad_placa, u.tipo AS unidad_tipo,
@@ -153,7 +153,7 @@ async function getFolioDetail(req, folioId) {
        GROUP BY f.id, c.nombre, c.licencia, c.telefono, u.placa, u.tipo, us.nombre_completo`,
       [folioId, req.tenantId]
     ),
-    req.tQuery(
+    client.query(
       `SELECT o.*, COALESCE(ps.total_scanned, 0) AS surtido_validadas
        FROM dispatch_folio_orders o
        LEFT JOIN (
@@ -165,7 +165,7 @@ async function getFolioDetail(req, folioId) {
        ORDER BY o.created_at ASC`,
       [folioId, req.tenantId]
     ),
-  ])
+  ]))
   if (folioRes.rows.length === 0) return null
 
   const orderIds = ordersRes.rows.map(o => o.id)
@@ -546,8 +546,8 @@ router.get('/:id/logs',
   async (req, res) => {
     try {
       const folioId = req.params.id
-      const [eventsRes, periodsRes] = await Promise.all([
-        req.tQuery(
+      const [eventsRes, periodsRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT al.id, al.action, al.details, al.created_at AS at,
                   al.user_id, al.user_email, u.nombre_completo AS actor_name
            FROM audit_log al
@@ -560,7 +560,7 @@ router.get('/:id/logs',
            ORDER BY al.created_at DESC`,
           [req.tenantId, folioId]
         ),
-        req.tQuery(
+        client.query(
           `SELECT dos.validated_by AS operator_id, u.nombre_completo AS operator_name,
                   MIN(dos.validated_at) AS started_at, MAX(dos.validated_at) AS ended_at,
                   COUNT(*) AS scan_count
@@ -571,7 +571,7 @@ router.get('/:id/logs',
            ORDER BY started_at ASC`,
           [req.tenantId, folioId]
         ),
-      ])
+      ]))
 
       const events = eventsRes.rows.map(row => ({
         type: 'event',

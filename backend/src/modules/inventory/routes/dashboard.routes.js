@@ -32,9 +32,9 @@ router.get('/',
         topResponsablesRes,
         escaneoTendenciaRes,
         sesionesStatsRes,
-      ] = await Promise.all([
+      ] = await req.tTransaction((client) => Promise.all([
         // Cajas en sistema por estado (desde inv_scans)
-        req.tQuery(
+        client.query(
           `SELECT
              COALESCE(SUM(CASE WHEN sc.scan_status = 'ok' THEN 1 ELSE 0 END), 0) AS disponibles,
              COALESCE(SUM(CASE WHEN sc.scan_status = 'blocked' THEN 1 ELSE 0 END), 0) AS bloqueadas,
@@ -45,7 +45,7 @@ router.get('/',
           [req.tenantId]
         ),
         // Órdenes de rastreo activas
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) AS activas
            FROM rastreo_ordenes
            WHERE tenant_id = $1
@@ -53,7 +53,7 @@ router.get('/',
           [req.tenantId]
         ),
         // Desglose de cajas por estado en rastreos activos
-        req.tQuery(
+        client.query(
           `SELECT rc.estado_caja, COUNT(*) AS cantidad
            FROM rastreo_cajas rc
            JOIN rastreo_ordenes ro ON ro.id = rc.rastreo_orden_id
@@ -64,7 +64,7 @@ router.get('/',
           [req.tenantId]
         ),
         // Cajas escaneadas del mes (range)
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) AS total_mes
            FROM inv_scans sc
            JOIN inv_sessions sess ON sess.id = sc.session_id AND sess.tenant_id = $1
@@ -72,7 +72,7 @@ router.get('/',
           [req.tenantId, monthStart, monthEnd]
         ),
         // Tasa de resolución de rastreo
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) AS total,
              COUNT(*) FILTER (WHERE COALESCE(estado, '') IN ('completado', 'completada', 'resuelta')) AS completados,
@@ -83,7 +83,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Rastreos creados/cerrados esta semana
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) FILTER (WHERE ${instantDateInTZ('created_at', tz)} BETWEEN $2 AND $3) AS creados_semana,
              COUNT(*) FILTER (
@@ -95,7 +95,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Tiempo promedio de resolución de rastreo
-        req.tQuery(
+        client.query(
           `SELECT
              ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - created_at))/3600)::numeric, 1) AS horas_promedio
            FROM rastreo_ordenes
@@ -105,7 +105,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Top responsables de rastreo
-        req.tQuery(
+        client.query(
           `SELECT u.nombre_completo AS responsable, COUNT(ro.id) AS cantidad
            FROM rastreo_ordenes ro
            JOIN usuarios u ON u.id = ro.asignado_a AND u.tenant_id = ro.tenant_id
@@ -118,7 +118,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Daily escaneo trend in date range
-        req.tQuery(
+        client.query(
           `SELECT
              ${instantDateInTZ('sc.scanned_at', tz)} AS fecha,
              COUNT(*) AS escaneos
@@ -130,7 +130,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Session aggregate stats for the period
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) AS total_sesiones,
              COALESCE(SUM(total_scans), 0) AS total_escaneos,
@@ -142,7 +142,7 @@ router.get('/',
              AND ${instantDateInTZ('started_at', tz)} BETWEEN $2 AND $3`,
           [req.tenantId, dateStart, dateEnd]
         ),
-      ])
+      ]))
 
       const cajas = cajasEstadoRes.rows[0] || {}
       const rastreoTasa = tasaRastreoRes.rows[0] || {}

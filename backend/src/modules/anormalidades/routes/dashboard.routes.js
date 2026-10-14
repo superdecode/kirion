@@ -33,42 +33,42 @@ router.get('/',
         procesosRes, origenRes, tendenciaRes, rankingRes,
         ultimasAbiertasRes, ultimasL3Res, estadoRes, responsablesRes,
         slaRes, agingRes, cierresRecientesRes,
-      ] = await Promise.all([
+      ] = await req.tTransaction((client) => Promise.all([
         // Incidencias del día
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) FROM anormalidades
            WHERE tenant_id = $1
              AND fecha_ocurrencia::date = CURRENT_DATE`,
           [req.tenantId]
         ),
         // Total pendientes sin cerrar
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) FROM anormalidades
            WHERE tenant_id = $1 AND estado NOT IN ('cerrado')`,
           [req.tenantId]
         ),
         // L3 críticas abiertas
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) FROM anormalidades
            WHERE tenant_id = $1 AND nivel = $2 AND estado NOT IN ('cerrado')`,
           [req.tenantId, criticalNivel]
         ),
         // Vencidas
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) FROM anormalidades
            WHERE tenant_id = $1 AND estado NOT IN ('cerrado')
              AND fecha_limite < now()`,
           [req.tenantId]
         ),
         // Total del rango
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) FROM anormalidades
            WHERE tenant_id = $1
              AND fecha_ocurrencia BETWEEN $2 AND $3`,
           [req.tenantId, desde, hasta]
         ),
         // Tasa de cierre del rango
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) FILTER (WHERE estado = 'cerrado') AS cerradas,
              COUNT(*) AS total
@@ -78,7 +78,7 @@ router.get('/',
           [req.tenantId, desde, hasta]
         ),
         // Por proceso
-        req.tQuery(
+        client.query(
           `SELECT proceso, COUNT(*) AS cantidad
            FROM anormalidades
            WHERE tenant_id = $1
@@ -88,7 +88,7 @@ router.get('/',
           [req.tenantId, desde, hasta]
         ),
         // Por origen de responsabilidad
-        req.tQuery(
+        client.query(
           `SELECT origen_responsabilidad, COUNT(*) AS cantidad
            FROM anormalidades
            WHERE tenant_id = $1
@@ -99,7 +99,7 @@ router.get('/',
           [req.tenantId, desde, hasta]
         ),
         // Tendencia semanal
-        req.tQuery(
+        client.query(
           `SELECT
              DATE_TRUNC('week', fecha_ocurrencia) AS semana,
              COUNT(*) AS cantidad
@@ -111,7 +111,7 @@ router.get('/',
           [req.tenantId, desde, hasta]
         ),
         // Top 5 códigos
-        req.tQuery(
+        client.query(
           `SELECT codigo, nombre, COUNT(*) AS cantidad
            FROM anormalidades
            WHERE tenant_id = $1
@@ -122,7 +122,7 @@ router.get('/',
           [req.tenantId, desde, hasta]
         ),
         // Últimas 10 abiertas
-        req.tQuery(
+        client.query(
           `SELECT a.id, a.folio, a.nivel, a.proceso, a.estado, a.cliente,
                   a.fecha_ocurrencia, u.nombre_completo AS responsable_nombre,
                   EXTRACT(EPOCH FROM (now() - a.created_at))/86400 AS dias_abierto
@@ -134,7 +134,7 @@ router.get('/',
           [req.tenantId]
         ),
         // Últimas 5 L3
-        req.tQuery(
+        client.query(
           `SELECT a.id, a.folio, a.nivel, a.proceso, a.estado, a.cliente,
                   a.fecha_ocurrencia, u.nombre_completo AS responsable_nombre
            FROM anormalidades a
@@ -144,7 +144,7 @@ router.get('/',
            LIMIT 5`,
           [req.tenantId, criticalNivel]
         ),
-        req.tQuery(
+        client.query(
           `SELECT
              CASE WHEN estado != 'cerrado' AND fecha_limite < now() THEN 'vencido' ELSE estado END AS estado,
              COUNT(*) AS cantidad
@@ -155,7 +155,7 @@ router.get('/',
            ORDER BY cantidad DESC`,
           [req.tenantId, desde, hasta]
         ),
-        req.tQuery(
+        client.query(
           `SELECT COALESCE(u.nombre_completo, 'Sin asignar') AS responsable,
                   COUNT(*) AS cantidad
            FROM anormalidades a
@@ -167,7 +167,7 @@ router.get('/',
            LIMIT 5`,
           [req.tenantId, desde, hasta]
         ),
-        req.tQuery(
+        client.query(
           `SELECT nivel,
                   COUNT(*) FILTER (WHERE estado = 'cerrado') AS cerradas,
                   COUNT(*) FILTER (
@@ -184,7 +184,7 @@ router.get('/',
            ORDER BY nivel`,
           [req.tenantId, desde, hasta]
         ),
-        req.tQuery(
+        client.query(
           `SELECT bucket, COUNT(*) AS cantidad
            FROM (
              SELECT CASE
@@ -205,7 +205,7 @@ router.get('/',
            END`,
           [req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           `SELECT a.id, a.folio, a.nivel, a.proceso, a.cliente, a.fecha_cierre,
                   EXTRACT(EPOCH FROM (a.fecha_cierre - a.created_at))/3600 AS horas_resolucion
            FROM anormalidades a
@@ -216,7 +216,7 @@ router.get('/',
            LIMIT 8`,
           [req.tenantId]
         ),
-      ])
+      ]))
 
       const cerradas = parseInt(cierreRes.rows[0].cerradas)
       const totalRango = parseInt(cierreRes.rows[0].total)

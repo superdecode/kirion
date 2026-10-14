@@ -55,9 +55,9 @@ router.get('/',
         anormalidadesRes,
         topOperadoresRes,
         tendenciaRes,
-      ] = await Promise.all([
+      ] = await req.tTransaction((client) => Promise.all([
         // Órdenes únicas por estado operativo derivado.
-        req.tQuery(
+        client.query(
           `SELECT
              CASE
                WHEN ps.status = 'complete' THEN 'completado'
@@ -77,7 +77,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Sesiones del día
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(DISTINCT outbound_order_no) AS total_ordenes,
              COUNT(DISTINCT outbound_order_no) FILTER (WHERE status = 'open') AS ordenes_abiertas,
@@ -93,21 +93,21 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Órdenes con faltantes activos
-        req.tQuery(
+        client.query(
           `SELECT COUNT(DISTINCT outbound_order_no) AS ordenes_con_faltantes
            FROM pick_box_status
            WHERE tenant_id = $1 AND estado = 'faltante'`,
           [req.tenantId]
         ),
         // Órdenes con anormalidades activas
-        req.tQuery(
+        client.query(
           `SELECT COUNT(DISTINCT outbound_order_no) AS ordenes_con_anormalidades
            FROM pick_box_status
            WHERE tenant_id = $1 AND estado = 'anormalidad'`,
           [req.tenantId]
         ),
         // Top surtidores por ordenes asignadas (surtidor de la orden, no el operador de sesion)
-        req.tQuery(
+        client.query(
           `SELECT ot.surtidor_nombre AS operador,
                   COUNT(DISTINCT ot.outbound_order_no) AS ordenes,
                   COALESCE(SUM(ps_stats.total_scanned), 0) AS cajas
@@ -129,7 +129,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Tendencia compactada por rango: día, semana, mes o año.
-        req.tQuery(
+        client.query(
           `WITH bounds AS (
              SELECT
                DATE_TRUNC('${trend.bucket}', $2::date::timestamp)::date AS start_period,
@@ -158,7 +158,7 @@ router.get('/',
            ORDER BY p.periodo`,
           [req.tenantId, fecha_inicio, fecha_fin]
         ),
-      ])
+      ]))
 
       const ses = sesionesDiaRes.rows[0] || {}
       const cajasTotales = parseInt(ses.cajas_esperadas || 0)
