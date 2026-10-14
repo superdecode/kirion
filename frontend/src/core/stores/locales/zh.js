@@ -393,6 +393,8 @@ export default {
     'scan.deleteLastGuide': '删除最后一个面单',
     'scan.guideDeleted': '面单已删除',
     'scan.sessionStarted': '会话已开始',
+    'scan.sessionQueuedOffline': '会话已离线保存 — 重新连接后将自动同步',
+    'scan.offlineNeedsCachedOptions': '请先联网一次以加载此页面所需的选项',
     'scan.sessionEnded': '会话已结束',
     'scan.newScanSession': '新建扫描会话',
     'scan.starting': '启动中...',
@@ -651,6 +653,7 @@ export default {
     'operador.locked': '已锁定',
     'operador.lockedMessage': '尝试次数过多，请在{minutes}分钟后重试。',
     'operador.noOperators': '暂无活跃扫描员。请联系管理员在配置中添加内部扫描员。',
+    'operador.pinRequiresConnection': '离线状态下无法验证PIN码，请重新连接后再试。',
 
     // Recount Mode / 复盘模式
     'recount.title': '复盘模式',
