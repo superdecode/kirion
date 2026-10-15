@@ -6,7 +6,7 @@ vi.mock('../config/database.js', () => ({
 }))
 
 const { query } = await import('../config/database.js')
-const { moduleGuard } = await import('../modules/middleware/moduleGuard.js')
+const { moduleGuard, clearModuleAccessCache } = await import('../modules/middleware/moduleGuard.js')
 
 function makeReq(overrides = {}) {
   return {
@@ -30,6 +30,8 @@ function makeRes() {
 describe('moduleGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    query.mockReset()
+    clearModuleAccessCache()
   })
 
   it('returns 401 when tenantId is missing', async () => {
@@ -171,5 +173,58 @@ describe('moduleGuard', () => {
 
     expect(res._status).toBe(503)
     expect(next).not.toHaveBeenCalled()
+  })
+
+  it('serves repeat requests from cache without hitting the database', async () => {
+    query.mockResolvedValueOnce({ rows: [{ enabled: true }] })
+    const guard = moduleGuard('dropscan')
+
+    await guard(makeReq(), makeRes(), vi.fn())
+    const next = vi.fn()
+    await guard(makeReq(), makeRes(), next)
+
+    expect(query).toHaveBeenCalledTimes(1)
+    expect(next).toHaveBeenCalled()
+  })
+
+  it('caches a denial and replays the same status and body', async () => {
+    query.mockResolvedValueOnce({ rows: [{ enabled: false }] })
+    const guard = moduleGuard('surtido')
+
+    await guard(makeReq(), makeRes(), vi.fn())
+    const res = makeRes()
+    await guard(makeReq(), res, vi.fn())
+
+    expect(query).toHaveBeenCalledTimes(1)
+    expect(res._status).toBe(403)
+    expect(res._body.code).toBe('MODULE_DISABLED')
+  })
+
+  it('does not cache database errors', async () => {
+    const error = new Error('unable to check out connection from the pool')
+    error.code = 'ECHECKOUTTIMEOUT'
+    query.mockRejectedValueOnce(error)
+    query.mockResolvedValueOnce({ rows: [{ enabled: true }] })
+    const guard = moduleGuard('dropscan')
+
+    const failed = makeRes()
+    await guard(makeReq(), failed, vi.fn())
+    const next = vi.fn()
+    await guard(makeReq(), makeRes(), next)
+
+    expect(failed._status).toBe(503)
+    expect(query).toHaveBeenCalledTimes(2)
+    expect(next).toHaveBeenCalled()
+  })
+
+  it('caches per tenant and module independently', async () => {
+    query.mockResolvedValue({ rows: [{ enabled: true }] })
+    const guard = moduleGuard('dropscan')
+
+    await guard(makeReq({ tenantId: 'tenant-a' }), makeRes(), vi.fn())
+    await guard(makeReq({ tenantId: 'tenant-b' }), makeRes(), vi.fn())
+    await moduleGuard('surtido')(makeReq({ tenantId: 'tenant-a' }), makeRes(), vi.fn())
+
+    expect(query).toHaveBeenCalledTimes(3)
   })
 })

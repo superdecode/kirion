@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { isDatabaseUnavailableError, query } from '../../config/database.js'
 import env from '../../config/env.js'
+import { createTtlCache } from '../../shared/utils/ttlCache.js'
 
 // Statuses that allow read-only access (frontend shows upgrade prompt)
 const READ_ONLY_STATUSES = new Set(['trial_expired', 'expired'])
@@ -9,12 +10,22 @@ const BLOCKED_STATUSES = new Set(['suspended', 'rejected', 'pending'])
 const TENANT_DB_DEADLINE_MS = parseInt(process.env.TENANT_DB_DEADLINE_MS, 10) || 12000
 const NON_RETRYABLE_TENANT_DB_CODES = new Set(['ECHECKOUTTIMEOUT', 'DB_QUERY_DEADLINE'])
 
+// A suspension or plan change can take up to this long to reach a warm instance.
+const ttlFromEnv = parseInt(process.env.TENANT_CACHE_TTL_MS, 10)
+const TENANT_CACHE_TTL_MS = Number.isFinite(ttlFromEnv) && ttlFromEnv >= 0 ? ttlFromEnv : 30000
+const tenantCache = createTtlCache(TENANT_CACHE_TTL_MS)
+
+export function clearTenantCache() {
+  tenantCache.clear()
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-// Every /api/* request resolves its tenant here with a fresh query (no cache) —
-// under a pooled connection (Supavisor) that occasionally drops a connection
+// Every /api/* request resolves its tenant here, cached per instance (see
+// TENANT_CACHE_TTL_MS) so a burst doesn't spend pool connections on it. On a
+// cache miss, under a pooled connection (Supavisor) that occasionally drops a connection
 // mid-query, this single query becoming a hard failure would 500 the entire
 // request. Retry once on the same transient-error classes tenantQueryWithRetry
 // already handles in auth.js, so a one-off pooler blip doesn't surface as
@@ -108,18 +119,25 @@ export async function tenantContext(req, res, next) {
   try {
     const tenantParam = slug || (jwtTenantId ?? env.LEGACY_TENANT_ID)
     const byId = !!jwtTenantId || useDevFallback
-    const result = await queryTenantWithRetry(
-      byId
-        ? 'SELECT id, slug, status, trial_expires_at, subscription_expires_at, current_plan_id FROM tenants WHERE id = $1 LIMIT 1'
-        : 'SELECT id, slug, status, trial_expires_at, subscription_expires_at, current_plan_id FROM tenants WHERE slug = $1 LIMIT 1',
-      [tenantParam]
-    )
+    const cacheKey = `${byId ? 'id' : 'slug'}:${tenantParam}`
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Tenant no encontrado' })
+    let tenant = tenantCache.get(cacheKey)
+    if (!tenant) {
+      const result = await queryTenantWithRetry(
+        byId
+          ? 'SELECT id, slug, status, trial_expires_at, subscription_expires_at, current_plan_id FROM tenants WHERE id = $1 LIMIT 1'
+          : 'SELECT id, slug, status, trial_expires_at, subscription_expires_at, current_plan_id FROM tenants WHERE slug = $1 LIMIT 1',
+        [tenantParam]
+      )
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Tenant no encontrado' })
+      }
+
+      // Frozen: the same object is shared as req.tenant across cached requests.
+      tenant = Object.freeze({ ...result.rows[0] })
+      tenantCache.set(cacheKey, tenant)
     }
-
-    const tenant = result.rows[0]
 
     if (BLOCKED_STATUSES.has(tenant.status)) {
       const messages = {
