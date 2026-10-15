@@ -1,4 +1,5 @@
 import { extractBaseCode } from '../../Shared/Wms/extractBaseCode'
+import { parseDeliveryDate } from '../../Shared/Wms/deliveryDate'
 
 function fmtDate(dt) {
   if (!dt) return '—'
@@ -16,11 +17,36 @@ function getOrderDate(order, folio) {
   return null
 }
 
+// Requires a clock time before the offset, so a dashed date like "13-10-2026" isn't read as a zone.
+const HAS_TZ = /\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*(Z|[+-]\d{2}(:?\d{2})?)$/i
+
+function fmtClock(str) {
+  const time = str.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap])?\.?\s*m?\.?/i)
+  if (!time) return ''
+  let hour = Number(time[1])
+  const meridiem = time[3]?.toLowerCase()
+  if (meridiem === 'p' && hour < 12) hour += 12
+  if (meridiem === 'a' && hour === 12) hour = 0
+  return ` ${String(hour).padStart(2, '0')}:${time[2]}`
+}
+
 function fmtOrderDate(raw) {
   if (!raw) return '—'
-  const hasTime = raw.length > 10
-  if (hasTime) return fmtDateTime(raw)
-  return fmtDate(raw + 'T12:00:00')
+  const str = String(raw).trim()
+
+  // Raw WMS strings ("13/10/2026 08:30:00") are D/M/Y, which new Date() can't parse.
+  // Zone-aware ISO timestamps (folio created_at) still go through Date.
+  if (!HAS_TZ.test(str)) {
+    const { dateKey } = parseDeliveryDate(str)
+    if (dateKey) {
+      const [y, m, d] = dateKey.split('-')
+      return `${d}/${m}/${y}${fmtClock(str)}`
+    }
+  }
+
+  const parsed = new Date(str.length > 10 ? str : str + 'T12:00:00')
+  if (isNaN(parsed.getTime())) return str
+  return str.length > 10 ? fmtDateTime(str) : fmtDate(str + 'T12:00:00')
 }
 
 function fmtDateTime(dt) {
