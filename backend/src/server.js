@@ -145,12 +145,21 @@ app.use(cors({
 // A busy warehouse floor with several scanners behind one NAT IP shares this
 // single bucket and was tripping 429s on this poll specifically — excluding
 // it doesn't open any abuse surface since it still requires a valid JWT.
+// /public is excluded too: tenant-status/health/plans are cheap, unauthenticated
+// reads fired once per app load on every tab/device sharing that same NAT IP
+// (tenant-status fails open on error already), and the only write-capable
+// routes under /public (signup-requests, track) already carry their own
+// tighter per-route limiters that still apply regardless of this skip.
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: parseInt(process.env.API_RATE_LIMIT_MAX, 10) || 1200,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.originalUrl?.startsWith('/api/recepcion') || req.originalUrl?.startsWith('/api/auth/me'),
+  skip: (req) =>
+    req.originalUrl?.startsWith('/api/recepcion') ||
+    req.originalUrl?.startsWith('/api/auth/me') ||
+    req.originalUrl?.startsWith('/api/public') ||
+    req.originalUrl?.startsWith('/api/dropscan'),
   message: { error: 'Demasiadas solicitudes, intenta más tarde' }
 })
 app.use('/api', generalLimiter)
@@ -164,6 +173,19 @@ const recepcionLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas solicitudes en Recepción, intenta más tarde' }
+})
+
+// DropScan is the warehouse-floor scenario the comment above describes: several
+// scanner devices behind one shared NAT IP, each polling its own config/session
+// state. Give it the same dedicated bucket as Recepción instead of sharing the
+// tenant-wide general limit, which was tripping 429s on /dropscan/config and
+// silently disabling the peso-entry prompt (gated on that config loading).
+const dropscanLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.DROPSCAN_RATE_LIMIT_MAX, 10) || 5000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes en DropScan, intenta más tarde' }
 })
 
 // Rate limiting — stricter for login
@@ -196,6 +218,9 @@ app.use('/api/cron', cronRoutes)
 // Auth routes (tenant resolved inline from Host header)
 app.use('/api/auth/login', loginLimiter)
 app.use('/api/auth', authRoutes)
+
+// DropScan — see dropscanLimiter above for why this gets its own bucket.
+app.use('/api/dropscan', dropscanLimiter)
 
 // All tenant-scoped routes — apply tenantContext first.
 // Core routes carry no moduleGuard, so requireActiveTenant enforces read-only
