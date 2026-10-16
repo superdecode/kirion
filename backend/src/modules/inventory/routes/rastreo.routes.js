@@ -1228,9 +1228,9 @@ router.get('/',
         }
       }
 
-      const [countRes, rowsRes] = await Promise.all([
-        req.tQuery(`SELECT COUNT(*) FROM rastreo_ordenes ro ${where}`, params),
-        req.tQuery(
+      const [countRes, rowsRes] = await req.tTransaction((client) => Promise.all([
+        client.query(`SELECT COUNT(*) FROM rastreo_ordenes ro ${where}`, params),
+        client.query(
           `SELECT ro.*,
                   u.nombre_completo AS asignado_nombre,
                   u2.nombre_completo AS creado_por_nombre,
@@ -1245,7 +1245,7 @@ router.get('/',
            LIMIT $${p++} OFFSET $${p++}`,
           [...params, parseInt(limit), offset]
         ),
-      ])
+      ]))
 
       const normalizedRows = rowsRes.rows.map((row) => ({
         ...row,
@@ -1352,8 +1352,8 @@ router.get('/:folio',
   requirePermission('inventario.rastreo', 'ver'),
   async (req, res) => {
     try {
-      const [ordenRes, cajasRes, histRes] = await Promise.all([
-        req.tQuery(
+      const [ordenRes, cajasRes, histRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT ro.*,
                   u.nombre_completo AS asignado_nombre,
                   u2.nombre_completo AS creado_por_nombre
@@ -1363,7 +1363,7 @@ router.get('/:folio',
            WHERE ro.tenant_id = $1 AND ro.folio = $2`,
           [req.tenantId, req.params.folio]
         ),
-        req.tQuery(
+        client.query(
           `SELECT rc.*, a.folio AS anormalidad_folio,
                   ct.descripcion AS causa_descripcion, ct.area AS causa_area
            FROM rastreo_cajas rc
@@ -1375,7 +1375,7 @@ router.get('/:folio',
            ORDER BY rc.created_at`,
           [req.tenantId, req.params.folio]
         ),
-        req.tQuery(
+        client.query(
           `SELECT rh.*, u.nombre_completo AS actor_nombre
            FROM rastreo_historial rh
            LEFT JOIN usuarios u ON u.id = rh.actor_id
@@ -1385,7 +1385,7 @@ router.get('/:folio',
            ORDER BY rh.created_at DESC`,
           [req.tenantId, req.params.folio]
         ),
-      ])
+      ]))
 
       if (!ordenRes.rows.length) return res.status(404).json({ error: 'Orden no encontrada' })
       const orden = ordenRes.rows[0]
@@ -1393,8 +1393,8 @@ router.get('/:folio',
       let cajasWithSurtido = cajasRes.rows
 
       if (orden.outbound_order_no) {
-        const [trackingRes, cajaSurtidoRes] = await Promise.all([
-          req.tQuery(
+        const [trackingRes, cajaSurtidoRes] = await req.tTransaction((client) => Promise.all([
+          client.query(
             `SELECT ot.*, s.nombre AS surtidor_nombre_actual
                FROM pick_order_tracking ot
                LEFT JOIN pick_surtidores s ON s.id = ot.surtidor_id AND s.tenant_id = ot.tenant_id
@@ -1403,7 +1403,7 @@ router.get('/:folio',
             [req.tenantId, orden.outbound_order_no]
           ),
           cajasRes.rows.length > 0
-            ? req.tQuery(
+            ? client.query(
               `WITH boxes AS (
                  SELECT *
                    FROM jsonb_to_recordset($3::jsonb)
@@ -1465,7 +1465,7 @@ router.get('/:folio',
               ]
             )
             : Promise.resolve({ rows: [] }),
-        ])
+        ]))
 
         const rawTracking = trackingRes.rows[0] || null
         const cajaSurtidoRows = cajaSurtidoRes.rows || []

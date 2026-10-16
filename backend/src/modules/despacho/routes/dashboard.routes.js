@@ -27,9 +27,9 @@ router.get('/',
         topTransportistasRes,
         tendenciaRes,
         tiempoPromedioRes,
-      ] = await Promise.all([
+      ] = await req.tTransaction((client) => Promise.all([
         // Folios de hoy
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) AS total_hoy,
              COUNT(*) FILTER (WHERE estado = 'cerrado') AS cerrados_hoy,
@@ -41,7 +41,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Métricas del mes
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(DISTINCT f.id) AS total_folios,
              COALESCE(SUM(fo.bultos), 0) AS total_cajas,
@@ -55,7 +55,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Por estado
-        req.tQuery(
+        client.query(
           `SELECT estado, COUNT(*) AS cantidad
            FROM dispatch_folios
            WHERE tenant_id = $1
@@ -65,7 +65,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Órdenes con vs sin escaneo de trazabilidad
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(DISTINCT fo.id) AS total_ordenes,
              COUNT(DISTINCT dos.folio_order_id) AS con_escaneo
@@ -77,7 +77,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Top destinos (outbound_order_no por folio)
-        req.tQuery(
+        client.query(
           `SELECT fo.outbound_order_no AS destino, COUNT(*) AS cantidad
            FROM dispatch_folio_orders fo
            JOIN dispatch_folios f ON f.id = fo.folio_id
@@ -90,7 +90,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Top transportistas (conductores)
-        req.tQuery(
+        client.query(
           `SELECT c.nombre AS conductor, COUNT(f.id) AS folios
            FROM dispatch_folios f
            JOIN dispatch_conductores c ON c.id = f.conductor_id
@@ -102,7 +102,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Tendencia semanal
-        req.tQuery(
+        client.query(
           `SELECT
              DATE_TRUNC('week', ${instantDateInTZ('created_at', tz)}::timestamp) AS semana,
              COUNT(*) AS cantidad
@@ -114,7 +114,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Tiempo promedio entre creación y cierre
-        req.tQuery(
+        client.query(
           `SELECT
              ROUND(AVG(EXTRACT(EPOCH FROM (fecha_salida - created_at))/3600)::numeric, 1) AS horas_promedio
            FROM dispatch_folios
@@ -124,7 +124,7 @@ router.get('/',
              AND ${instantDateInTZ('created_at', tz)} BETWEEN $2 AND $3`,
           [req.tenantId, dateStart, dateEnd]
         ),
-      ])
+      ]))
 
       const hoy = kpisHoyRes.rows[0] || {}
       const mes = kpisMesRes.rows[0] || {}

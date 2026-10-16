@@ -110,9 +110,9 @@ router.get('/',
       if (String(solo_vencidas) === 'true') where += ` AND a.estado NOT IN ('cerrado') AND a.fecha_limite < now()`
       if (String(sin_responsable) === 'true') where += ' AND a.responsable_id IS NULL'
 
-      const [countRes, rowsRes, resumenRes] = await Promise.all([
-        req.tQuery(`SELECT COUNT(*) FROM anormalidades a ${where}`, params),
-        req.tQuery(
+      const [countRes, rowsRes, resumenRes] = await req.tTransaction((client) => Promise.all([
+        client.query(`SELECT COUNT(*) FROM anormalidades a ${where}`, params),
+        client.query(
           `SELECT a.*,
                   u.nombre_completo AS responsable_nombre,
                   u2.nombre_completo AS detectado_por_nombre_user,
@@ -127,7 +127,7 @@ router.get('/',
           LIMIT $${p} OFFSET $${p + 1}`,
           [...params, parseInt(limit), offset]
         ),
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) AS total,
              COUNT(*) FILTER (WHERE a.estado NOT IN ('cerrado')) AS abiertas,
@@ -138,7 +138,7 @@ router.get('/',
            ${where}`,
           [...params, criticalNivel]
         ),
-      ])
+      ]))
 
       res.json({
         success: true,
@@ -167,8 +167,8 @@ router.get('/:id',
   requirePermission('anormalidades.registro', 'ver'),
   async (req, res) => {
     try {
-      const [aRes, histRes, vinculosRes] = await Promise.all([
-        req.tQuery(
+      const [aRes, histRes, vinculosRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT a.*,
                   u.nombre_completo AS responsable_nombre,
                   u2.nombre_completo AS detectado_nombre,
@@ -180,7 +180,7 @@ router.get('/:id',
            WHERE a.id = $1 AND a.tenant_id = $2`,
           [req.params.id, req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           `SELECT h.*, u.nombre_completo AS usuario_nombre_full
            FROM anormalidades_historial h
            LEFT JOIN usuarios u ON h.usuario_id = u.id
@@ -188,14 +188,14 @@ router.get('/:id',
            ORDER BY h.created_at DESC`,
           [req.params.id, req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           `SELECT v.mejora_id, m.descripcion_problema, m.estado AS mejora_estado
            FROM anormalidades_mejoras_vinculos v
            JOIN anormalidades_mejoras m ON v.mejora_id = m.id
            WHERE v.anormalidad_id = $1 AND v.tenant_id = $2`,
           [req.params.id, req.tenantId]
         ),
-      ])
+      ]))
 
       if (!aRes.rows.length) return res.status(404).json({ error: 'Anormalidad no encontrada' })
 

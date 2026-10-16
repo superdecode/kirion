@@ -1089,8 +1089,8 @@ router.get('/scan-sessions',
       // The count query only needs the stats join when the effective-status filter
       // above references stats.total_scanned — skip it otherwise.
       const countStatsJoin = status ? `LEFT JOIN ${statsSubquery} ON stats.session_id = s.id` : ''
-      const [sessionsRes, countRes] = await Promise.all([
-        req.tQuery(
+      const [sessionsRes, countRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT s.*,
                   COALESCE(stats.total_scanned, 0) AS total_scanned,
                   COALESCE(rejected_stats.total_rejected, 0) AS total_rejected,
@@ -1138,11 +1138,11 @@ router.get('/scan-sessions',
            LIMIT $${p} OFFSET $${p + 1}`,
           [...params, limit, offset]
         ),
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) as total FROM pick_sessions s ${countStatsJoin} WHERE ${where}`,
           params
         ),
-      ])
+      ]))
 
       res.json({
         success: true,
@@ -1172,8 +1172,8 @@ router.get('/scan-session/:id',
       return res.status(400).json({ success: false, error: 'ID de sesión inválido' })
     }
     try {
-      const [sessionRes, eventsRes] = await Promise.all([
-        req.tQuery(
+      const [sessionRes, eventsRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT s.*,
                   COALESCE(stats.total_scanned, 0) AS total_scanned,
                   COALESCE(rejected_stats.total_rejected, 0) AS total_rejected,
@@ -1206,7 +1206,7 @@ router.get('/scan-session/:id',
            WHERE s.id = $1 AND s.tenant_id = $2`,
           [req.params.id, req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           // tenant_id is defense-in-depth: RLS is currently inert (app connects as a
           // BYPASSRLS role), and this runs in Promise.all alongside the session check —
           // without it, another tenant's session_id would fetch that tenant's events
@@ -1215,7 +1215,7 @@ router.get('/scan-session/:id',
           'SELECT * FROM pick_events WHERE session_id = $1 AND tenant_id = $2 ORDER BY scanned_at ASC',
           [req.params.id, req.tenantId]
         ),
-      ])
+      ]))
 
       if (sessionRes.rows.length === 0) return res.status(404).json({ success: false, error: 'Sesión no encontrada' })
       res.json({
@@ -1261,8 +1261,8 @@ router.post('/scan-sessions/export-detail',
         return res.status(400).json({ success: false, error: 'Identificador de sesión inválido' })
       }
 
-      const [sessionsRes, eventsRes] = await Promise.all([
-        req.tQuery(
+      const [sessionsRes, eventsRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT s.*,
                   COALESCE(stats.total_scanned, 0) AS total_scanned,
                   COALESCE(rejected_stats.total_rejected, 0) AS total_rejected,
@@ -1293,11 +1293,11 @@ router.post('/scan-sessions/export-detail',
            WHERE s.id = ANY($1::uuid[]) AND s.tenant_id = $2`,
           [ids, req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           'SELECT * FROM pick_events WHERE session_id = ANY($1::uuid[]) AND tenant_id = $2 ORDER BY session_id, scanned_at ASC',
           [ids, req.tenantId]
         ),
-      ])
+      ]))
 
       res.json({
         success: true,
@@ -2020,8 +2020,8 @@ router.get('/inventory-sessions',
       if (date_to)   filters.push(`${instantDateInTZ('s.completed_at', tz)} <= $${params.push(date_to)}`)
       const where = filters.join(' AND ')
 
-      const [rows, countRes] = await Promise.all([
-        req.tQuery(
+      const [rows, countRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT s.*, u.nombre_completo as operator_nombre,
                   ub.codigo as ubicacion_codigo, ub.nombre as ubicacion_nombre
            FROM inv_sessions s
@@ -2032,11 +2032,11 @@ router.get('/inventory-sessions',
            LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
           [...params, limit, offset]
         ),
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) as total FROM inv_sessions s WHERE ${where}`,
           params
         ),
-      ])
+      ]))
       res.json({
         success: true,
         data: { records: rows.rows, total: parseInt(countRes.rows[0].total), page: parseInt(page), pageSize: limit },
@@ -2253,8 +2253,8 @@ router.get('/inventory-ubicacion-activity',
       }
 
       const sessionIds = sessions.map(s => s.id)
-      const [contribRes, groupsRes] = await Promise.all([
-        req.tQuery(
+      const [contribRes, groupsRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT c.session_id, c.sequence, c.operator_id, c.scans_added,
                   c.first_scan_at, c.last_scan_at, c.active_seconds,
                   u.nombre_completo AS operator_nombre
@@ -2268,7 +2268,7 @@ router.get('/inventory-ubicacion-activity',
         // classification bucket, and an appended batch may only join the tarima of its
         // OWN bucket — the client needs these counts to show which tarima it is about to
         // grow (or to say that this bucket does not exist in the section yet).
-        req.tQuery(
+        client.query(
           `SELECT session_id, group_assignment,
                   COUNT(*) AS total,
                   COUNT(*) FILTER (WHERE scan_status = 'ok') AS total_ok,
@@ -2279,7 +2279,7 @@ router.get('/inventory-ubicacion-activity',
             GROUP BY session_id, group_assignment`,
           [req.tenantId, sessionIds]
         ),
-      ])
+      ]))
 
       const contribBySession = new Map()
       contribRes.rows.forEach((row) => {
@@ -4087,8 +4087,8 @@ router.get('/order-logs/:obc',
   async (req, res) => {
     try {
       const obc = req.params.obc
-      const [eventsRes, periodsRes] = await Promise.all([
-        req.tQuery(
+      const [eventsRes, periodsRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT al.id, al.action, al.details, al.created_at AS at,
                   al.user_id, al.user_email, u.nombre_completo AS actor_name
            FROM audit_log al
@@ -4099,7 +4099,7 @@ router.get('/order-logs/:obc',
            ORDER BY al.created_at DESC`,
           [req.tenantId, SURTIDO_LOG_ACTIONS, obc]
         ),
-        req.tQuery(
+        client.query(
           `SELECT COALESCE(pe.operator_id, ps.operator_id) AS operator_id,
                   u.nombre_completo AS operator_name,
                   MIN(pe.scanned_at) AS started_at,
@@ -4113,7 +4113,7 @@ router.get('/order-logs/:obc',
            ORDER BY started_at ASC`,
           [req.tenantId, obc]
         ),
-      ])
+      ]))
 
       const events = eventsRes.rows.map(row => ({
         type: 'event',

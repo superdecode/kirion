@@ -26,9 +26,9 @@ router.get('/',
         tendenciaRes,
         tiempoPromedioRes,
         pesoTotalRes,
-      ] = await Promise.all([
+      ] = await req.tTransaction((client) => Promise.all([
         // Entradas del período
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) AS total,
              COUNT(*) FILTER (WHERE estado = 'confirmado') AS confirmadas,
@@ -40,7 +40,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Inventario activo por estado
-        req.tQuery(
+        client.query(
           `SELECT
              CASE WHEN cantidad_disponible > 0 THEN 'disponible' ELSE 'sin_stock' END AS estado,
              COUNT(*) AS cantidad
@@ -51,7 +51,7 @@ router.get('/',
           [req.tenantId]
         ),
         // Salidas del período
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) AS total,
              COUNT(*) FILTER (WHERE estado = 'completado') AS completadas,
@@ -63,7 +63,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Top SKUs con más devoluciones
-        req.tQuery(
+        client.query(
           `SELECT sku.sku2, COUNT(*) AS cantidad
            FROM dev_item_skus sku
            JOIN dev_items i ON i.id = sku.item_id
@@ -77,7 +77,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Tendencia mensual entradas vs salidas
-        req.tQuery(
+        client.query(
           `SELECT
              DATE_TRUNC('week', ${instantDateInTZ('created_at', tz)}::timestamp) AS semana,
              COUNT(*) AS entradas
@@ -90,7 +90,7 @@ router.get('/',
           [req.tenantId, dateStart, dateEnd]
         ),
         // Tiempo promedio entre entrada y salida
-        req.tQuery(
+        client.query(
           `SELECT
              ROUND(AVG(EXTRACT(EPOCH FROM (ds.created_at - di.created_at))/3600)::numeric, 1) AS horas_promedio
            FROM dev_inventario di
@@ -101,7 +101,7 @@ router.get('/',
           [req.tenantId]
         ),
         // Peso total registrado
-        req.tQuery(
+        client.query(
           `SELECT COALESCE(SUM(i.peso), 0) AS peso_total
            FROM dev_items i
            JOIN dev_sesiones s ON s.id = i.sesion_id
@@ -110,7 +110,7 @@ router.get('/',
              AND ${instantDateInTZ('s.created_at', tz)} BETWEEN $2 AND $3`,
           [req.tenantId, dateStart, dateEnd]
         ),
-      ])
+      ]))
 
       const ent = entradasRes.rows[0] || {}
       const sal = salidasRes.rows[0] || {}
