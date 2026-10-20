@@ -5,6 +5,7 @@ import { saveInventorySession } from '../../modules/Inventario/services/inventar
 import { addOrderScan, addFolioScan } from '../../modules/Despacho/services/despachoService'
 import { scanCode, relocateScanEvents } from '../../modules/Recepcion/services/recepcionService'
 import { commitPickBatch } from '../../modules/Surtido/services/surtidoService'
+import { updateGuiaPeso } from '../../modules/DropScan/services/dropscanService'
 
 let syncInProgress = false
 
@@ -122,6 +123,9 @@ export async function syncModuleQueue() {
           await scanCode(orderId, payload)
         } else if (item.type === 'lote_commit') {
           await commitPickBatch(item.payload)
+        } else if (item.type === 'dropscan_peso_update') {
+          const { sessionId, guiaId, pesoKg } = item.payload
+          await updateGuiaPeso(sessionId, guiaId, pesoKg)
         } else if (item.type === 'recepcion_relocate_ubicacion') {
           // Any scans queued after this action already carry the corrected
           // ubicacion locally (see relocateQueuedRecepcionScans) — this only

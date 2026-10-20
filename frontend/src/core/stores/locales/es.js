@@ -454,6 +454,7 @@ export default {
     'scan.peso.pendingError': 'Debes ingresar el peso de la guía #{pos} antes de escanear otra',
     'scan.peso.invalid': 'Ingresa un peso válido entre 0.001 y 9999.999 KG',
     'scan.peso.saveError': 'No se pudo guardar el peso, reintenta',
+    'scan.peso.queuedOffline': 'Peso guardado offline, se sincronizará al reconectar',
     'scan.peso.looksLikeGuide': 'Este valor parece ser una guía de paquetería, no un peso. confirma o descarta.',
     'scan.peso.reject': 'Rechazar y Limpiar',
     'scan.peso.forceRegister': 'Registrar de Todas Formas',
