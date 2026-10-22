@@ -5,6 +5,7 @@ import { saveInventorySession } from '../../modules/Inventario/services/inventar
 import { addOrderScan, addFolioScan } from '../../modules/Despacho/services/despachoService'
 import { scanCode, relocateScanEvents } from '../../modules/Recepcion/services/recepcionService'
 import { commitPickBatch } from '../../modules/Surtido/services/surtidoService'
+import { startSession } from '../../modules/DropScan/services/dropscanService'
 
 let syncInProgress = false
 
@@ -129,13 +130,45 @@ export async function syncModuleQueue() {
           // before the device went offline.
           const { orderId, from, to } = item.payload
           await relocateScanEvents(orderId, from, to)
+        } else if (item.type === 'dropscan_session_start') {
+          try {
+            const data = await startSession(item.payload.empresa_id, item.payload.canal_id, {
+              ...item.payload.operadorPayload,
+              client_start_id: item.payload.client_start_id,
+            })
+            // Rewrite any scans still queued against the temporary offline session/tarima
+            // id before they get drained by syncOfflineQueue (see ConnectionBanner's
+            // sequencing), and let Escaneo.jsx know it can swap the tab's placeholder
+            // session/tarima for the real ones.
+            store.relocateQueuedDropscanScans(item.payload.tempSessionId, data.sesion.id, data.tarima_actual.id)
+            store.setDropscanReconciliation(item.payload.tempSessionId, data)
+          } catch (startErr) {
+            const s = startErr.response?.status
+            const transient = !s || s === 401 || s === 403 || s === 429 || s >= 500
+            if (!transient) {
+              // The session can never be created (plan/session limit, etc, not a
+              // network blip) — any scans still queued against its temp id would
+              // otherwise retry forever against an id the server will never issue,
+              // jamming every future DropScan sync behind them, not just this one.
+              store.discardQueuedDropscanScans(item.payload.tempSessionId)
+              store.setDropscanReconciliation(item.payload.tempSessionId, {
+                error: startErr.response?.data?.error || 'No se pudo iniciar la sesión',
+              })
+            }
+            throw startErr
+          }
         }
         store.dequeueModule(item.id)
         synced++
       } catch (err) {
         const status = err.response?.status
-        if (status === 401 || status === 429) break
-        // 4xx client errors (except 429): item is unrecoverable, discard it
+        if (status === 401 || status === 403 || status === 429) break
+        // 4xx client errors (except 401/403/429): item is unrecoverable, discard it.
+        // 401/403 mean the request was rejected by auth/permission middleware, not
+        // that the payload itself is invalid — a transient token/tenant/permission
+        // hiccup here previously discarded real actions (including a dropscan
+        // session-start) that were never actually persisted server-side. Keep
+        // retrying those instead.
         if (status >= 400 && status < 500) {
           store.dequeueModule(item.id)
           failed++

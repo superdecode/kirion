@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../core/stores/authStore'
 import { useOperadorStore } from '../stores/operadorStore'
 import { useI18nStore } from '../../../core/stores/i18nStore'
 import * as operadoresService from '../services/operadoresService'
+import { readConfigCache, writeConfigCache } from '../utils/offlineConfigCache'
 import {
   UserCheck, Shield, ChevronDown, Lock, AlertTriangle, Loader2, CheckCircle
 } from 'lucide-react'
@@ -99,12 +100,19 @@ function LowLevelModal({ onClose, onAuthenticated, user, setOperador, t }) {
   const [isLocked, setIsLocked] = useState(false)
   const [lockoutMinutes, setLockoutMinutes] = useState(0)
   const pinRef = useRef(null)
+  const backendOnline = useAuthStore(s => s.backendOnline)
 
   const { data: operadores, isLoading } = useQuery({
     queryKey: ['dropscan-operadores-activos'],
     queryFn: operadoresService.getOperadoresActivos,
     enabled: true,
+    // Seeds the picker from the last successful load so it isn't blocked by a
+    // missing connection — PIN validation below still always requires the
+    // server (4-digit PINs and lockout enforcement can't be verified safely
+    // offline), but at least choosing who's about to scan doesn't need to wait.
+    initialData: () => readConfigCache('operadoresActivos'),
   })
+  useEffect(() => { if (backendOnline && operadores) writeConfigCache('operadoresActivos', operadores) }, [backendOnline, operadores])
 
   // Focus PIN when operator is selected
   useEffect(() => {
@@ -138,7 +146,12 @@ function LowLevelModal({ onClose, onAuthenticated, user, setOperador, t }) {
       }
     } catch (err) {
       const data = err.response?.data
-      if (data?.error === 'BLOQUEADO') {
+      if (!err.response) {
+        // No PIN check can happen without the server — a 4-digit PIN and the
+        // lockout counter can't be safely/correctly verified offline. Say so
+        // clearly instead of the generic error message.
+        setError(t('operador.pinRequiresConnection'))
+      } else if (data?.error === 'BLOQUEADO') {
         setIsLocked(true)
         setLockoutMinutes(data.lockout_minutes || 5)
         setError('')

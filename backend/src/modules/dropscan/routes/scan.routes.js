@@ -62,7 +62,7 @@ router.post('/sessions/start',
     let client
     try {
       client = await req.tGetClient()
-      const { empresa_id, canal_id, usuario_operador, usuario_interno_id, nivel_usuario } = req.body
+      const { empresa_id, canal_id, usuario_operador, usuario_interno_id, nivel_usuario, client_start_id } = req.body
       const userId = req.user.id
       const empId = parseInt(empresa_id)
       const canId = parseInt(canal_id)
@@ -70,6 +70,30 @@ router.post('/sessions/start',
       if (!empId || !canId) {
         await client.query('ROLLBACK')
         return res.status(400).json({ error: 'empresa_id y canal_id son requeridos' })
+      }
+
+      // Idempotency: replaying a queued offline "start session" (e.g. the original
+      // response never reached the client) must not create a second tarima/session.
+      // No writes have happened yet, so a plain ROLLBACK is a safe no-op abort here.
+      if (client_start_id) {
+        const existingRes = await client.query(
+          `SELECT * FROM sesiones_escaneo WHERE tenant_id = $1 AND operador_id = $2 AND client_start_id = $3`,
+          [req.tenantId, userId, client_start_id]
+        )
+        if (existingRes.rows.length > 0) {
+          const existingSesion = existingRes.rows[0]
+          const existingTarimaRes = await client.query(
+            `SELECT * FROM tarimas WHERE id = $1 AND tenant_id = $2`,
+            [existingSesion.tarima_actual_id, req.tenantId]
+          )
+          await client.query('ROLLBACK')
+          return res.status(200).json({
+            sesion: existingSesion,
+            tarima_actual: existingTarimaRes.rows[0] || null,
+            tarimas_activas: existingTarimaRes.rows[0] ? [existingTarimaRes.rows[0]] : [],
+            reused: true,
+          })
+        }
       }
 
       // Verify empresa and canal exist in configuraciones for this tenant
@@ -183,10 +207,10 @@ router.post('/sessions/start',
 
       // Create session
       const sesionRes = await client.query(
-        `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id, tenant_id)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO sesiones_escaneo (operador_id, empresa_id, canal_id, tarima_actual_id, tenant_id, client_start_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [userId, empId, canId, tarima.id, req.tenantId]
+        [userId, empId, canId, tarima.id, req.tenantId, client_start_id || null]
       )
       const sesion = sesionRes.rows[0]
 
