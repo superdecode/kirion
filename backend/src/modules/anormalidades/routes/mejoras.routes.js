@@ -65,15 +65,15 @@ router.get('/',
       if (String(vinculadas) === 'true') where += ` AND EXISTS (SELECT 1 FROM anormalidades_mejoras_vinculos v WHERE v.mejora_id = m.id AND v.tenant_id = m.tenant_id)`
       if (String(sin_vinculos) === 'true') where += ` AND NOT EXISTS (SELECT 1 FROM anormalidades_mejoras_vinculos v WHERE v.mejora_id = m.id AND v.tenant_id = m.tenant_id)`
 
-      const [countRes, rowsRes, resumenRes] = await Promise.all([
-        req.tQuery(
+      const [countRes, rowsRes, resumenRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT COUNT(*)
            FROM anormalidades_mejoras m
            LEFT JOIN usuarios u ON m.responsable_id = u.id
            ${where}`,
           params
         ),
-        req.tQuery(
+        client.query(
           `SELECT m.*,
                   u.nombre_completo AS responsable_nombre,
                   (SELECT COUNT(*) FROM anormalidades_mejoras_vinculos v WHERE v.mejora_id = m.id) AS total_vinculos,
@@ -85,7 +85,7 @@ router.get('/',
            LIMIT $${p} OFFSET $${p + 1}`,
           [...params, parseInt(limit), offset]
         ),
-        req.tQuery(
+        client.query(
           `SELECT
              COUNT(*) AS total,
              COUNT(*) FILTER (WHERE m.estado = 'nuevo') AS nuevas,
@@ -97,7 +97,7 @@ router.get('/',
            ${where}`,
           params
         ),
-      ])
+      ]))
 
       res.json({
         success: true,
@@ -124,15 +124,15 @@ router.get('/:id',
   requirePermission('anormalidades.mejoras', 'ver'),
   async (req, res) => {
     try {
-      const [mRes, vinculosRes] = await Promise.all([
-        req.tQuery(
+      const [mRes, vinculosRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT m.*, u.nombre_completo AS responsable_nombre
            FROM anormalidades_mejoras m
            LEFT JOIN usuarios u ON m.responsable_id = u.id
            WHERE m.id = $1 AND m.tenant_id = $2`,
           [req.params.id, req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           `SELECT v.anormalidad_id, a.folio, a.nombre, a.nivel, a.estado, a.fecha_ocurrencia
            FROM anormalidades_mejoras_vinculos v
            JOIN anormalidades a ON v.anormalidad_id = a.id
@@ -140,7 +140,7 @@ router.get('/:id',
            ORDER BY a.fecha_ocurrencia DESC`,
           [req.params.id, req.tenantId]
         ),
-      ])
+      ]))
 
       if (!mRes.rows.length) return res.status(404).json({ error: 'No encontrada' })
 
@@ -261,16 +261,16 @@ router.post('/:id/vincular',
       const { anormalidad_id } = req.body
       if (!anormalidad_id) return res.status(400).json({ error: 'anormalidad_id requerido' })
 
-      const [mejoraRes, anormRes] = await Promise.all([
-        req.tQuery(
+      const [mejoraRes, anormRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           'SELECT id FROM anormalidades_mejoras WHERE id = $1 AND tenant_id = $2',
           [req.params.id, req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           'SELECT id FROM anormalidades WHERE id = $1 AND tenant_id = $2',
           [anormalidad_id, req.tenantId]
         ),
-      ])
+      ]))
       if (!mejoraRes.rows.length) return res.status(404).json({ error: 'Mejora no encontrada' })
       if (!anormRes.rows.length) return res.status(404).json({ error: 'Anormalidad no encontrada' })
 

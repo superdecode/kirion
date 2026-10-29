@@ -172,10 +172,10 @@ router.get('/canales',
   authenticateToken,
   async (req, res) => {
     try {
-      const [canalesRes, empresasRes] = await Promise.all([
-        req.tQuery(`SELECT * FROM configuraciones WHERE modulo = 'dropscan' AND tipo = 'canal' AND tenant_id = $1 ORDER BY nombre ASC`, [req.tenantId]),
-        req.tQuery(`SELECT * FROM configuraciones WHERE modulo = 'dropscan' AND tipo = 'empresa' AND tenant_id = $1 ORDER BY nombre ASC`, [req.tenantId])
-      ])
+      const [canalesRes, empresasRes] = await req.tTransaction((client) => Promise.all([
+        client.query(`SELECT * FROM configuraciones WHERE modulo = 'dropscan' AND tipo = 'canal' AND tenant_id = $1 ORDER BY nombre ASC`, [req.tenantId]),
+        client.query(`SELECT * FROM configuraciones WHERE modulo = 'dropscan' AND tipo = 'empresa' AND tenant_id = $1 ORDER BY nombre ASC`, [req.tenantId])
+      ]))
       const empresasMap = Object.fromEntries(empresasRes.rows.map(e => [e.id, toEmpresa(e)]))
       res.json(canalesRes.rows.map(r => toCanal(r, empresasMap)))
     } catch (error) {

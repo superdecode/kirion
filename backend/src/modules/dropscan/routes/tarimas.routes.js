@@ -240,8 +240,8 @@ router.post('/export-detail',
 
       const tz = req.fullUser?.zona_horaria || 'America/Mexico_City'
 
-      const [tarimasRes, guiasRes] = await Promise.all([
-        req.tQuery(
+      const [tarimasRes, guiasRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT t.*, e.nombre as empresa_nombre, e.codigo as empresa_codigo,
                   c.nombre as canal_nombre, c.codigo as canal_codigo,
                   COALESCE(ui.nombre, s.usuario_operador, u.nombre_completo) as operador_nombre, u.codigo as operador_codigo,
@@ -264,7 +264,7 @@ router.post('/export-detail',
            WHERE t.id = ANY($1::uuid[]) AND t.tenant_id = $2`,
           [ids, req.tenantId]
         ),
-        req.tQuery(
+        client.query(
           `SELECT g.id, g.tarima_id, g.codigo_guia, g.posicion, g.timestamp_escaneo, g.peso_kg,
                   COALESCE(ui.nombre, g.usuario_operador, u.nombre_completo) as operador_nombre
            FROM guias g
@@ -274,7 +274,7 @@ router.post('/export-detail',
            ORDER BY g.tarima_id, g.posicion ASC`,
           [ids, req.tenantId]
         ),
-      ])
+      ]))
 
       res.json({ tarimas: tarimasRes.rows, guias: guiasRes.rows })
     } catch (error) {
@@ -661,8 +661,8 @@ router.get('/:id/log',
       if (owns.rows.length === 0) return res.status(404).json({ error: 'Tarima no encontrada' })
 
       // Fetch audit log events + synthesize a creation entry from the tarimas row
-      const [auditRes, tarimaRes] = await Promise.all([
-        req.tQuery(
+      const [auditRes, tarimaRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT al.id, al.action, al.details, al.created_at AS timestamp,
                   COALESCE(u.nombre_completo, al.user_email) AS usuario_nombre
            FROM audit_log al
@@ -671,14 +671,14 @@ router.get('/:id/log',
            ORDER BY al.created_at ASC`,
           [String(numId)]
         ),
-        req.tQuery(
+        client.query(
           `SELECT t.fecha_inicio, COALESCE(u.nombre_completo, u.email) AS operador_nombre
            FROM tarimas t
            LEFT JOIN usuarios u ON u.id = t.operador_id
            WHERE t.id = $1`,
           [numId]
         ),
-      ])
+      ]))
 
       const creationEntry = tarimaRes.rows[0]
         ? {

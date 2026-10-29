@@ -50,8 +50,8 @@ router.get('/',
 
       const where = `WHERE ${conditions.join(' AND ')}`
 
-      const [dataRes, countRes] = await Promise.all([
-        req.tQuery(
+      const [dataRes, countRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT s.*, sess.origin_location, u.nombre_completo as user_name
            FROM inventory_scans s
            JOIN inventory_sessions sess ON s.session_id = sess.id
@@ -61,11 +61,11 @@ router.get('/',
            LIMIT $${idx++} OFFSET $${idx++}`,
           [...params, parseInt(limit), offset]
         ),
-        req.tQuery(
+        client.query(
           `SELECT COUNT(*) as total FROM inventory_scans s ${where}`,
           params
         ),
-      ])
+      ]))
 
       res.json({
         scans: dataRes.rows,
@@ -103,8 +103,8 @@ router.get('/reports',
 
       const where = `WHERE ${conditions.join(' AND ')}`
 
-      const [kpiRes, byStatusRes, byDayRes, topScannedRes] = await Promise.all([
-        req.tQuery(
+      const [kpiRes, byStatusRes, byDayRes, topScannedRes] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `SELECT
              COUNT(*) as total_scans,
              COUNT(CASE WHEN status = 'OK' THEN 1 END) as ok_count,
@@ -115,20 +115,20 @@ router.get('/reports',
            FROM inventory_scans ${where}`,
           params
         ),
-        req.tQuery(
+        client.query(
           `SELECT status, COUNT(*) as count
            FROM inventory_scans ${where}
            GROUP BY status`,
           params
         ),
-        req.tQuery(
+        client.query(
           `SELECT ${dateInTZ('created_at', tz)} as day, status, COUNT(*) as count
            FROM inventory_scans ${where}
            GROUP BY ${dateInTZ('created_at', tz)}, status
            ORDER BY day`,
           params
         ),
-        req.tQuery(
+        client.query(
           `SELECT barcode, product_name, sku, COUNT(*) as scan_count, MAX(status) as last_status
            FROM inventory_scans ${where}
            GROUP BY barcode, product_name, sku
@@ -136,7 +136,7 @@ router.get('/reports',
            LIMIT 20`,
           params
         ),
-      ])
+      ]))
 
       const kpi = kpiRes.rows[0]
       res.json({

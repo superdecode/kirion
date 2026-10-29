@@ -101,18 +101,18 @@ router.post('/orders/:id/sessions',
   async (req, res) => {
     try {
       const { tarimas_enabled } = req.body
-      const [result] = await Promise.all([
-        req.tQuery(
+      const [result] = await req.tTransaction((client) => Promise.all([
+        client.query(
           `INSERT INTO inbound_validation_sessions (tenant_id, order_id, user_id, tarimas_enabled)
            VALUES ($1,$2,$3,$4) RETURNING *`,
           [req.tenantId, req.params.id, req.user.id, Boolean(tarimas_enabled)]
         ),
-        req.tQuery(
+        client.query(
           `UPDATE inbound_orders SET estado='en_validacion', updated_at=now()
            WHERE id=$1 AND tenant_id=$2 AND estado='pendiente_validacion'`,
           [req.params.id, req.tenantId]
         ),
-      ])
+      ]))
       res.status(201).json({ session: result.rows[0] })
     } catch (err) {
       console.error('[recepcion] session create:', err.message)
