@@ -780,20 +780,63 @@ export default function Escaneo() {
       return
     }
     const pesoKg = toKg(rawVal)
-    try {
-      await ds.updateGuiaPeso(tab.session.id, guiaId, pesoKg)
+    const sessionId = tab.session.id
+
+    const applyLocalPeso = () => {
       updateTab(tabId, t => ({
         guias: t.guias.map(g => g.id === guiaId ? { ...g, peso_kg: pesoKg } : g),
         lastScan: t.lastScan ? { ...t.lastScan, peso_kg: pesoKg } : t.lastScan,
       }))
+    }
+    const queueOffline = () => {
+      useOfflineStore.getState().enqueueModule({
+        type: 'dropscan_peso_update',
+        payload: { sessionId, guiaId, pesoKg },
+      })
+      applyLocalPeso()
       if (soundEnabled) playSound('peso')
-    } catch (err) {
-      // Weight must never be lost silently — keep the capture open so the
-      // operator can retry instead of moving on with an unsaved weight.
-      if (soundEnabled) playSound('error')
-      toast.error(err.response?.data?.error || t('scan.peso.saveError') || 'No se pudo guardar el peso, reintenta')
-      setPesoState(s => (s ? { ...s, alert: null } : s))
-      return
+      toast.info(t('scan.peso.queuedOffline') || 'Peso guardado offline, se sincronizará al reconectar')
+    }
+
+    // The PATCH /peso endpoint is a plain idempotent UPDATE server-side (it
+    // even accepts an already-ended session), so it's always safe to replay —
+    // either via a quick retry here or via the offline queue.
+    if (useOfflineStore.getState().status === 'offline') {
+      queueOffline()
+    } else {
+      let lastErr = null
+      let saved = false
+      for (let attempt = 0; attempt <= 2; attempt++) {
+        try {
+          await ds.updateGuiaPeso(sessionId, guiaId, pesoKg)
+          saved = true
+          break
+        } catch (err) {
+          lastErr = err
+          const status = err.response?.status
+          if (status && status < 500) break // real rejection (bad value, 404) — retrying won't help
+          if (attempt < 2) await new Promise(r => setTimeout(r, 400 * 2 ** attempt))
+        }
+      }
+      if (saved) {
+        applyLocalPeso()
+        if (soundEnabled) playSound('peso')
+      } else {
+        const status = lastErr?.response?.status
+        if (!status || status >= 500) {
+          // A flaky connection that hasn't tripped the offline banner yet —
+          // queue instead of leaving the operator stuck unable to scan the
+          // next box while retrying a request that keeps failing.
+          queueOffline()
+        } else {
+          // Weight must never be lost silently — keep the capture open so the
+          // operator can retry instead of moving on with an unsaved weight.
+          if (soundEnabled) playSound('error')
+          toast.error(lastErr.response?.data?.error || t('scan.peso.saveError') || 'No se pudo guardar el peso, reintenta')
+          setPesoState(s => (s ? { ...s, alert: null } : s))
+          return
+        }
+      }
     }
 
     const pendingCompletion = pesoState.pendingCompletion

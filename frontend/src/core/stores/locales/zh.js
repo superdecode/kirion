@@ -573,6 +573,7 @@ export default {
     'scan.peso.pendingError': '请先输入面单 #{pos} 的重量，再扫描下一张',
     'scan.peso.invalid': '请输入有效重量（0.001 至 9999.999 Kg）',
     'scan.peso.saveError': '重量保存失败，请重试',
+    'scan.peso.queuedOffline': '重量已离线保存，重新连接后将自动同步',
     'scan.peso.looksLikeGuide': '该值疑似面单号，不像重量，请确认或清除',
     'scan.peso.reject': '拒绝并清空',
     'scan.peso.forceRegister': '仍然登记',
