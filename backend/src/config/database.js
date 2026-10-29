@@ -165,7 +165,11 @@ export async function tenantTransaction(tenantId, cb) {
     await client.query('COMMIT')
     return result
   } catch (err) {
-    await client.query('ROLLBACK')
+    // If the original error came from a dead/dropped connection, this ROLLBACK
+    // fails too — swallow that so the caller sees the real error (e.g. for
+    // isDatabaseUnavailableError-style retry logic), not this one. Mirrors
+    // tenantQuery's and tExportTransaction's own ROLLBACK handling above/below.
+    try { await client.query('ROLLBACK') } catch {}
     throw err
   } finally {
     client.release()
