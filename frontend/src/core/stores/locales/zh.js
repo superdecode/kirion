@@ -1470,6 +1470,8 @@ export default {
     'surtido.validacion.not_in_bd': '条码不在订单中',
     'surtido.validacion.duplicate': '条码已复核',
     'surtido.validacion.session_expired': '扫描会话已过期，请重新开始。',
+    'surtido.validacion.pendingSyncRejected': '{count} 条记录未能保存（会话已失效），请检查此订单。',
+    'surtido.validacion.session_closed': '此会话已关闭，本次扫描未保存 — 请重新开始此订单的验证。',
     'surtido.validacion.manual_blocked': '已阻止手动输入，请使用扫描枪',
     'surtido.validacion.manual_entry': '手动输入',
     'surtido.validacion.manual_chip': '手动输入',
@@ -2587,6 +2589,7 @@ export default {
     'connection.pending':   '条待同步',
     'connection.sync':      '立即同步',
     'connection.syncing':   '同步中...',
+    'connection.surtidoRejected': '{count} 条分拣记录未能保存（会话已失效）',
 
     // ── SubscriptionGuard ──────────────────────────────────────────────────────
     'sub.requestSent':       '申请已发送',

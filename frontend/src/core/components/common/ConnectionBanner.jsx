@@ -35,6 +35,12 @@ export default function ConnectionBanner() {
     if (totalFailed > 0) {
       useToastStore.getState().error(`${totalFailed} ${t('inventario.escaneo.scans_label')} - ${t('toast.error')}`)
     }
+    // Distinct from totalFailed: these items were not merely retried, they were
+    // permanently rejected (e.g. the session they belonged to was closed in the
+    // meantime) and are gone from the queue for good — must never pass silently.
+    if (r3.rejected > 0) {
+      useToastStore.getState().error(t('connection.surtidoRejected').replace('{count}', String(r3.rejected)))
+    }
   }, [t])
 
   // Auto-sync only when connectivity is restored, not on every queue/syncing state change.

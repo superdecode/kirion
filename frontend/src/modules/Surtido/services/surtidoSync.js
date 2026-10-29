@@ -60,12 +60,19 @@ let syncInProgress = false
 export async function syncSurtidoPendingQueue(onSessionRemap) {
   const queue = useSurtidoStore.getState().pendingSync
   if (queue.length === 0 || syncInProgress || useOfflineStore.getState().status === 'offline') {
-    return { synced: 0, pending: queue.length }
+    return { synced: 0, rejected: 0, pending: queue.length }
   }
 
   syncInProgress = true
   try {
     const processed = []
+    let synced = 0
+    // Scans/manual entries/ubicacion updates that got permanently rejected on
+    // replay (orphaned sessions, or a real 4xx like the session having been
+    // closed by someone else while this item sat queued) — the caller surfaces
+    // this count so a discard is never silent, unlike a transient failure that
+    // just stays queued for the next attempt.
+    let rejected = 0
     // A close can fail faster than the last scan and reach the persisted queue
     // first. Always replay closes last while preserving FIFO within each group.
     const orderedQueue = [...queue].sort((a, b) =>
@@ -75,6 +82,7 @@ export async function syncSurtidoPendingQueue(onSessionRemap) {
       // never succeed and would otherwise block the queue permanently.
       if (isOrphanedPendingItem(item)) {
         processed.push(item.key)
+        rejected += 1
         continue
       }
       try {
@@ -95,11 +103,13 @@ export async function syncSurtidoPendingQueue(onSessionRemap) {
           onSessionRemap?.(item.tempSessionId, replayed.data.id)
         }
         processed.push(item.key)
+        synced += 1
       } catch (error) {
         if (isPermanentSyncError(error)) {
           // A rejected/expired item can never succeed on retry. Remove it so it
           // cannot block later orders forever.
           processed.push(item.key)
+          rejected += 1
           continue
         }
         // Network/5xx/429: preserve this item and everything after it to keep FIFO.
@@ -107,7 +117,7 @@ export async function syncSurtidoPendingQueue(onSessionRemap) {
       }
     }
     if (processed.length) useSurtidoStore.getState().markSynced(processed)
-    return { synced: processed.length, pending: useSurtidoStore.getState().pendingSync.length }
+    return { synced, rejected, pending: useSurtidoStore.getState().pendingSync.length }
   } finally {
     syncInProgress = false
   }

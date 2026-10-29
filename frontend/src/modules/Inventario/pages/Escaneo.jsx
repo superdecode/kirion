@@ -1843,14 +1843,18 @@ export default function Escaneo() {
     const sessionConflicts = buildSessionDuplicateConflicts(codes)
     let dbConflicts = []
 
-    // Skip DB duplicate check when offline — session-level check is still applied
+    // Skip DB duplicate check when offline — session-level check is still applied.
+    // A transient failure (network hiccup, 503/timeout on a connection that hasn't
+    // tripped the offline banner yet) degrades the same way: this check is an
+    // enhancement on top of the always-available session-level check below, so a
+    // failed request here must not discard the scan the operator just made —
+    // only skip the cross-session check for this one scan.
     if (useOfflineStore.getState().status === 'online') {
       try {
         const response = await checkInventoryDuplicates({ codes: [...buildCodeVariantSet(...codes)] })
         dbConflicts = response?.data?.matches || []
       } catch {
-        toast.error(t('toast.error'))
-        return
+        // fall through with dbConflicts = [] — session-level conflicts still apply
       }
     }
 

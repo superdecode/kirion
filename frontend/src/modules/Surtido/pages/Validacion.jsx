@@ -1797,7 +1797,7 @@ const { data: reasonsData } = useQuery({
         // Shared with the app-wide ConnectionBanner sync (see surtidoSync.js) so
         // this queue keeps draining even after the operator navigates away from
         // this screen — both share one lock and never run concurrently.
-        const { synced } = await syncSurtidoPendingQueue((tempId, realId) => {
+        const { synced, rejected } = await syncSurtidoPendingQueue((tempId, realId) => {
           // The active session's React state still holds the offline temp id
           // (e.g. "offline-<uuid>") until this is remapped — otherwise every new
           // scan made after reconnecting keeps submitting that temp id as
@@ -1806,6 +1806,13 @@ const { data: reasonsData } = useQuery({
         })
         if (synced > 0 && sessionId) {
           getScanSession(sessionId).then(res => hydrateFromServerEvents(res?.data?.events)).catch(() => {})
+        }
+        // A permanently-rejected item (e.g. the session was closed by someone
+        // else while this one sat queued) must never disappear silently — the
+        // operator needs to know those scans were NOT saved, not just stay
+        // confident everything synced.
+        if (rejected > 0) {
+          toast.error(t('surtido.validacion.pendingSyncRejected').replace('{count}', String(rejected)))
         }
       } finally {
         isSyncingRef.current = false
@@ -1995,6 +2002,18 @@ const { data: reasonsData } = useQuery({
         useToastStore.getState().error(err.response?.data?.error || t('surtido.validacion.not_in_bd'))
         return
       }
+      // 409 means the backend has already closed this session (finalized by this
+      // operator in another tab, taken over and finished by someone else, etc).
+      // Queuing it like a transient failure would silently discard the scan on
+      // the next replay (a closed session can never accept it) with no sign
+      // anything went wrong — reset to search instead, same as the 404 case,
+      // so the operator immediately sees they need to reopen this order.
+      if (err.response?.status === 409) {
+        clearSession()
+        playSound('error')
+        useToastStore.getState().error(err.response?.data?.error || t('surtido.validacion.session_closed'))
+        return
+      }
       useSurtidoStore.getState().enqueueSync({ key: vars._dedupeKey, payload: vars })
     },
   })
@@ -2023,6 +2042,15 @@ const { data: reasonsData } = useQuery({
         getScanSession(sessionId).then(res => hydrateFromServerEvents(res?.data?.events)).catch(() => {})
         playSound('error')
         toast.error(err.response?.data?.error || t('surtido.validacion.not_in_bd'))
+        return
+      }
+      // See addEventMut's 409 branch: the session is already closed, so queuing
+      // this like a transient failure would just get it silently discarded on
+      // the next replay instead of telling the operator now.
+      if (err.response?.status === 409) {
+        clearSession()
+        playSound('error')
+        toast.error(err.response?.data?.error || t('surtido.validacion.session_closed'))
         return
       }
       // Local state (counts/history) was already applied optimistically before this
