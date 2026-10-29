@@ -1391,6 +1391,8 @@ export default {
     'surtido.validacion.not_in_bd': 'Código no encontrado en la orden',
     'surtido.validacion.duplicate': 'Código Ya Validado',
     'surtido.validacion.session_expired': 'Sesión expirada. Inicia una nueva sesión.',
+    'surtido.validacion.pendingSyncRejected': '{count} registro(s) quedaron sin guardar (la sesión ya no era válida). Revisa esta orden.',
+    'surtido.validacion.session_closed': 'Esta sesión ya fue cerrada. Tu escaneo no se guardó — reinicia la validación de esta orden.',
     'surtido.validacion.manual_blocked': 'Entrada manual bloqueada. usa el escáner.',
     'surtido.validacion.manual_entry': 'Ingreso manual',
     'surtido.validacion.manual_chip': 'Entrada Manual',
@@ -2486,6 +2488,7 @@ export default {
     'connection.pending':   'Pendiente',
     'connection.sync':      'Sincronizar',
     'connection.syncing':   'Sincronizando...',
+    'connection.surtidoRejected': '{count} registro(s) de Surtido no se pudieron guardar (la sesión ya no era válida)',
     // ── SubscriptionGuard ──────────────────────────────────────────────────────
     'sub.requestSent':       'Solicitud Enviada',
     'sub.requestSentToday':  'Solicitud Ya Enviada Hoy',

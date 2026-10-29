@@ -4,6 +4,8 @@ import { CloudOff, RefreshCw, AlertCircle, PlugZap, WifiOff } from 'lucide-react
 import { useOfflineStore } from '../../stores/offlineStore'
 import { useToastStore } from '../../stores/toastStore'
 import { syncOfflineQueue, syncModuleQueue } from '../../services/offlineSync'
+import { syncSurtidoPendingQueue } from '../../../modules/Surtido/services/surtidoSync'
+import { useSurtidoStore } from '../../../modules/Surtido/stores/surtidoStore'
 import { useI18nStore } from '../../stores/i18nStore'
 
 export default function ConnectionBanner() {
@@ -13,20 +15,31 @@ export default function ConnectionBanner() {
   const manualOffline = useOfflineStore((s) => s.manualOffline)
   const dropScanLen = useOfflineStore((s) => s.queue.length)
   const moduleLen = useOfflineStore((s) => s.moduleQueue.length)
-  const queueLen = dropScanLen + moduleLen
+  // Surtido's validation queue (scans, manual entries, ubicacion updates, offline
+  // sessions) lives in its own store, not the generic module queue — surfaced here
+  // too so the banner's pending count and auto-sync cover it, not just while
+  // Validacion.jsx itself happens to be mounted (see surtidoSync.js).
+  const surtidoLen = useSurtidoStore((s) => s.pendingSync.length)
+  const queueLen = dropScanLen + moduleLen + surtidoLen
   const syncing = useOfflineStore((s) => s.syncing)
   const syncError = useOfflineStore((s) => s.lastSyncError)
   const degraded = status === 'online' && quality === 'degraded'
 
   const handleSync = useCallback(async () => {
-    const [r1, r2] = await Promise.all([syncOfflineQueue(), syncModuleQueue()])
-    const totalSynced = r1.synced + r2.synced
+    const [r1, r2, r3] = await Promise.all([syncOfflineQueue(), syncModuleQueue(), syncSurtidoPendingQueue()])
+    const totalSynced = r1.synced + r2.synced + r3.synced
     const totalFailed = r1.failed + r2.failed
     if (totalSynced > 0) {
       useToastStore.getState().success(`${totalSynced} ${t('inventario.escaneo.scans_label')}`)
     }
     if (totalFailed > 0) {
       useToastStore.getState().error(`${totalFailed} ${t('inventario.escaneo.scans_label')} - ${t('toast.error')}`)
+    }
+    // Distinct from totalFailed: these items were not merely retried, they were
+    // permanently rejected (e.g. the session they belonged to was closed in the
+    // meantime) and are gone from the queue for good — must never pass silently.
+    if (r3.rejected > 0) {
+      useToastStore.getState().error(t('connection.surtidoRejected').replace('{count}', String(r3.rejected)))
     }
   }, [t])
 
@@ -36,7 +49,8 @@ export default function ConnectionBanner() {
   useEffect(() => {
     if (status !== 'online') return
     const { queue, moduleQueue, syncing: isSyncing } = useOfflineStore.getState()
-    if ((queue.length > 0 || moduleQueue.length > 0) && !isSyncing) {
+    const surtidoPending = useSurtidoStore.getState().pendingSync.length
+    if ((queue.length > 0 || moduleQueue.length > 0 || surtidoPending > 0) && !isSyncing) {
       handleSync()
     }
   }, [status, handleSync])
