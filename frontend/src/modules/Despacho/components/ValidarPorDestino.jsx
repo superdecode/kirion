@@ -564,6 +564,16 @@ export default function ValidarPorDestino({ folioId }) {
   const { mutate: doAddScan } = useMutation({
     mutationKey: ['despacho-add-scan', folioId],
     mutationFn: (body) => addFolioScan(folioId, body),
+    // Network/5xx errors are transient (a slow or flaky warehouse-floor connection,
+    // or the backend's connection pool briefly saturated) — worth a couple of
+    // automatic retries before giving up. A real rejection (dup, bad order) never
+    // succeeds on retry, so it's excluded.
+    retry: (failureCount, error) => {
+      const status = error?.response?.status
+      if (failureCount >= 2) return false
+      return !status || status >= 500
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     onMutate: async (body) => {
       const queryKey = ['despacho-folio-scans', folioId]
       await qc.cancelQueries({ queryKey })
@@ -633,6 +643,22 @@ export default function ValidarPorDestino({ folioId }) {
     },
     onError: (err, body, context) => {
       pendingOnlineRef.current.delete(body?.codigo_caja)
+      const status = err?.response?.status
+      const isTransient = !status || status >= 500
+      if (isTransient) {
+        // Retries above are exhausted but the connection is still flaky, not a real
+        // rejection — the scan must never be silently lost. Keep the optimistic entry
+        // on screen (don't revert it) and queue it exactly like the explicit-offline
+        // branch above; syncModuleQueue() already knows how to replay this type.
+        useOfflineStore.getState().enqueueModule({
+          type: 'despacho_folio_scan',
+          payload: { folioId, body },
+        })
+        setPendingOfflineScans(p => [...p, { code: body?.codigo_caja, matchedOrderNo: body?.matched_order_no }])
+        addToast(`Conexión inestable: ${body?.codigo_caja} se enviará al recuperar conexión`, 'warning')
+        setTimeout(() => focusScan(), 50)
+        return
+      }
       if (context?.queryKey && context?.optimisticId) {
         qc.setQueryData(context.queryKey, (old) => ({
           ...(old || {}),
