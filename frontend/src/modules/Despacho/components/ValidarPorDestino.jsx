@@ -847,6 +847,11 @@ export default function ValidarPorDestino({ folioId }) {
         addToast('Orden no encontrada en hojas; completa los datos manualmente', 'warning')
         setAddForm((prev) => ({ ...prev, outbound_order_no: raw }))
       }
+    } catch {
+      // getOutboundDetail doesn't catch its own sheet-fetch failures, and
+      // try/finally alone doesn't stop that from propagating as an uncaught
+      // promise — give the operator something instead of silence.
+      addToast('No se pudo buscar la orden; intenta de nuevo', 'error')
     } finally {
       setLookupLoading(false)
     }

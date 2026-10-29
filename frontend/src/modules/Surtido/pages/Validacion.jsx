@@ -3602,6 +3602,11 @@ export default function SurtidoValidacion() {
       await refreshSheet('outbound')
       setSheetTs(getCacheTimestamp('outbound'))
       qc.invalidateQueries({ queryKey: ['wms-outbound-summary'] })
+    } catch {
+      // try/finally alone doesn't stop the rejection from propagating — it left
+      // this uncaught (visible in the console as "Uncaught (in promise)") and
+      // gave the operator no sign the manual refresh they just tapped failed.
+      toast.error(t('toast.error'))
     } finally {
       setRefreshingSheet(false)
     }
