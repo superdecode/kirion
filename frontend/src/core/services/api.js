@@ -134,7 +134,6 @@ api.interceptors.response.use(
     return response
   },
   async (error) => {
-    captureApiError(error)
     // ECONNABORTED = axios request timeout (response took too long).
     // This means the server is slow, not necessarily down — don't blackout all queries.
     const isAxiosTimeout = error.code === 'ECONNABORTED'
@@ -144,6 +143,12 @@ api.interceptors.response.use(
       /Network Error/i.test(error.message || '')
     )
     const isServiceUnavailable = [502, 503, 504].includes(error.response?.status)
+
+    // Report telemetry once, after any auto-retry below has had a chance to silently
+    // recover the request — a 503/network blip that the retry fixes isn't a failure
+    // worth capturing, and reporting it immediately (before the retry even runs) only
+    // piles more requests onto a backend that's already struggling during an outage.
+    let errorToReport = error
 
     // Auto-retry once on 503 (transient DB pool exhaustion) before declaring backend down.
     // Only retry GET requests and only if this is the first attempt.
@@ -155,9 +160,8 @@ api.interceptors.response.use(
         return await api.request(error.config)
       } catch (retryErr) {
         // If retry also fails, fall through to normal error handling below
-        const retryError = retryErr
-        retryError._retried503 = true
-        captureApiError(retryError)
+        retryErr._retried503 = true
+        errorToReport = retryErr
       }
     }
 
@@ -172,9 +176,11 @@ api.interceptors.response.use(
         return await api.request(error.config)
       } catch (retryErr) {
         retryErr._retriedNetwork = true
-        captureApiError(retryErr)
+        errorToReport = retryErr
       }
     }
+
+    captureApiError(errorToReport)
 
     if ((isNetworkFailure || isServiceUnavailable) && !shouldSkipBackendCooldown(error.config)) {
       backendUnavailableUntil = Date.now() + BACKEND_COOLDOWN_MS
