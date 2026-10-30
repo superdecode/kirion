@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { authenticateToken, loadFullUser } from '../../shared/middleware/auth.js'
-import { query } from '../../config/database.js'
+import { getClient } from '../../config/database.js'
 
 const router = Router()
 
@@ -9,9 +9,12 @@ router.get('/summary',
   authenticateToken, loadFullUser,
   async (req, res) => {
     if (!req.tenantId) return res.status(401).json({ error: 'Tenant no identificado' })
+    let client
     try {
+      client = await getClient()
+
       // Get all plan limits in one query
-      const planRes = await query(
+      const planRes = await client.query(
         `SELECT p.guide_limit, p.surtido_limit, p.inventario_limit, p.devoluciones_limit,
                 p.recepcion_limit, p.despacho_limit, p.name AS plan_name
          FROM tenants t
@@ -21,53 +24,51 @@ router.get('/summary',
       )
       const plan = planRes.rows[0] || {}
 
-      // Query usage for each module in parallel
-      const [dsRes, surtidoRes, invRes, devRes, recRes, despRes] = await Promise.all([
-        // DropScan: guías scanned this calendar month
-        query(
-          `SELECT COUNT(*) AS count FROM guias
-           WHERE tenant_id = $1
-           AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)`,
-          [req.tenantId]
-        ).catch(e => { console.warn('[usage] dropscan query failed:', e.message); return { rows: [{ count: '0' }] } }),
+      // Query usage for each module sequentially on the same client
+      // DropScan: guías scanned this calendar month
+      const dsRes = await client.query(
+        `SELECT COUNT(*) AS count FROM guias
+         WHERE tenant_id = $1
+         AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)`,
+        [req.tenantId]
+      ).catch(e => { console.warn('[usage] dropscan query failed:', e.message); return { rows: [{ count: '0' }] } })
 
-        // Surtido: new OBCs entered into pick_order_tracking this month
-        query(
-          `SELECT COUNT(*) AS count FROM pick_order_tracking
-           WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())`,
-          [req.tenantId]
-        ).catch(e => { console.warn('[usage] surtido query failed:', e.message); return { rows: [{ count: '0' }] } }),
+      // Surtido: new OBCs entered into pick_order_tracking this month
+      const surtidoRes = await client.query(
+        `SELECT COUNT(*) AS count FROM pick_order_tracking
+         WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())`,
+        [req.tenantId]
+      ).catch(e => { console.warn('[usage] surtido query failed:', e.message); return { rows: [{ count: '0' }] } })
 
-        // Inventario: individual scans this month
-        query(
-          `SELECT COUNT(*) AS count FROM inventory_scans
-           WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())`,
-          [req.tenantId]
-        ).catch(e => { console.warn('[usage] inventario query failed:', e.message); return { rows: [{ count: '0' }] } }),
+      // Inventario: individual scans this month
+      const invRes = await client.query(
+        `SELECT COUNT(*) AS count FROM inventory_scans
+         WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())`,
+        [req.tenantId]
+      ).catch(e => { console.warn('[usage] inventario query failed:', e.message); return { rows: [{ count: '0' }] } })
 
-        // Devoluciones: confirmed entradas this month
-        query(
-          `SELECT COUNT(*) AS count FROM dev_sesiones
-           WHERE tenant_id = $1 AND estado = 'confirmado'
-           AND confirmado_at >= date_trunc('month', now())`,
-          [req.tenantId]
-        ).catch(e => { console.warn('[usage] devoluciones query failed:', e.message); return { rows: [{ count: '0' }] } }),
+      // Devoluciones: confirmed entradas this month
+      const devRes = await client.query(
+        `SELECT COUNT(*) AS count FROM dev_sesiones
+         WHERE tenant_id = $1 AND estado = 'confirmado'
+         AND confirmado_at >= date_trunc('month', now())`,
+        [req.tenantId]
+      ).catch(e => { console.warn('[usage] devoluciones query failed:', e.message); return { rows: [{ count: '0' }] } })
 
-        // Recepción: inbound_orders created this month
-        query(
-          `SELECT COUNT(*) AS count FROM inbound_orders
-           WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())`,
-          [req.tenantId]
-        ).catch(e => { console.warn('[usage] recepcion query failed:', e.message); return { rows: [{ count: '0' }] } }),
+      // Recepción: inbound_orders created this month
+      const recRes = await client.query(
+        `SELECT COUNT(*) AS count FROM inbound_orders
+         WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())`,
+        [req.tenantId]
+      ).catch(e => { console.warn('[usage] recepcion query failed:', e.message); return { rows: [{ count: '0' }] } })
 
-        // Despacho: dispatch_folios created this month (excludes cancelados)
-        query(
-          `SELECT COUNT(*) AS count FROM dispatch_folios
-           WHERE tenant_id = $1 AND deleted_at IS NULL
-           AND created_at >= date_trunc('month', now())`,
-          [req.tenantId]
-        ).catch(e => { console.warn('[usage] despacho query failed:', e.message); return { rows: [{ count: '0' }] } }),
-      ])
+      // Despacho: dispatch_folios created this month (excludes cancelados)
+      const despRes = await client.query(
+        `SELECT COUNT(*) AS count FROM dispatch_folios
+         WHERE tenant_id = $1 AND deleted_at IS NULL
+         AND created_at >= date_trunc('month', now())`,
+        [req.tenantId]
+      ).catch(e => { console.warn('[usage] despacho query failed:', e.message); return { rows: [{ count: '0' }] } })
 
       function buildStat(usedRaw, limit) {
         const used = parseInt(usedRaw ?? '0', 10)
@@ -94,6 +95,8 @@ router.get('/summary',
     } catch (err) {
       console.error('[usage/summary]', err.message)
       res.status(500).json({ error: 'Error interno' })
+    } finally {
+      if (client) client.release()
     }
   }
 )
