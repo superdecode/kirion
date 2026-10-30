@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { isDatabaseUnavailableError } from '../../../config/database.js'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
 import { getPermissionLevel } from '../../../shared/middleware/permissions.js'
@@ -425,6 +426,9 @@ router.get('/causas',
       res.json({ success: true, data: result.rows })
     } catch (err) {
       console.error('[rastreo.causas.list]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al obtener causas de rastreo' })
     }
   }
@@ -449,6 +453,9 @@ router.post('/causas',
       res.status(201).json({ success: true, data: result.rows[0] })
     } catch (err) {
       console.error('[rastreo.causas.create]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al crear causa de rastreo' })
     }
   }
@@ -479,6 +486,9 @@ router.patch('/causas/:id',
       res.json({ success: true, data: result.rows[0] })
     } catch (err) {
       console.error('[rastreo.causas.update]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al actualizar causa' })
     }
   }
@@ -505,6 +515,9 @@ router.delete('/causas/:id',
       res.json({ success: true })
     } catch (err) {
       console.error('[rastreo.causas.delete]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al eliminar causa' })
     }
   }
@@ -528,6 +541,9 @@ router.post('/cajas/bulk/causa',
       res.json({ success: true, updated: caja_ids.length })
     } catch (err) {
       console.error('[rastreo.cajas.bulk.causa]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al asignar causa masiva' })
     }
   }
@@ -1073,6 +1089,9 @@ router.get('/buscar',
       })
     } catch (err) {
       console.error('[rastreo.buscar]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error en la búsqueda' })
     }
   }
@@ -1106,6 +1125,9 @@ router.get('/usuarios/asignables',
       res.json({ success: true, data })
     } catch (err) {
       console.error('[rastreo.usuarios]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al obtener usuarios' })
     }
   }
@@ -1264,6 +1286,9 @@ router.get('/',
       })
     } catch (err) {
       console.error('[rastreo.list]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al obtener órdenes de rastreo' })
     }
   }
@@ -1307,6 +1332,9 @@ router.post('/bulk/estado',
       res.json({ success: true, updated: ids.length })
     } catch (err) {
       console.error('[rastreo.bulk.estado]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al actualizar estados' })
     }
   }
@@ -1341,6 +1369,9 @@ router.post('/bulk/responsable',
       res.json({ success: true, updated: ids.length })
     } catch (err) {
       console.error('[rastreo.bulk.responsable]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al asignar responsable' })
     }
   }
@@ -1524,6 +1555,9 @@ router.get('/:folio',
       })
     } catch (err) {
       console.error('[rastreo.detail]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al obtener detalle' })
     }
   }
@@ -1630,7 +1664,10 @@ router.post('/resolver',
       res.json({ success: true, data: { final_estado: res.locals.finalEstado || normalizedEstado } })
     } catch (err) {
       console.error('[rastreo.resolver]', err.message)
-      res.status(err.status || 500).json({ error: err.message || 'Error al resolver orden' })
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
+      res.status(err.status || 500).json({ error: err.status ? err.message : 'Error al resolver orden' })
     }
   }
 )
@@ -1768,6 +1805,9 @@ router.post('/',
       res.status(201).json({ success: true, data: { folio, id: ordenId } })
     } catch (err) {
       console.error('[rastreo.create]', err.message, err.code || '', err.detail || '')
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       const debug = process.env.NODE_ENV !== 'production'
         ? { message: err.message, code: err.code, detail: err.detail }
         : {}
@@ -1898,6 +1938,9 @@ router.patch('/:id',
       res.json({ success: true })
     } catch (err) {
       console.error('[rastreo.update]', err.message, err.code || '', err.detail || '')
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al actualizar orden' })
     }
   }
@@ -1958,6 +2001,9 @@ router.post('/cajas/add',
       res.status(201).json({ success: true, data: { id: cajaRes.rows[0].id } })
     } catch (err) {
       console.error('[rastreo.caja.add]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al agregar caja' })
     }
   }
@@ -2058,6 +2104,9 @@ router.patch('/cajas/:id',
       res.json({ success: true, anormalidad_id: anormalidadId })
     } catch (err) {
       console.error('[rastreo.caja.update]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al actualizar caja' })
     }
   }
@@ -2114,6 +2163,9 @@ router.delete('/cajas/:id',
       res.json({ success: true, deleted: true })
     } catch (err) {
       console.error('[rastreo.caja.delete]', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al eliminar caja' })
     }
   }
@@ -2154,6 +2206,9 @@ router.delete('/:id',
       res.json({ success: true })
     } catch (err) {
       console.error('[rastreo.delete]', req.params.id, err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo en unos segundos' })
+      }
       res.status(500).json({ error: 'Error al eliminar orden' })
     }
   }
