@@ -330,38 +330,30 @@ router.get('/tenants', authenticateAdmin, async (req, res) => {
 
 // GET /api/admin/tenants/:id/stats — MUST come before /:id (more specific route first)
 router.get('/tenants/:id/stats', authenticateAdmin, async (req, res) => {
+  let client
   try {
     const { id } = req.params
     const ok = r => ({ rows: [{ total: 0, recent: 0 }], ...r })
     const safe = (promise) => promise.catch(() => ok({}))
 
-    const [
-      totalGuias, guias30d, tarimas,
-      dispatchFolios, dispatchFolios30d,
-      scanners, users,
-      inboundOrders, inboundOrders30d,
-      pickOrders, pickOrders30d,
-      inventarioScans, inventarioScans30d,
-      devSalidas, devSalidas30d,
-      anormalidades,
-    ] = await Promise.all([
-      safe(query(`SELECT COUNT(*) AS total FROM guias WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM guias WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM tarimas WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM dispatch_folios WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM dispatch_folios WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM usuarios_internos WHERE tenant_id = $1 AND activo = true`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM usuarios WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM inbound_orders WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM inbound_orders WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM pick_order_tracking WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM pick_order_tracking WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM inv_scans WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM inv_scans WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM dev_salidas WHERE tenant_id = $1`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM dev_salidas WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id])),
-      safe(query(`SELECT COUNT(*) AS total FROM anormalidades WHERE tenant_id = $1`, [id])),
-    ])
+    client = await getClient()
+
+    const totalGuias = await safe(client.query(`SELECT COUNT(*) AS total FROM guias WHERE tenant_id = $1`, [id]))
+    const guias30d = await safe(client.query(`SELECT COUNT(*) AS total FROM guias WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id]))
+    const tarimas = await safe(client.query(`SELECT COUNT(*) AS total FROM tarimas WHERE tenant_id = $1`, [id]))
+    const dispatchFolios = await safe(client.query(`SELECT COUNT(*) AS total FROM dispatch_folios WHERE tenant_id = $1`, [id]))
+    const dispatchFolios30d = await safe(client.query(`SELECT COUNT(*) AS total FROM dispatch_folios WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id]))
+    const scanners = await safe(client.query(`SELECT COUNT(*) AS total FROM usuarios_internos WHERE tenant_id = $1 AND activo = true`, [id]))
+    const users = await safe(client.query(`SELECT COUNT(*) AS total FROM usuarios WHERE tenant_id = $1`, [id]))
+    const inboundOrders = await safe(client.query(`SELECT COUNT(*) AS total FROM inbound_orders WHERE tenant_id = $1`, [id]))
+    const inboundOrders30d = await safe(client.query(`SELECT COUNT(*) AS total FROM inbound_orders WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id]))
+    const pickOrders = await safe(client.query(`SELECT COUNT(*) AS total FROM pick_order_tracking WHERE tenant_id = $1`, [id]))
+    const pickOrders30d = await safe(client.query(`SELECT COUNT(*) AS total FROM pick_order_tracking WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id]))
+    const inventarioScans = await safe(client.query(`SELECT COUNT(*) AS total FROM inv_scans WHERE tenant_id = $1`, [id]))
+    const inventarioScans30d = await safe(client.query(`SELECT COUNT(*) AS total FROM inv_scans WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id]))
+    const devSalidas = await safe(client.query(`SELECT COUNT(*) AS total FROM dev_salidas WHERE tenant_id = $1`, [id]))
+    const devSalidas30d = await safe(client.query(`SELECT COUNT(*) AS total FROM dev_salidas WHERE tenant_id = $1 AND created_at >= now() - INTERVAL '30 days'`, [id]))
+    const anormalidades = await safe(client.query(`SELECT COUNT(*) AS total FROM anormalidades WHERE tenant_id = $1`, [id]))
 
     const n = r => Number(r.rows[0]?.total ?? 0)
 
@@ -404,34 +396,36 @@ router.get('/tenants/:id/stats', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error('[admin/tenants/:id/stats]', err.message)
     res.status(500).json({ error: 'Error interno', details: err.message })
+  } finally {
+    if (client) client.release()
   }
 })
 
 // GET /api/admin/tenants/:id
 router.get('/tenants/:id', authenticateAdmin, async (req, res) => {
+  let client
   try {
     const { id } = req.params
-    const [tenantRes, logRes, subRes] = await Promise.all([
-      query(
-        `SELECT t.*, p.name as plan_name,
-                (SELECT MAX(u.ultimo_acceso) FROM usuarios u WHERE u.tenant_id = t.id) as last_access
-           FROM tenants t
-           LEFT JOIN plans p ON t.current_plan_id = p.id
-          WHERE t.id = $1`,
-        [id]
-      ),
-      query('SELECT * FROM provisioning_log WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50', [id]),
-      query(
-        `SELECT s.id, s.code, s.tenant_id, s.plan_id, s.subscription_type, s.price_amount, s.price_currency,
-                s.status, s.started_at, s.expires_at, s.payment_reference, s.notes, s.created_at,
-                p.name as plan_name, p.code as plan_code, p.duration_days
-         FROM subscriptions s
-         JOIN plans p ON s.plan_id = p.id
-         WHERE s.tenant_id = $1
-         ORDER BY s.expires_at DESC NULLS LAST, s.created_at DESC`,
-        [id]
-      ),
-    ])
+    client = await getClient()
+    const tenantRes = await client.query(
+      `SELECT t.*, p.name as plan_name,
+              (SELECT MAX(u.ultimo_acceso) FROM usuarios u WHERE u.tenant_id = t.id) as last_access
+         FROM tenants t
+         LEFT JOIN plans p ON t.current_plan_id = p.id
+        WHERE t.id = $1`,
+      [id]
+    )
+    const logRes = await client.query('SELECT * FROM provisioning_log WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50', [id])
+    const subRes = await client.query(
+      `SELECT s.id, s.code, s.tenant_id, s.plan_id, s.subscription_type, s.price_amount, s.price_currency,
+              s.status, s.started_at, s.expires_at, s.payment_reference, s.notes, s.created_at,
+              p.name as plan_name, p.code as plan_code, p.duration_days
+       FROM subscriptions s
+       JOIN plans p ON s.plan_id = p.id
+       WHERE s.tenant_id = $1
+       ORDER BY s.expires_at DESC NULLS LAST, s.created_at DESC`,
+      [id]
+    )
     if (tenantRes.rows.length === 0) return res.status(404).json({ error: 'Tenant no encontrado' })
 
     const allSubscriptions = subRes.rows
@@ -450,6 +444,8 @@ router.get('/tenants/:id', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error('[admin/tenants/:id]', err)
     res.status(500).json({ error: 'Error interno' })
+  } finally {
+    if (client) client.release()
   }
 })
 
@@ -1179,36 +1175,36 @@ router.post('/tenants/:id/subscriptions', authenticateAdmin, async (req, res) =>
 
 // GET /api/admin/dashboard
 router.get('/dashboard', authenticateAdmin, async (_req, res) => {
+  let client
   try {
-    const [counts, recent, conversions, deliverability] = await Promise.all([
-      query(`
-        SELECT
-          COUNT(*) FILTER (WHERE status = 'trial')          as trial,
-          COUNT(*) FILTER (WHERE status = 'active')         as active,
-          COUNT(*) FILTER (WHERE status = 'trial_expired')  as trial_expired,
-          COUNT(*) FILTER (WHERE status = 'expired')        as expired,
-          COUNT(*) FILTER (WHERE status = 'suspended')      as suspended,
-          COUNT(*)                                           as total
-        FROM tenants
-      `),
-      query(`SELECT * FROM tenant_signup_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10`),
-      query(`
-        SELECT
-          COUNT(*) FILTER (WHERE status = 'active')  as converted,
-          COUNT(*) FILTER (WHERE status IN ('trial_expired','expired')) as not_converted
-        FROM tenants
-        WHERE created_at >= now() - INTERVAL '30 days'
-      `),
-      query(`
-        SELECT
-          COUNT(*) FILTER (WHERE status = 'failed')::int AS critical,
-          COUNT(*) FILTER (WHERE status = 'pending' AND attempts > 0)::int AS warnings,
-          MAX(COALESCE(sent_at, created_at)) AS latest_at
-        FROM notifications_outbox
-        WHERE COALESCE(sent_at, created_at) >= now() - INTERVAL '72 hours'
-          AND status IN ('failed', 'pending')
-      `),
-    ])
+    client = await getClient()
+    const counts = await client.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'trial')          as trial,
+        COUNT(*) FILTER (WHERE status = 'active')         as active,
+        COUNT(*) FILTER (WHERE status = 'trial_expired')  as trial_expired,
+        COUNT(*) FILTER (WHERE status = 'expired')        as expired,
+        COUNT(*) FILTER (WHERE status = 'suspended')      as suspended,
+        COUNT(*)                                           as total
+      FROM tenants
+    `)
+    const recent = await client.query(`SELECT * FROM tenant_signup_requests WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10`)
+    const conversions = await client.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'active')  as converted,
+        COUNT(*) FILTER (WHERE status IN ('trial_expired','expired')) as not_converted
+      FROM tenants
+      WHERE created_at >= now() - INTERVAL '30 days'
+    `)
+    const deliverability = await client.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'failed')::int AS critical,
+        COUNT(*) FILTER (WHERE status = 'pending' AND attempts > 0)::int AS warnings,
+        MAX(COALESCE(sent_at, created_at)) AS latest_at
+      FROM notifications_outbox
+      WHERE COALESCE(sent_at, created_at) >= now() - INTERVAL '72 hours'
+        AND status IN ('failed', 'pending')
+    `)
 
     const deliverabilityRow = deliverability.rows[0] || {}
     const critical = Number(deliverabilityRow.critical ?? 0)
@@ -1229,51 +1225,48 @@ router.get('/dashboard', authenticateAdmin, async (_req, res) => {
   } catch (err) {
     console.error('[admin/dashboard]', err)
     res.status(500).json({ error: 'Error interno' })
+  } finally {
+    if (client) client.release()
   }
 })
 
 // GET /api/admin/usage-stats — real usage stats across all tenants
 router.get('/usage-stats', authenticateAdmin, async (_req, res) => {
+  let client
   try {
+    client = await getClient()
     const safeQuery = async (sql, params) => {
-      try { return (await query(sql, params)).rows }
+      try { return (await client.query(sql, params)).rows }
       catch (err) { console.error('[usage-stats query]', sql.slice(0, 60), err.message); return [] }
     }
 
-    const [
-      totalGuias, guias30d, topTenants, dbSize, tarimas, dispatchFolios, dispatchFolios30d, usersInternos,
-      totalOBCs, obcs30d, totalScans, scans30d, totalDevs, devs30d,
-      totalInboundOrders, inboundOrders30d, totalInboundScans, inboundScans30d,
-      totalAnormalidades, anormalidades30d,
-    ] = await Promise.all([
-      safeQuery(`SELECT COUNT(*) AS total FROM guias`),
-      safeQuery(`SELECT COUNT(*) AS total FROM guias WHERE created_at >= now() - INTERVAL '30 days'`),
-      safeQuery(`
-        SELECT t.legal_name, t.slug, t.status, COUNT(g.id) AS guias_total,
-               COUNT(g.id) FILTER (WHERE g.created_at >= now() - INTERVAL '30 days') AS guias_30d
-        FROM tenants t
-        LEFT JOIN guias g ON g.tenant_id = t.id
-        GROUP BY t.id, t.legal_name, t.slug, t.status
-        ORDER BY guias_total DESC LIMIT 10
-      `),
-      safeQuery(`SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size`),
-      safeQuery(`SELECT COUNT(*) AS total FROM tarimas`),
-      safeQuery(`SELECT COUNT(*) AS total FROM dispatch_folios`),
-      safeQuery(`SELECT COUNT(*) AS total FROM dispatch_folios WHERE created_at >= now() - INTERVAL '30 days'`),
-      safeQuery(`SELECT COUNT(*) AS total FROM usuarios_internos WHERE activo = true`),
-      safeQuery(`SELECT COUNT(*) AS total FROM pick_order_tracking`),
-      safeQuery(`SELECT COUNT(*) AS total FROM pick_order_tracking WHERE created_at >= now() - INTERVAL '30 days'`),
-      safeQuery(`SELECT COUNT(*) AS total FROM inventory_scans`),
-      safeQuery(`SELECT COUNT(*) AS total FROM inventory_scans WHERE created_at >= now() - INTERVAL '30 days'`),
-      safeQuery(`SELECT COUNT(*) AS total FROM dev_sesiones WHERE estado = 'confirmado'`),
-      safeQuery(`SELECT COUNT(*) AS total FROM dev_sesiones WHERE estado = 'confirmado' AND confirmado_at >= now() - INTERVAL '30 days'`),
-      safeQuery(`SELECT COUNT(*) AS total FROM inbound_orders`),
-      safeQuery(`SELECT COUNT(*) AS total FROM inbound_orders WHERE created_at >= now() - INTERVAL '30 days'`),
-      safeQuery(`SELECT COUNT(*) AS total FROM inbound_scan_events`),
-      safeQuery(`SELECT COUNT(*) AS total FROM inbound_scan_events WHERE created_at >= now() - INTERVAL '30 days'`),
-      safeQuery(`SELECT COUNT(*) AS total FROM anormalidades`),
-      safeQuery(`SELECT COUNT(*) AS total FROM anormalidades WHERE created_at >= now() - INTERVAL '30 days'`),
-    ])
+    const totalGuias = await safeQuery(`SELECT COUNT(*) AS total FROM guias`)
+    const guias30d = await safeQuery(`SELECT COUNT(*) AS total FROM guias WHERE created_at >= now() - INTERVAL '30 days'`)
+    const topTenants = await safeQuery(`
+      SELECT t.legal_name, t.slug, t.status, COUNT(g.id) AS guias_total,
+             COUNT(g.id) FILTER (WHERE g.created_at >= now() - INTERVAL '30 days') AS guias_30d
+      FROM tenants t
+      LEFT JOIN guias g ON g.tenant_id = t.id
+      GROUP BY t.id, t.legal_name, t.slug, t.status
+      ORDER BY guias_total DESC LIMIT 10
+    `)
+    const dbSize = await safeQuery(`SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size`)
+    const tarimas = await safeQuery(`SELECT COUNT(*) AS total FROM tarimas`)
+    const dispatchFolios = await safeQuery(`SELECT COUNT(*) AS total FROM dispatch_folios`)
+    const dispatchFolios30d = await safeQuery(`SELECT COUNT(*) AS total FROM dispatch_folios WHERE created_at >= now() - INTERVAL '30 days'`)
+    const usersInternos = await safeQuery(`SELECT COUNT(*) AS total FROM usuarios_internos WHERE activo = true`)
+    const totalOBCs = await safeQuery(`SELECT COUNT(*) AS total FROM pick_order_tracking`)
+    const obcs30d = await safeQuery(`SELECT COUNT(*) AS total FROM pick_order_tracking WHERE created_at >= now() - INTERVAL '30 days'`)
+    const totalScans = await safeQuery(`SELECT COUNT(*) AS total FROM inventory_scans`)
+    const scans30d = await safeQuery(`SELECT COUNT(*) AS total FROM inventory_scans WHERE created_at >= now() - INTERVAL '30 days'`)
+    const totalDevs = await safeQuery(`SELECT COUNT(*) AS total FROM dev_sesiones WHERE estado = 'confirmado'`)
+    const devs30d = await safeQuery(`SELECT COUNT(*) AS total FROM dev_sesiones WHERE estado = 'confirmado' AND confirmado_at >= now() - INTERVAL '30 days'`)
+    const totalInboundOrders = await safeQuery(`SELECT COUNT(*) AS total FROM inbound_orders`)
+    const inboundOrders30d = await safeQuery(`SELECT COUNT(*) AS total FROM inbound_orders WHERE created_at >= now() - INTERVAL '30 days'`)
+    const totalInboundScans = await safeQuery(`SELECT COUNT(*) AS total FROM inbound_scan_events`)
+    const inboundScans30d = await safeQuery(`SELECT COUNT(*) AS total FROM inbound_scan_events WHERE created_at >= now() - INTERVAL '30 days'`)
+    const totalAnormalidades = await safeQuery(`SELECT COUNT(*) AS total FROM anormalidades`)
+    const anormalidades30d = await safeQuery(`SELECT COUNT(*) AS total FROM anormalidades WHERE created_at >= now() - INTERVAL '30 days'`)
 
     res.json({
       success: true,
@@ -1301,48 +1294,50 @@ router.get('/usage-stats', authenticateAdmin, async (_req, res) => {
   } catch (err) {
     console.error('[admin/usage-stats]', err)
     res.status(500).json({ error: 'Error interno' })
+  } finally {
+    if (client) client.release()
   }
 })
 
 // GET /api/admin/analytics/landing — landing page event aggregates
 router.get('/analytics/landing', authenticateAdmin, async (_req, res) => {
+  let client
   try {
+    client = await getClient()
     const safeQuery = async (sql, params) => {
-      try { return (await query(sql, params)).rows }
+      try { return (await client.query(sql, params)).rows }
       catch { return [] }
     }
 
-    const [totals, planStats, recentEvents, dailyVisits] = await Promise.all([
-      safeQuery(`
-        SELECT
-          COUNT(*) FILTER (WHERE event_type = 'page_visit')  AS total_visits,
-          COUNT(*) FILTER (WHERE event_type = 'form_submit') AS total_submissions,
-          COUNT(*) FILTER (WHERE event_type = 'cta_click')   AS total_cta_clicks,
-          COUNT(*) FILTER (WHERE event_type = 'plan_select') AS total_plan_selects,
-          COUNT(*) FILTER (WHERE event_type = 'page_visit'  AND created_at >= now() - INTERVAL '7 days') AS visits_7d,
-          COUNT(*) FILTER (WHERE event_type = 'form_submit' AND created_at >= now() - INTERVAL '7 days') AS submissions_7d
-        FROM landing_events
-      `),
-      safeQuery(`
-        SELECT payload->>'plan' AS plan, COUNT(*) AS count
-        FROM landing_events
-        WHERE event_type = 'plan_select' AND payload->>'plan' IS NOT NULL
-        GROUP BY payload->>'plan'
-        ORDER BY count DESC
-      `),
-      safeQuery(`
-        SELECT event_type, payload, created_at
-        FROM landing_events
-        ORDER BY created_at DESC LIMIT 50
-      `),
-      safeQuery(`
-        SELECT ${dateInTZ('created_at', 'America/Mexico_City')} AS date, COUNT(*) AS visits
-        FROM landing_events
-        WHERE event_type = 'page_visit' AND created_at >= now() - INTERVAL '14 days'
-        GROUP BY ${dateInTZ('created_at', 'America/Mexico_City')}
-        ORDER BY date ASC
-      `),
-    ])
+    const totals = await safeQuery(`
+      SELECT
+        COUNT(*) FILTER (WHERE event_type = 'page_visit')  AS total_visits,
+        COUNT(*) FILTER (WHERE event_type = 'form_submit') AS total_submissions,
+        COUNT(*) FILTER (WHERE event_type = 'cta_click')   AS total_cta_clicks,
+        COUNT(*) FILTER (WHERE event_type = 'plan_select') AS total_plan_selects,
+        COUNT(*) FILTER (WHERE event_type = 'page_visit'  AND created_at >= now() - INTERVAL '7 days') AS visits_7d,
+        COUNT(*) FILTER (WHERE event_type = 'form_submit' AND created_at >= now() - INTERVAL '7 days') AS submissions_7d
+      FROM landing_events
+    `)
+    const planStats = await safeQuery(`
+      SELECT payload->>'plan' AS plan, COUNT(*) AS count
+      FROM landing_events
+      WHERE event_type = 'plan_select' AND payload->>'plan' IS NOT NULL
+      GROUP BY payload->>'plan'
+      ORDER BY count DESC
+    `)
+    const recentEvents = await safeQuery(`
+      SELECT event_type, payload, created_at
+      FROM landing_events
+      ORDER BY created_at DESC LIMIT 50
+    `)
+    const dailyVisits = await safeQuery(`
+      SELECT ${dateInTZ('created_at', 'America/Mexico_City')} AS date, COUNT(*) AS visits
+      FROM landing_events
+      WHERE event_type = 'page_visit' AND created_at >= now() - INTERVAL '14 days'
+      GROUP BY ${dateInTZ('created_at', 'America/Mexico_City')}
+      ORDER BY date ASC
+    `)
 
     const t = totals[0] || {}
     const visits = Number(t.total_visits ?? 0)
@@ -1367,6 +1362,8 @@ router.get('/analytics/landing', authenticateAdmin, async (_req, res) => {
   } catch (err) {
     console.error('[admin/analytics/landing]', err)
     res.status(500).json({ error: 'Error interno' })
+  } finally {
+    if (client) client.release()
   }
 })
 
@@ -1486,6 +1483,7 @@ router.delete('/notifications', authenticateAdmin, async (req, res) => {
 
 // GET /api/admin/error-events — technical errors captured automatically by the app
 router.get('/error-events', authenticateAdmin, async (req, res) => {
+  let client
   try {
     const {
       tenant_id,
@@ -1528,46 +1526,46 @@ router.get('/error-events', authenticateAdmin, async (req, res) => {
 
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const dataParams = [...params, rowsLimit, offset]
-    const [events, count, summary, topTenants] = await Promise.all([
-      query(
-        `SELECT e.*, COALESCE(t.legal_name, e.tenant_slug) AS tenant_name, t.slug AS tenant_slug_current
-           FROM system_error_events e
-           LEFT JOIN tenants t ON t.id = e.tenant_id
-          ${whereClause}
-          ORDER BY
-            CASE e.severity WHEN 'critical' THEN 0 WHEN 'error' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END,
-            e.last_seen_at DESC
-          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-        dataParams
-      ),
-      query(`SELECT count(*)::int AS total FROM system_error_events e LEFT JOIN tenants t ON t.id = e.tenant_id ${whereClause}`, params),
-      query(
-        `SELECT
-           COUNT(*) FILTER (WHERE e.status IN ('open','reviewing'))::int AS active,
-           COUNT(*) FILTER (WHERE e.status = 'open')::int AS open,
-           COUNT(*) FILTER (WHERE e.status = 'reviewing')::int AS reviewing,
-           COUNT(*) FILTER (WHERE e.severity = 'critical' AND e.status IN ('open','reviewing'))::int AS critical,
-           COUNT(*) FILTER (WHERE e.severity = 'error' AND e.status IN ('open','reviewing'))::int AS errors,
-           COALESCE(SUM(e.occurrences) FILTER (WHERE e.last_seen_at >= now() - INTERVAL '24 hours'), 0)::int AS occurrences_24h,
-           MAX(e.last_seen_at) AS latest_at
+
+    client = await getClient()
+    const events = await client.query(
+      `SELECT e.*, COALESCE(t.legal_name, e.tenant_slug) AS tenant_name, t.slug AS tenant_slug_current
          FROM system_error_events e
          LEFT JOIN tenants t ON t.id = e.tenant_id
-         ${whereClause}`,
-        params
-      ),
-      query(
-        `SELECT COALESCE(t.legal_name, e.tenant_slug, 'Sin tenant') AS tenant_name,
-                e.tenant_id,
-                COUNT(*)::int AS active_events,
-                COALESCE(SUM(e.occurrences), 0)::int AS occurrences
-           FROM system_error_events e
-           LEFT JOIN tenants t ON t.id = e.tenant_id
-          WHERE e.status IN ('open','reviewing')
-          GROUP BY e.tenant_id, COALESCE(t.legal_name, e.tenant_slug, 'Sin tenant')
-          ORDER BY active_events DESC, occurrences DESC
-          LIMIT 8`
-      ),
-    ])
+        ${whereClause}
+        ORDER BY
+          CASE e.severity WHEN 'critical' THEN 0 WHEN 'error' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END,
+          e.last_seen_at DESC
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      dataParams
+    )
+    const count = await client.query(`SELECT count(*)::int AS total FROM system_error_events e LEFT JOIN tenants t ON t.id = e.tenant_id ${whereClause}`, params)
+    const summary = await client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE e.status IN ('open','reviewing'))::int AS active,
+         COUNT(*) FILTER (WHERE e.status = 'open')::int AS open,
+         COUNT(*) FILTER (WHERE e.status = 'reviewing')::int AS reviewing,
+         COUNT(*) FILTER (WHERE e.severity = 'critical' AND e.status IN ('open','reviewing'))::int AS critical,
+         COUNT(*) FILTER (WHERE e.severity = 'error' AND e.status IN ('open','reviewing'))::int AS errors,
+         COALESCE(SUM(e.occurrences) FILTER (WHERE e.last_seen_at >= now() - INTERVAL '24 hours'), 0)::int AS occurrences_24h,
+         MAX(e.last_seen_at) AS latest_at
+       FROM system_error_events e
+       LEFT JOIN tenants t ON t.id = e.tenant_id
+       ${whereClause}`,
+      params
+    )
+    const topTenants = await client.query(
+      `SELECT COALESCE(t.legal_name, e.tenant_slug, 'Sin tenant') AS tenant_name,
+              e.tenant_id,
+              COUNT(*)::int AS active_events,
+              COALESCE(SUM(e.occurrences), 0)::int AS occurrences
+         FROM system_error_events e
+         LEFT JOIN tenants t ON t.id = e.tenant_id
+        WHERE e.status IN ('open','reviewing')
+        GROUP BY e.tenant_id, COALESCE(t.legal_name, e.tenant_slug, 'Sin tenant')
+        ORDER BY active_events DESC, occurrences DESC
+        LIMIT 8`
+    )
 
     res.json({
       success: true,
@@ -1579,6 +1577,8 @@ router.get('/error-events', authenticateAdmin, async (req, res) => {
   } catch (err) {
     console.error('[admin/error-events GET]', err.message)
     res.status(500).json({ error: 'Error interno' })
+  } finally {
+    if (client) client.release()
   }
 })
 
@@ -1613,28 +1613,31 @@ router.get('/bug-reports', authenticateAdmin, async (req, res) => {
   const { status, page = 1, limit = 50 } = req.query
   const rows_limit = Math.min(100, parseInt(limit))
   const offset = (Math.max(1, parseInt(page)) - 1) * rows_limit
+  let client
   try {
     const whereClause = status ? 'WHERE status = $3' : ''
     const dataParams = status ? [rows_limit, offset, status] : [rows_limit, offset]
     const countParams = status ? [status] : []
-    const [reports, count] = await Promise.all([
-      query(
-        `SELECT id, tenant_id, tenant_name, user_email, user_name, description, page_url,
-                status, admin_notes, created_at, updated_at
-           FROM bug_reports ${whereClause}
-          ORDER BY created_at DESC
-          LIMIT $1 OFFSET $2`,
-        dataParams
-      ),
-      query(
-        `SELECT count(*)::int AS total FROM bug_reports ${status ? 'WHERE status = $1' : ''}`,
-        countParams
-      ),
-    ])
+
+    client = await getClient()
+    const reports = await client.query(
+      `SELECT id, tenant_id, tenant_name, user_email, user_name, description, page_url,
+              status, admin_notes, created_at, updated_at
+         FROM bug_reports ${whereClause}
+        ORDER BY created_at DESC
+        LIMIT $1 OFFSET $2`,
+      dataParams
+    )
+    const count = await client.query(
+      `SELECT count(*)::int AS total FROM bug_reports ${status ? 'WHERE status = $1' : ''}`,
+      countParams
+    )
     res.json({ reports: reports.rows, total: count.rows[0].total })
   } catch (err) {
     console.error('[admin/bug-reports GET]', err.message)
     res.status(500).json({ error: 'Error interno' })
+  } finally {
+    if (client) client.release()
   }
 })
 
