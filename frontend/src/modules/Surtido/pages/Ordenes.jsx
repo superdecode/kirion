@@ -1286,6 +1286,10 @@ export default function Ordenes() {
       // Validation status/counts are cached under this key with a 5min staleTime — refresh
       // must force it too, otherwise a just-completed order keeps showing as pendiente.
       qc.invalidateQueries({ queryKey: ['wms-order-tracking'] })
+    } catch {
+      // try/finally alone doesn't stop the rejection from propagating as an
+      // uncaught promise, and left the operator with no sign the refresh failed.
+      toast.error(t('toast.error'))
     } finally {
       setRefreshing(false)
     }
