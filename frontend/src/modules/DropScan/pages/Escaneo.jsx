@@ -600,9 +600,12 @@ export default function Escaneo() {
     const tab = tabs.find(t => t.tabId === tabId)
     if (!tab) return
 
-    // Offline mode: queue locally and show optimistic feedback
-    const isOffline = useOfflineStore.getState().status === 'offline'
-    if (isOffline) {
+    // Queue locally and show optimistic feedback — used both for genuine offline
+    // mode and as a fallback when the connection is flaky enough that scanGuia
+    // keeps failing even though the offline banner hasn't tripped yet. DUPLICADO
+    // on replay (syncOfflineQueue) is treated as already-synced, so queueing
+    // after a failed attempt is safe even if that attempt actually landed.
+    function queueOffline() {
       useOfflineStore.getState().enqueue(tab.session.id, code, tab.tarima?.id)
       if (soundEnabled) playSound('warning')
       const nextPos = (tab.tarima?.cantidad_guias || 0) + 1
@@ -614,62 +617,38 @@ export default function Escaneo() {
       })
       toast.info(`Guardado offline: ${code}`)
       setTimeout(() => updateTab(tabId, { flashType: null }), 500)
+    }
+
+    if (useOfflineStore.getState().status === 'offline') {
+      queueOffline()
       return
     }
 
-    try {
-      const data = await ds.scanGuia(tab.session.id, code, tab.tarima?.id)
-      if (soundEnabled) playSound('success')
-      if (data.alerta) { if (soundEnabled) playSound('warning'); if (data.guia.posicion >= (gpt - 5)) toast.warning(data.alerta.message) }
-
-      if (data.tarima_completada) {
-        if (pesoHabilitado && data.guia?.id) {
-          // Keep showing the completed tarima while waiting for weight on last guide
-          updateTab(tabId, (t) => ({
-            tarima: data.tarima,
-            guias: [data.guia, ...t.guias],
-            lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
-            flashType: 'success',
-          }))
-          setPesoState({
-            tabId, guiaId: data.guia.id, guiaCodigo: data.guia.codigo_guia, guiaPos: data.guia.posicion,
-            value: '', alert: null,
-            pendingCompletion: {
-              tarima: data.tarima,
-              nuevaTarima: data.nueva_tarima,
-              completedCount: data.tarima?.cantidad_guias,
-            },
-          })
-          setTimeout(() => pesoInputRef.current?.focus(), 80)
-        } else {
-          updateTab(tabId, (t) => {
-            const completedCount = data.tarima?.cantidad_guias || (t.tarima?.cantidad_guias || 0) + 1
-            return {
-              tarima: data.nueva_tarima,
-              guias: [],
-              lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
-              flashType: 'success',
-              guiasCount: (t.guiasCount || 0) + completedCount,
-              completedTarimas: [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...t.completedTarimas],
-            }
-          })
-          if (soundEnabled) playSound('complete')
-          setCompletionPrompt({ tabId, tarima: data.tarima, nuevaTarima: data.nueva_tarima })
-        }
-      } else {
-        updateTab(tabId, (t) => ({
-          tarima: data.tarima,
-          guias: [data.guia, ...t.guias],
-          lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
-          flashType: 'success',
-        }))
-        if (pesoHabilitado && data.guia?.id) {
-          setPesoState({ tabId, guiaId: data.guia.id, guiaCodigo: data.guia.codigo_guia, guiaPos: data.guia.posicion, value: '', alert: null })
-          setTimeout(() => pesoInputRef.current?.focus(), 80)
-        }
+    let data = null
+    let lastErr = null
+    for (let attempt = 0; attempt <= 2; attempt++) {
+      try {
+        data = await ds.scanGuia(tab.session.id, code, tab.tarima?.id)
+        lastErr = null
+        break
+      } catch (err) {
+        lastErr = err
+        const status = err.response?.status
+        if (status && status < 500) break // real rejection (duplicado, tarima inactiva, etc.) — retrying won't help
+        if (attempt < 2) await new Promise(r => setTimeout(r, 400 * 2 ** attempt))
       }
-    } catch (err) {
-      const d = err.response?.data
+    }
+
+    if (lastErr) {
+      const status = lastErr.response?.status
+      if (!status || status >= 500) {
+        // A flaky connection that hasn't tripped the offline banner yet — queue
+        // instead of losing the scan and leaving the operator stuck unable to
+        // move on to the next box.
+        queueOffline()
+        return
+      }
+      const d = lastErr.response?.data
       if (d?.error === 'DUPLICADO') {
         let msg = d.message
         if (d.posicion_original) {
@@ -700,6 +679,58 @@ export default function Escaneo() {
         if (soundEnabled) playSound('error')
         toast.error(d?.error || t('toast.error'))
         updateTab(tabId, { flashType: 'error' })
+      }
+      setTimeout(() => updateTab(tabId, { flashType: null }), 500)
+      return
+    }
+
+    if (soundEnabled) playSound('success')
+    if (data.alerta) { if (soundEnabled) playSound('warning'); if (data.guia.posicion >= (gpt - 5)) toast.warning(data.alerta.message) }
+
+    if (data.tarima_completada) {
+      if (pesoHabilitado && data.guia?.id) {
+        // Keep showing the completed tarima while waiting for weight on last guide
+        updateTab(tabId, (t) => ({
+          tarima: data.tarima,
+          guias: [data.guia, ...t.guias],
+          lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
+          flashType: 'success',
+        }))
+        setPesoState({
+          tabId, guiaId: data.guia.id, guiaCodigo: data.guia.codigo_guia, guiaPos: data.guia.posicion,
+          value: '', alert: null,
+          pendingCompletion: {
+            tarima: data.tarima,
+            nuevaTarima: data.nueva_tarima,
+            completedCount: data.tarima?.cantidad_guias,
+          },
+        })
+        setTimeout(() => pesoInputRef.current?.focus(), 80)
+      } else {
+        updateTab(tabId, (t) => {
+          const completedCount = data.tarima?.cantidad_guias || (t.tarima?.cantidad_guias || 0) + 1
+          return {
+            tarima: data.nueva_tarima,
+            guias: [],
+            lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
+            flashType: 'success',
+            guiasCount: (t.guiasCount || 0) + completedCount,
+            completedTarimas: [{ ...data.tarima, estado: 'FINALIZADA', completedAt: new Date() }, ...t.completedTarimas],
+          }
+        })
+        if (soundEnabled) playSound('complete')
+        setCompletionPrompt({ tabId, tarima: data.tarima, nuevaTarima: data.nueva_tarima })
+      }
+    } else {
+      updateTab(tabId, (t) => ({
+        tarima: data.tarima,
+        guias: [data.guia, ...t.guias],
+        lastScan: { type: 'success', code: data.guia.codigo_guia, pos: data.guia.posicion },
+        flashType: 'success',
+      }))
+      if (pesoHabilitado && data.guia?.id) {
+        setPesoState({ tabId, guiaId: data.guia.id, guiaCodigo: data.guia.codigo_guia, guiaPos: data.guia.posicion, value: '', alert: null })
+        setTimeout(() => pesoInputRef.current?.focus(), 80)
       }
     }
     setTimeout(() => updateTab(tabId, { flashType: null }), 500)
