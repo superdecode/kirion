@@ -4,56 +4,9 @@ import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth
 import { getPermissionLevel, requireAnyPermission, requirePermission, resolvePermission } from '../../../shared/middleware/permissions.js'
 import { generateCodeVariations, normalizeScanCode } from '../../../shared/utils/codeNormalization.js'
 import { refreshRecepcionOrderState } from '../utils/orderState.js'
-import env from '../../../config/env.js'
 
 const router = Router()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const BULK_SCAN_EVENTS_PAGE_SIZE = 1000
-const BULK_SCAN_EVENTS_MAX_ROWS = 50000
-
-async function getBulkScanEvents(tenantId, orderId, resultados) {
-  const url = new URL(`${env.SUPABASE_URL}/rest/v1/inbound_scan_events`)
-  url.searchParams.set('select', 'id,line_id,codigo_escaneado,match_field,sku_asociado,resultado,scanned_at,ubicacion,scanned_by')
-  url.searchParams.set('tenant_id', `eq.${tenantId}`)
-  url.searchParams.set('order_id', `eq.${orderId}`)
-  url.searchParams.set('order', 'scanned_at.desc,id.desc')
-  if (resultados) url.searchParams.set('resultado', `in.(${resultados})`)
-
-  const headers = {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-  }
-  const usersUrl = new URL(`${env.SUPABASE_URL}/rest/v1/usuarios`)
-  usersUrl.searchParams.set('select', 'id,nombre_completo')
-  usersUrl.searchParams.set('tenant_id', `eq.${tenantId}`)
-  const usersRequest = fetch(usersUrl, { headers, signal: AbortSignal.timeout(15000) })
-    .then(response => response.ok ? response.json() : [])
-
-  // Fetch sequentially and stop as soon as a page comes back short — most orders have far
-  // fewer than BULK_SCAN_EVENTS_MAX_ROWS events, so firing all pages in parallel up front
-  // (as this used to) meant every bulk request hammered Supabase's REST API with up to 50
-  // concurrent connections regardless of actual row count, which was exhausting the pool
-  // and causing intermittent 500s across unrelated concurrent recepcion requests.
-  const events = []
-  for (let start = 0; start < BULK_SCAN_EVENTS_MAX_ROWS; start += BULK_SCAN_EVENTS_PAGE_SIZE) {
-    const response = await fetch(url, {
-      headers: { ...headers, Range: `${start}-${start + BULK_SCAN_EVENTS_PAGE_SIZE - 1}` },
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!response.ok) throw new Error(`Supabase scan-events ${response.status}`)
-    const page = await response.json()
-    events.push(...page)
-    if (page.length < BULK_SCAN_EVENTS_PAGE_SIZE) break
-  }
-
-  const users = await usersRequest
-  const userNames = new Map(users.map(user => [user.id, user.nombre_completo]))
-
-  return events.map(event => ({
-    ...event,
-    scanned_by_nombre: userNames.get(event.scanned_by) || null,
-  }))
-}
 
 // Short-lived in-memory cache for scan-events GETs to absorb burst polling.
 // Key: "<tenantId>:<orderId>:<resultados>:<compact>". TTL: 12 seconds.
@@ -374,16 +327,6 @@ router.get('/orders/:id/scan-events',
         ? resultados.split(',').map(v => v.trim()).filter(v => ['correcto', 'duplicado', 'no_encontrado'].includes(v))
         : []
 
-      if (req.query.bulk === '1') {
-        const events = await getBulkScanEvents(req.tenantId, req.params.id, resultList.join(','))
-        return res.json({
-          events,
-          truncated: events.length >= BULK_SCAN_EVENTS_MAX_ROWS,
-          limit: BULK_SCAN_EVENTS_MAX_ROWS,
-          total: events.length,
-        })
-      }
-
       const cacheKey = `${req.tenantId}:${req.params.id}:${resultados}:${compact ? '1' : '0'}:${limit}:${page}`
       const cached = getCachedScanEvents(cacheKey)
       if (cached) return res.json(cached)
@@ -417,6 +360,34 @@ router.get('/orders/:id/scan-events',
     } catch (err) {
       console.error('[recepcion] scan-events:', err.message)
       res.status(500).json({ error: 'Error al obtener eventos de escaneo' })
+    }
+  }
+)
+
+// GET /orders/:id/line-ubicaciones — line_id -> ubicacion map for this order.
+// The detail page only needs this to know where each line last landed; it used to get
+// it by pulling the order's ENTIRE scan-event history (up to 50,000 rows, straight from
+// Supabase's REST API rather than the app's own pg connection) just to fold it into this
+// same map client-side. DISTINCT ON returns at most one row per line instead.
+router.get('/orders/:id/line-ubicaciones',
+  authenticateToken, loadFullUser,
+  requirePermission('recepcion.validacion', 'ver'),
+  async (req, res) => {
+    try {
+      const result = await req.tQuery(
+        `SELECT DISTINCT ON (line_id) line_id, ubicacion
+           FROM inbound_scan_events
+          WHERE order_id = $1 AND tenant_id = $2
+            AND resultado = 'correcto' AND line_id IS NOT NULL AND ubicacion IS NOT NULL
+          ORDER BY line_id, scanned_at DESC`,
+        [req.params.id, req.tenantId]
+      )
+      const lineUbicaciones = {}
+      for (const row of result.rows) lineUbicaciones[row.line_id] = row.ubicacion
+      res.json({ lineUbicaciones })
+    } catch (err) {
+      console.error('[recepcion] line-ubicaciones:', err.message)
+      res.status(500).json({ error: 'Error al obtener ubicaciones' })
     }
   }
 )

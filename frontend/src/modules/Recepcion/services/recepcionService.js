@@ -14,6 +14,7 @@ export const createSession = (orderId, payload) => api.post(`/recepcion/orders/$
 export const updateSession = (orderId, sessionId, payload) => api.patch(`/recepcion/orders/${orderId}/sessions/${sessionId}`, payload).then(r => r.data)
 export const scanCode = (orderId, payload) => api.post(`/recepcion/orders/${orderId}/scan`, payload).then(r => r.data)
 export const getScanEvents = (orderId, params = {}, options = {}) => api.get(`/recepcion/orders/${orderId}/scan-events`, { params, ...options }).then(r => r.data)
+export const getLineUbicaciones = (orderId) => api.get(`/recepcion/orders/${orderId}/line-ubicaciones`).then(r => r.data)
 export const deleteLastValidationRecord = (orderId) => api.delete(`/recepcion/orders/${orderId}/scan-events/last-validation`).then(r => r.data)
 export const deleteScanEvent = (orderId, eventId) => api.delete(`/recepcion/orders/${orderId}/scan-events/${eventId}`).then(r => r.data)
 export const deleteLocationScans = (orderId, ubicacion) =>
