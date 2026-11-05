@@ -164,13 +164,18 @@ export default function Ordenes() {
   const [showScanResolution, setShowScanResolution] = useState(false)
   const [conflictModal, setConflictModal] = useState({ open: false, orderNo: null, dispatch: null })
 
-  const { data: sheetsData, isLoading: loadingSheets, isFetching: fetchingSheets, isError } = useQuery({
+  const { data: sheetsData, isLoading: loadingSheets, isFetching: fetchingSheets, isError, error: sheetsError } = useQuery({
     queryKey: ['despacho-outbound-list'],
     queryFn: getOutboundList,
     staleTime: 60000,
     refetchOnWindowFocus: false,
     refetchInterval: (query) => query.state.data?.data?.partial ? 5000 : false,
   })
+  // SHEET_NOT_CONFIGURED is the one case that's actually a configuration problem; every
+  // other code (BACKEND_UNAVAILABLE, SHEET_PROXY_UNAVAILABLE, SHEET_TIMEOUT, or a plain
+  // network/503 failure with no code) is a transient connection problem — see the same
+  // fix in Surtido/pages/Ordenes.jsx for the full reasoning.
+  const sheetsErrorIsConfig = sheetsError?.code === 'SHEET_NOT_CONFIGURED'
 
   const { data: dispatchData, isLoading: loadingDispatch, isFetching: fetchingDispatch } = useQuery({
     queryKey: ['despacho-ordenes-dispatch'],
@@ -749,8 +754,14 @@ export default function Ordenes() {
         ) : isError ? (
           <div className="flex flex-col items-center gap-4 py-16 text-center px-6">
             <AlertCircle className="w-10 h-10 text-danger-300" />
-            <p className="text-sm font-medium text-warm-700">{t('desp.ordenes.error')}</p>
-            {isAdmin ? (
+            <p className="text-sm font-medium text-warm-700">
+              {t(sheetsErrorIsConfig ? 'desp.ordenes.error' : 'desp.ordenes.errorTransient')}
+            </p>
+            {!sheetsErrorIsConfig ? (
+              <p className="text-xs text-warm-400 max-w-xs">
+                {t('desp.ordenes.errorTransientHint')}
+              </p>
+            ) : isAdmin ? (
               <>
                 <p className="text-xs text-warm-400 max-w-xs">
                   {t('desp.ordenes.errorHintAdmin')}

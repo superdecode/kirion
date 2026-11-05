@@ -1295,7 +1295,7 @@ export default function Ordenes() {
     }
   }
 
-  const { data: wmsData, isLoading: wmsLoading, isFetching: wmsFetching, isError: wmsError, refetch: refetchWms } = useQuery({
+  const { data: wmsData, isLoading: wmsLoading, isFetching: wmsFetching, isError: wmsError, error: wmsErrorObj, refetch: refetchWms } = useQuery({
     queryKey: ['wms-outbound'],
     queryFn: getOutboundList,
     staleTime: 5 * 60 * 1000,
@@ -1303,6 +1303,14 @@ export default function Ordenes() {
     retry: 0,
     enabled: backendOnline,
   })
+  // SHEET_NOT_CONFIGURED is the one case that's actually a configuration problem
+  // (loadSheetUrls() succeeded but this tenant has no outbound sheet URL set). Every
+  // other error code here (BACKEND_UNAVAILABLE, SHEET_PROXY_UNAVAILABLE, SHEET_TIMEOUT,
+  // or a plain network/503 failure with no code at all) is a transient connection
+  // problem that has nothing to do with WMS configuration — telling the operator to go
+  // reconfigure Sistema › Conexión for a 503 sends them down the wrong troubleshooting
+  // path entirely.
+  const wmsErrorIsConfig = wmsErrorObj?.code === 'SHEET_NOT_CONFIGURED'
 
   const { data: trackingData } = useQuery({
     queryKey: ['wms-order-tracking'],
@@ -2329,8 +2337,12 @@ export default function Ordenes() {
               className="flex flex-col items-center gap-4 py-16 text-center px-6"
             >
               <AlertCircle className="w-10 h-10 text-danger-300" />
-              <p className="text-sm font-medium text-warm-700">{t('desp.ordenes.error')}</p>
-              {user?.es_admin_tenant === true ||
+              <p className="text-sm font-medium text-warm-700">
+                {t(wmsErrorIsConfig ? 'desp.ordenes.error' : 'desp.ordenes.errorTransient')}
+              </p>
+              {!wmsErrorIsConfig ? (
+                <p className="text-xs text-warm-400 max-w-xs">{t('desp.ordenes.errorTransientHint')}</p>
+              ) : user?.es_admin_tenant === true ||
                (user?.es_admin_tenant === undefined && ['administrador', 'admin', 'administrator'].includes(String(user?.rol_nombre || '').trim().toLowerCase())) ? (
                 <>
                   <p className="text-xs text-warm-400 max-w-xs">{t('desp.ordenes.errorHintAdmin')}</p>

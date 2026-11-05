@@ -1390,9 +1390,23 @@ function TabSession({ tabId, isActive, initialObc, initialAutoStart, onSessionCh
             return
           }
 
-          // Verify the stored session is still open before trusting it
-          getScanSession(s.sessionId)
+          // Verify the stored session is still open before trusting it. Scanning is
+          // silently blocked (doScan requires a non-null sessionId) until this settles,
+          // so a short timeout matters here specifically: navigator.onLine reports
+          // 'online' as long as the WiFi radio is associated, even with no real
+          // internet (DNS/upstream down) — exactly the case that sends this down the
+          // verify path instead of the offline fast-path above. Without this, the
+          // default 15s request timeout (plus the interceptor's own network-failure
+          // retry) left scanning dead for up to ~30s with zero feedback before falling
+          // back to restoreLocally() below. The toast is delayed so a normal, fast
+          // verify (the common case) doesn't flash a message on every reload.
+          const slowVerifyToast = setTimeout(
+            () => toast.info(t('surtido.validacion.verifying_session') || 'Verificando sesión…'),
+            800
+          )
+          getScanSession(s.sessionId, { timeout: 4000 })
             .then(res => {
+              clearTimeout(slowVerifyToast)
               const session = res?.data?.session ?? res?.data ?? res
               if (session?.status === 'open') {
                 restoreLocally()
@@ -1402,6 +1416,7 @@ function TabSession({ tabId, isActive, initialObc, initialAutoStart, onSessionCh
               }
             })
             .catch((err) => {
+              clearTimeout(slowVerifyToast)
               // Only a definitive 404 (session genuinely doesn't exist server-side) is
               // safe to treat as "confirmed gone". Any other response — 403/401 from an
               // auth/tenant/permission hiccup, 5xx, etc. — is not proof the session is
