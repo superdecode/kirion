@@ -616,6 +616,14 @@ export default function Escaneo() {
         flashType: 'success',
       })
       toast.info(`Guardado offline: ${code}`)
+      // The scan queues with a fake local id (no real guiaId until it syncs), and
+      // updateGuiaPeso/the offline peso-update queue both require a real one — so
+      // there's no safe way to prompt for and persist weight on this box right now.
+      // Silently skipping that step left the operator with no sign weight wasn't
+      // captured at all; tell them explicitly instead.
+      if (pesoHabilitado) {
+        toast.warning(t('scan.peso.notCapturedOffline').replace('{code}', code))
+      }
       setTimeout(() => updateTab(tabId, { flashType: null }), 500)
     }
 
