@@ -431,6 +431,19 @@ function DetailModal({ session, isOpen, onClose, initialTab = 'detallado', initi
         ubicacion_id,
       })
     },
+    // Mutations get no automatic retry by default (unlike GET queries, which get
+    // one on a 503 — see api.js's axios interceptor). A brief backend/DB-pool
+    // blip otherwise means a single 503 fails this save immediately with no
+    // "it just worked a second later" grace, reading to the operator as the
+    // feature simply not allowing the edit. Retry transient failures only —
+    // never a real validation rejection.
+    retry: (failureCount, error) => {
+      if (error?.ubicInvalid) return false
+      const status = error?.response?.status
+      if (failureCount >= 2) return false
+      return !status || status >= 500
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['wms-inventory-session', session?.id] })
       qc.invalidateQueries({ queryKey: ['wms-inventory-sessions'] })
