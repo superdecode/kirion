@@ -1004,6 +1004,9 @@ router.delete('/orders/:id',
     } catch (err) {
       if (client) try { await client.query('ROLLBACK') } catch {}
       console.error('[recepcion] delete order:', err.message)
+      if (isDatabaseUnavailableError(err)) {
+        return res.status(503).json({ error: 'Servicio no disponible, intenta de nuevo' })
+      }
       res.status(500).json({ error: 'Error al eliminar orden' })
     } finally {
       if (client) client.release()
