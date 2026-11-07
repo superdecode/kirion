@@ -16,7 +16,7 @@ import { useI18nStore } from '../../../core/stores/i18nStore'
 import { useToastStore } from '../../../core/stores/toastStore'
 import { useAuthStore } from '../../../core/stores/authStore'
 import { fmtDateTime } from '../../../core/utils/dateFormat'
-import { getOrder, getOrderExportData, getScanEvents, updateOrder, updateLine, getListaRecepcion, deleteLastValidationRecord, deleteScanEvent, getNovedades, createNovedad, deleteNovedad, getNovedadTipos, markScanEventAsNovedad } from '../services/recepcionService'
+import { getOrder, getOrderExportData, getScanEvents, getLineUbicaciones, updateOrder, updateLine, getListaRecepcion, deleteLastValidationRecord, deleteScanEvent, getNovedades, createNovedad, deleteNovedad, getNovedadTipos, markScanEventAsNovedad } from '../services/recepcionService'
 import { STALE } from '../../../core/constants/queryConfig'
 import { buildListaRecepcionData, generateListaRecepcionXlsx } from '../utils/listaRecepcionReport'
 import ListaRecepcionPreviewModal from '../components/ListaRecepcionPreviewModal'
@@ -214,15 +214,19 @@ export default function RecepcionDetalle() {
 
   const { data: eventsData, isLoading: isEventsLoading } = useQuery({
     queryKey: ['recepcion-scan-events', id, 'detail'],
-    queryFn: () => getScanEvents(id, { compact: 1, limit: 500 }),
+    queryFn: () => getScanEvents(id, { compact: 1, limit: 3000 }),
     enabled: canQueryRecepcion,
     retry: false,
     staleTime: STALE.SHORT,
   })
 
-  const { data: bulkEventsData } = useQuery({
-    queryKey: ['recepcion-scan-events', id, 'detail-bulk'],
-    queryFn: () => getScanEvents(id, { compact: 1, bulk: 1 }, { timeout: 15000 }),
+  // Only the line_id -> ubicacion map, computed server-side (DISTINCT ON, one row per
+  // line) — this used to come from re-fetching the order's ENTIRE scan-event history via
+  // Supabase's REST API (up to 50,000 rows) on every detail-page load just to fold it
+  // into this same map client-side.
+  const { data: lineUbicacionesData } = useQuery({
+    queryKey: ['recepcion-line-ubicaciones', id],
+    queryFn: () => getLineUbicaciones(id),
     enabled: canQueryRecepcion,
     retry: false,
     staleTime: STALE.SHORT,
@@ -348,18 +352,16 @@ export default function RecepcionDetalle() {
 
   const lineUbicacionMap = useMemo(() => {
     const map = new Map()
-    for (const ev of (bulkEventsData?.events || eventsData?.events || [])) {
-      if (ev.resultado === 'correcto' && ev.line_id && ev.ubicacion) {
-        map.set(ev.line_id, ev.ubicacion)
-      }
+    for (const [lineId, ubicacion] of Object.entries(lineUbicacionesData?.lineUbicaciones || {})) {
+      map.set(lineId, ubicacion)
     }
     return map
-  }, [bulkEventsData?.events, eventsData?.events])
+  }, [lineUbicacionesData])
 
   const order = data?.order ?? {}
   const lines = data?.lines ?? []
   const linesMeta = data?.lines_meta ?? {}
-  const events = bulkEventsData?.events || eventsData?.events || []
+  const events = eventsData?.events || []
   const novedades = novedadesData?.novedades || []
   const linesTotal = Number(linesMeta.total ?? lines.length)
 
