@@ -574,6 +574,7 @@ export default {
     'scan.peso.invalid': '请输入有效重量（0.001 至 9999.999 Kg）',
     'scan.peso.saveError': '重量保存失败，请重试',
     'scan.peso.queuedOffline': '重量已离线保存，重新连接后将自动同步',
+    'scan.peso.notCapturedOffline': '包裹 {code} 已离线保存但未记录重量 — 同步后请在"托盘"中补充',
     'scan.peso.looksLikeGuide': '该值疑似面单号，不像重量，请确认或清除',
     'scan.peso.reject': '拒绝并清空',
     'scan.peso.forceRegister': '仍然登记',
