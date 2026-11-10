@@ -44,6 +44,8 @@ export async function syncOfflineQueue() {
         await api.post(`/DropScan/sessions/${item.sessionId}/scan`, {
           codigo_guia: item.codigo_guia,
           tarima_id: item.tarimaId,
+          // Weight captured offline travels with the scan so both land atomically
+          ...(item.peso_kg != null ? { peso_kg: item.peso_kg } : {}),
         })
         store.dequeue(item.id)
         synced++

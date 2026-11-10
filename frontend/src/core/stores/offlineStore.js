@@ -55,6 +55,19 @@ export const useOfflineStore = create(
         return item
       },
 
+      /** Attaches a weight (kg) to a not-yet-synced scan. Returns false if it already synced. */
+      setQueuedScanPeso: (id, pesoKg) => {
+        let found = false
+        set((s) => ({
+          queue: s.queue.map((i) => {
+            if (i.id !== id) return i
+            found = true
+            return { ...i, peso_kg: pesoKg }
+          }),
+        }))
+        return found
+      },
+
       dequeue: (id) => {
         set((s) => ({ queue: s.queue.filter((i) => i.id !== id) }))
       },

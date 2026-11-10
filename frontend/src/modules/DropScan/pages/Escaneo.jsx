@@ -23,6 +23,8 @@ import {
 } from 'lucide-react'
 import { scoreTrackingCode } from '../utils/trackingValidator'
 import { useOfflineStore } from '../../../core/stores/offlineStore'
+import { syncModuleQueue } from '../../../core/services/offlineSync'
+import { saveGuiaPeso, isPesoQueued } from '../services/pesoClient'
 import { playSound, initAudio } from '../../Shared/Wms/playSound'
 
 /* ─── session timer hook ─────────────────────────────── */
@@ -374,7 +376,7 @@ export default function Escaneo() {
       const lastGuia = tab.guias?.[0]
       if (!lastGuia) continue
       pesoReconciledTabs.current.add(tab.tabId)
-      if (lastGuia.peso_kg == null && !lastGuia.offline) {
+      if (lastGuia.peso_kg == null && !lastGuia.offline && !isPesoQueued(lastGuia.id)) {
         setPesoState({
           tabId: tab.tabId, guiaId: lastGuia.id, guiaCodigo: lastGuia.codigo_guia,
           guiaPos: lastGuia.posicion, value: '', alert: null,
@@ -606,23 +608,22 @@ export default function Escaneo() {
     // on replay (syncOfflineQueue) is treated as already-synced, so queueing
     // after a failed attempt is safe even if that attempt actually landed.
     function queueOffline() {
-      useOfflineStore.getState().enqueue(tab.session.id, code, tab.tarima?.id)
+      const queued = useOfflineStore.getState().enqueue(tab.session.id, code, tab.tarima?.id)
       if (soundEnabled) playSound('warning')
       const nextPos = (tab.tarima?.cantidad_guias || 0) + 1
+      const offlineGuiaId = `offline-${Date.now()}`
       updateTab(tabId, {
         tarima: tab.tarima ? { ...tab.tarima, cantidad_guias: nextPos } : tab.tarima,
-        guias: [{ id: `offline-${Date.now()}`, codigo_guia: code, posicion: nextPos, timestamp_escaneo: new Date().toISOString(), offline: true }, ...tab.guias],
+        guias: [{ id: offlineGuiaId, codigo_guia: code, posicion: nextPos, timestamp_escaneo: new Date().toISOString(), offline: true, offlineQueueId: queued.id }, ...tab.guias],
         lastScan: { type: 'success', code, pos: nextPos },
         flashType: 'success',
       })
       toast.info(`Guardado offline: ${code}`)
-      // The scan queues with a fake local id (no real guiaId until it syncs), and
-      // updateGuiaPeso/the offline peso-update queue both require a real one — so
-      // there's no safe way to prompt for and persist weight on this box right now.
-      // Silently skipping that step left the operator with no sign weight wasn't
-      // captured at all; tell them explicitly instead.
+      // The weight is captured offline too; it is attached to the queued scan
+      // and syncs with it, so it is never lost when the connection is down.
       if (pesoHabilitado) {
-        toast.warning(t('scan.peso.notCapturedOffline').replace('{code}', code))
+        setPesoState({ tabId, guiaId: offlineGuiaId, offlineQueueId: queued.id, guiaCodigo: code, guiaPos: nextPos, value: '', alert: null })
+        setTimeout(() => pesoInputRef.current?.focus(), 80)
       }
       setTimeout(() => updateTab(tabId, { flashType: null }), 500)
     }
@@ -819,63 +820,35 @@ export default function Escaneo() {
       return
     }
     const pesoKg = toKg(rawVal)
-    const sessionId = tab.session.id
+    const { offlineQueueId } = pesoState
+    const applyPeso = (peso) => updateTab(tabId, t => ({
+      guias: t.guias.map(g => g.id === guiaId ? { ...g, peso_kg: peso } : g),
+      lastScan: t.lastScan ? { ...t.lastScan, peso_kg: peso } : t.lastScan,
+    }))
 
-    const applyLocalPeso = () => {
-      updateTab(tabId, t => ({
-        guias: t.guias.map(g => g.id === guiaId ? { ...g, peso_kg: pesoKg } : g),
-        lastScan: t.lastScan ? { ...t.lastScan, peso_kg: pesoKg } : t.lastScan,
-      }))
-    }
-    const queueOffline = () => {
-      useOfflineStore.getState().enqueueModule({
-        type: 'dropscan_peso_update',
-        payload: { sessionId, guiaId, pesoKg },
-      })
-      applyLocalPeso()
+    if (offlineQueueId != null) {
+      // Offline scan: attach the weight to the queued scan (synced together).
+      if (!useOfflineStore.getState().setQueuedScanPeso(offlineQueueId, pesoKg)) {
+        toast.warning(t('scan.peso.saveError') || 'No se pudo guardar el peso, reintenta')
+        return
+      }
+      applyPeso(pesoKg)
       if (soundEnabled) playSound('peso')
-      toast.info(t('scan.peso.queuedOffline') || 'Peso guardado offline, se sincronizará al reconectar')
-    }
-
-    // The PATCH /peso endpoint is a plain idempotent UPDATE server-side (it
-    // even accepts an already-ended session), so it's always safe to replay —
-    // either via a quick retry here or via the offline queue.
-    if (useOfflineStore.getState().status === 'offline') {
-      queueOffline()
     } else {
-      let lastErr = null
-      let saved = false
-      for (let attempt = 0; attempt <= 2; attempt++) {
-        try {
-          await ds.updateGuiaPeso(sessionId, guiaId, pesoKg)
-          saved = true
-          break
-        } catch (err) {
-          lastErr = err
-          const status = err.response?.status
-          if (status && status < 500) break // real rejection (bad value, 404) — retrying won't help
-          if (attempt < 2) await new Promise(r => setTimeout(r, 400 * 2 ** attempt))
+      // Optimistic and non-blocking: the operator keeps scanning at scan speed.
+      // The save retries in the background and falls back to the persistent
+      // queue, so a 503 / pool blip never loses the weight or blocks the flow.
+      applyPeso(pesoKg)
+      if (soundEnabled) playSound('peso')
+      const sessionId = tab.session.id
+      saveGuiaPeso({ sessionId, guiaId, pesoKg }, syncModuleQueue).then((result) => {
+        if (result === 'queued') {
+          toast.info(t('scan.peso.queued') || 'Peso guardado, se sincronizara automaticamente')
+        } else if (result === 'rejected') {
+          applyPeso(null)
+          toast.error(t('scan.peso.rejected') || 'El peso no pudo registrarse (guia no encontrada)')
         }
-      }
-      if (saved) {
-        applyLocalPeso()
-        if (soundEnabled) playSound('peso')
-      } else {
-        const status = lastErr?.response?.status
-        if (!status || status >= 500) {
-          // A flaky connection that hasn't tripped the offline banner yet —
-          // queue instead of leaving the operator stuck unable to scan the
-          // next box while retrying a request that keeps failing.
-          queueOffline()
-        } else {
-          // Weight must never be lost silently — keep the capture open so the
-          // operator can retry instead of moving on with an unsaved weight.
-          if (soundEnabled) playSound('error')
-          toast.error(lastErr.response?.data?.error || t('scan.peso.saveError') || 'No se pudo guardar el peso, reintenta')
-          setPesoState(s => (s ? { ...s, alert: null } : s))
-          return
-        }
-      }
+      })
     }
 
     const pendingCompletion = pesoState.pendingCompletion
@@ -895,7 +868,7 @@ export default function Escaneo() {
     } else {
       setTimeout(() => inputRef.current?.focus(), 80)
     }
-  }, [pesoState, tabs, updateTab, toast, t, toKg, pesoRange])
+  }, [pesoState, tabs, updateTab, toast, t, toKg, pesoRange, soundEnabled])
 
   /* ── delete guide (any position, supervisor flow) ── */
   const handleDeleteGuia = (tabId, guiaId) => {

@@ -456,6 +456,8 @@ export default {
     'scan.peso.saveError': 'No se pudo guardar el peso, reintenta',
     'scan.peso.queuedOffline': 'Peso guardado offline, se sincronizará al reconectar',
     'scan.peso.notCapturedOffline': 'Guía {code} guardada offline sin peso — agrégalo después en Tarimas cuando sincronice',
+    'scan.peso.queued': 'Peso guardado, se sincronizara automaticamente',
+    'scan.peso.rejected': 'El peso no pudo registrarse (guia no encontrada)',
     'scan.peso.looksLikeGuide': 'Este valor parece ser una guía de paquetería, no un peso. confirma o descarta.',
     'scan.peso.reject': 'Rechazar y Limpiar',
     'scan.peso.forceRegister': 'Registrar de Todas Formas',

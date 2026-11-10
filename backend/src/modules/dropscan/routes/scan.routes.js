@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { authenticateToken, loadFullUser } from '../../../shared/middleware/auth.js'
 import { requirePermission } from '../../../shared/middleware/permissions.js'
 import { getTodayMX } from '../../../shared/utils/dateUtils.js'
+import { isDatabaseUnavailableError } from '../../../config/database.js'
+import { parsePeso, saveGuiaPeso, pesoErrorResponse } from '../utils/peso.js'
 
 const router = Router()
 
@@ -348,6 +350,8 @@ router.post('/sessions/:id/scan',
       client = await req.tGetClient()
       const sessionId = req.params.id
       const { codigo_guia, tarima_id } = req.body // tarima_id is optional for multi-tarima support
+      // Optional weight (offline replay sends it with the scan so both land atomically)
+      const pesoInicial = parsePeso(req.body?.peso_kg)
       const userId = req.user.id
 
       if (!codigo_guia || !codigo_guia.trim()) {
@@ -463,9 +467,9 @@ router.post('/sessions/:id/scan',
       const guiaNivel = sesion.nivel_usuario || null
       const guiaInternoId = sesion.usuario_interno_id || null
       const guiaRes = await client.query(
-        `INSERT INTO guias (codigo_guia, tarima_id, posicion, operador_id, usuario_operador, nivel_usuario, usuario_interno_id, tenant_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [code, tarima.id, newPos, userId, guiaOperador, guiaNivel, guiaInternoId, req.tenantId]
+        `INSERT INTO guias (codigo_guia, tarima_id, posicion, operador_id, usuario_operador, nivel_usuario, usuario_interno_id, tenant_id, peso_kg)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [code, tarima.id, newPos, userId, guiaOperador, guiaNivel, guiaInternoId, req.tenantId, pesoInicial]
       )
       const guia = guiaRes.rows[0]
 
@@ -554,6 +558,10 @@ router.post('/sessions/:id/scan',
     } catch (error) {
       if (client) try { await client.query('ROLLBACK') } catch {}
       console.error('Scan error:', error)
+      if (isDatabaseUnavailableError(error)) {
+        res.set('Retry-After', '2')
+        return res.status(503).json({ error: 'Servidor ocupado, reintenta', code: 'DB_BUSY', retryable: true })
+      }
       res.status(500).json({ error: 'Error escaneando guía' })
     } finally {
       if (client) client.release()
@@ -823,37 +831,25 @@ router.patch('/sessions/:sessionId/guia/:guiaId/peso',
     if (!req.tenantId) return res.status(400).json({ error: 'Contexto de tenant no disponible' })
     try {
       const { sessionId, guiaId } = req.params
-      const { peso_kg } = req.body
-
-      const pesoVal = parseFloat(peso_kg)
-      if (isNaN(pesoVal) || pesoVal < 0.001 || pesoVal > 9999.999) {
+      const pesoVal = parsePeso(req.body?.peso_kg)
+      if (pesoVal === null) {
         return res.status(400).json({ error: 'peso_kg debe estar entre 0.001 y 9999.999' })
       }
 
-      // Verify the session exists for this operator (even if it already ended —
-      // the weight belongs to the guía, not to the session's lifetime, so a
-      // session that auto-closed between the scan and the weight submit must
-      // not block the update; that coupling was silently dropping weights).
-      const sesionRes = await req.tQuery(
-        'SELECT id FROM sesiones_escaneo WHERE id = $1 AND operador_id = $2 AND tenant_id = $3',
-        [sessionId, req.user.id, req.tenantId]
-      )
-      if (sesionRes.rows.length === 0) {
-        return res.status(404).json({ error: 'Sesión no encontrada' })
+      // Single statement, single pool checkout (the old version used two).
+      const row = await saveGuiaPeso(req.tQuery, {
+        sessionId, guiaId, operadorId: req.user.id, tenantId: req.tenantId, peso: pesoVal,
+      })
+      if (!row) {
+        return res.status(404).json({ error: 'Guía o sesión no encontrada' })
       }
 
-      const result = await req.tQuery(
-        'UPDATE guias SET peso_kg = $1 WHERE id = $2 AND tenant_id = $3 RETURNING id, peso_kg',
-        [pesoVal, guiaId, req.tenantId]
-      )
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Guía no encontrada' })
-      }
-
-      res.json({ success: true, peso_kg: result.rows[0].peso_kg })
+      res.json({ success: true, peso_kg: row.peso_kg })
     } catch (error) {
       console.error('Update peso error:', error)
-      res.status(500).json({ error: 'Error guardando peso' })
+      const { status, body, retryAfterSeconds } = pesoErrorResponse(error)
+      if (retryAfterSeconds) res.set('Retry-After', String(retryAfterSeconds))
+      res.status(status).json(body)
     }
   }
 )
