@@ -316,6 +316,27 @@ function buildExactOnlyWhere(columns, { exactParam, compactParam }) {
   return `(${upperCols} OR ${compactCols})`
 }
 
+const compactExpr = (col) => `REGEXP_REPLACE(UPPER(COALESCE(${col}, '')), '[^A-Z0-9]', '', 'g')`
+
+/**
+ * Exact-mode WHERE for pick_events, written so every OR arm hits an index
+ * (migration 117) on pick_events itself: Postgres can't BitmapOr across a join,
+ * so the outbound_order_no arm becomes a session_id lookup. The UPPER(...) =
+ * ANY(exact) arms of buildExactOnlyWhere are dropped because they are implied:
+ * every exact variant compacts to the same value as $compactParam.
+ * Before this, each exact search was a full scan of pick_events (~10s, 300k rows).
+ */
+function buildPickEventsExactWhere({ compactParam }) {
+  const c = `$${compactParam}`
+  return `(${compactExpr('pe.scanned_code')} = ${c}
+    OR ${compactExpr('pe.normalized_code')} = ${c}
+    OR ${compactExpr('pe.matched_box_type')} = ${c}
+    OR pe.session_id = ANY(ARRAY(
+      SELECT id FROM pick_sessions
+      WHERE tenant_id = $1 AND ${compactExpr('outbound_order_no')} = ${c}
+    )))`
+}
+
 async function runDbQuery(queryable, text, params = []) {
   if (typeof queryable === 'function') return queryable(text, params)
   return queryable.query(text, params)
@@ -581,7 +602,7 @@ router.get('/buscar',
         ? buildExactOnlyWhere(['sc.scanned_code', 'sc.normalized_code', 'sc.code2'], matchParams)
         : buildFlexibleMatchWhere(['sc.scanned_code', 'sc.normalized_code', 'sc.code2'], matchParams)
       const surtidoWhere = mode === 'exact'
-        ? buildExactOnlyWhere(['pe.scanned_code', 'pe.normalized_code', 'pe.matched_box_type', 'ps.outbound_order_no'], matchParams)
+        ? buildPickEventsExactWhere(matchParams)
         : buildFlexibleMatchWhere(['pe.scanned_code', 'pe.normalized_code', 'pe.matched_box_type', 'ps.outbound_order_no'], matchParams)
       const rastreoWhere = mode === 'exact'
         ? buildExactOnlyWhere(rastreoMatchColumns, matchParams)
