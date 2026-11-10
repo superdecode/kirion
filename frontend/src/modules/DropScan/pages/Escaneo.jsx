@@ -23,8 +23,8 @@ import {
 } from 'lucide-react'
 import { scoreTrackingCode } from '../utils/trackingValidator'
 import { useOfflineStore } from '../../../core/stores/offlineStore'
-import { syncModuleQueue } from '../../../core/services/offlineSync'
-import { saveGuiaPeso, isPesoQueued } from '../services/pesoClient'
+import { syncModuleQueue, getSyncedScanGuiaId } from '../../../core/services/offlineSync'
+import { saveGuiaPeso, isPesoQueued, startWeightDrain } from '../services/pesoClient'
 import { playSound, initAudio } from '../../Shared/Wms/playSound'
 
 /* ─── session timer hook ─────────────────────────────── */
@@ -286,6 +286,10 @@ export default function Escaneo() {
       window.removeEventListener('click', handler)
     }
   }, [])
+
+  // Weights left in the persistent queue by a previous page load (reload, crash)
+  // only replay on a connection status change otherwise — drain them now.
+  useEffect(() => { startWeightDrain(syncModuleQueue) }, [])
 
   // Today's lists must roll over even when the scanner screen remains open.
   const [todayStr, setTodayStr] = useState(getTodayDateStr)
@@ -826,22 +830,8 @@ export default function Escaneo() {
       lastScan: t.lastScan ? { ...t.lastScan, peso_kg: peso } : t.lastScan,
     }))
 
-    if (offlineQueueId != null) {
-      // Offline scan: attach the weight to the queued scan (synced together).
-      if (!useOfflineStore.getState().setQueuedScanPeso(offlineQueueId, pesoKg)) {
-        toast.warning(t('scan.peso.saveError') || 'No se pudo guardar el peso, reintenta')
-        return
-      }
-      applyPeso(pesoKg)
-      if (soundEnabled) playSound('peso')
-    } else {
-      // Optimistic and non-blocking: the operator keeps scanning at scan speed.
-      // The save retries in the background and falls back to the persistent
-      // queue, so a 503 / pool blip never loses the weight or blocks the flow.
-      applyPeso(pesoKg)
-      if (soundEnabled) playSound('peso')
-      const sessionId = tab.session.id
-      saveGuiaPeso({ sessionId, guiaId, pesoKg }, syncModuleQueue).then((result) => {
+    const saveInBackground = (realGuiaId) => {
+      saveGuiaPeso({ sessionId: tab.session.id, guiaId: realGuiaId, pesoKg }, syncModuleQueue).then((result) => {
         if (result === 'queued') {
           toast.info(t('scan.peso.queued') || 'Peso guardado, se sincronizara automaticamente')
         } else if (result === 'rejected') {
@@ -849,6 +839,35 @@ export default function Escaneo() {
           toast.error(t('scan.peso.rejected') || 'El peso no pudo registrarse (guia no encontrada)')
         }
       })
+    }
+
+    if (offlineQueueId != null) {
+      // Offline scan: attach the weight to the queued scan (synced together).
+      if (useOfflineStore.getState().setQueuedScanPeso(offlineQueueId, pesoKg)) {
+        applyPeso(pesoKg)
+        if (soundEnabled) playSound('peso')
+      } else {
+        // The connection came back and the scan synced while the weight was
+        // being typed: save it against the real guia id. Never keep the prompt
+        // open here — it would block every further scan with no way out.
+        const realGuiaId = getSyncedScanGuiaId(offlineQueueId)
+        if (realGuiaId != null) {
+          applyPeso(pesoKg)
+          if (soundEnabled) playSound('peso')
+          saveInBackground(realGuiaId)
+        } else {
+          // Dropped on replay (dead session / tarima, or duplicate elsewhere).
+          if (soundEnabled) playSound('error')
+          toast.error(t('scan.peso.rejected') || 'El peso no pudo registrarse (guia no encontrada)')
+        }
+      }
+    } else {
+      // Optimistic and non-blocking: the operator keeps scanning at scan speed.
+      // The save retries in the background and falls back to the persistent
+      // queue, so a 503 / pool blip never loses the weight or blocks the flow.
+      applyPeso(pesoKg)
+      if (soundEnabled) playSound('peso')
+      saveInBackground(guiaId)
     }
 
     const pendingCompletion = pesoState.pendingCompletion

@@ -9,6 +9,29 @@ import { updateGuiaPeso } from '../../modules/DropScan/services/dropscanService'
 
 let syncInProgress = false
 
+// queueId → real guia id, for scans that synced while the operator was still
+// typing the weight captured offline (the queued item is gone by then, so the
+// weight has to go through PATCH /peso against the real id instead).
+const syncedScanGuiaIds = new Map()
+export const getSyncedScanGuiaId = (queueId) => syncedScanGuiaIds.get(queueId) ?? null
+
+/**
+ * Called once a queued scan landed server-side. If a weight was attached to the
+ * queued item after this POST was already sent (snapshot without peso_kg), it
+ * is not lost: it goes to the persistent peso queue against the real guia id.
+ */
+function onQueuedScanLanded(store, item, guiaId) {
+  if (guiaId == null) return
+  syncedScanGuiaIds.set(item.id, guiaId)
+  const current = useOfflineStore.getState().queue.find((i) => i.id === item.id)
+  if (item.peso_kg == null && current?.peso_kg != null) {
+    store.enqueueModule({
+      type: 'dropscan_peso_update',
+      payload: { sessionId: item.sessionId, guiaId, pesoKg: current.peso_kg },
+    })
+  }
+}
+
 /**
  * Replays all queued offline scans in FIFO order.
  * Called automatically when the browser comes back online.
@@ -41,12 +64,13 @@ export async function syncOfflineQueue() {
       }
 
       try {
-        await api.post(`/DropScan/sessions/${item.sessionId}/scan`, {
+        const res = await api.post(`/DropScan/sessions/${item.sessionId}/scan`, {
           codigo_guia: item.codigo_guia,
           tarima_id: item.tarimaId,
           // Weight captured offline travels with the scan so both land atomically
           ...(item.peso_kg != null ? { peso_kg: item.peso_kg } : {}),
         })
+        onQueuedScanLanded(store, item, res.data?.guia?.id)
         store.dequeue(item.id)
         synced++
       } catch (err) {
@@ -54,6 +78,9 @@ export async function syncOfflineQueue() {
         const msg = err.response?.data?.error || err.message
 
         if (msg === 'DUPLICADO') {
+          // Same tarima → an earlier attempt of this very scan landed; the server
+          // already filled the weight we sent and returns the real guia id.
+          onQueuedScanLanded(store, item, err.response?.data?.guia_id)
           store.dequeue(item.id)
           synced++
           continue

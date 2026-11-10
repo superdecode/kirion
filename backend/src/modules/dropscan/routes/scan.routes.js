@@ -408,6 +408,15 @@ router.post('/sessions/:id/scan',
       )
       if (dupInTarima.rows.length > 0) {
         const origLocal = dupInTarima.rows[0]
+        // Offline replay of a scan whose earlier attempt actually landed (the
+        // response was lost to a timeout/503): the weight captured offline must
+        // not be dropped with the duplicate. Only fills a missing weight.
+        if (pesoInicial != null) {
+          await client.query(
+            'UPDATE guias SET peso_kg = $1 WHERE id = $2 AND peso_kg IS NULL',
+            [pesoInicial, origLocal.id]
+          )
+        }
         await client.query(
           `INSERT INTO alertas_duplicados (codigo_guia, tarima_id, operador_id, guia_original_id, tarima_original_id, tenant_id)
            VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -422,6 +431,7 @@ router.post('/sessions/:id/scan',
           error: 'DUPLICADO',
           message: 'Guía ya escaneada en esta tarima',
           duplicado_en: 'tarima_actual',
+          guia_id: origLocal.id,
           tarima_original: tarima.codigo,
           posicion_original: origLocal.posicion,
           timestamp_original: origLocal.timestamp_escaneo
